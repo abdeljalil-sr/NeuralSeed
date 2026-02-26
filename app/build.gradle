@@ -45,4 +45,14 @@ dependencies {
     
     // JSON
     implementation 'org.json:json:20230618'
+
+    // حل مشكلة التكرار (Duplicate Class) بإجبار إصدار محدد من Kotlin
+    constraints {
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0") {
+            because("إجبار إصدار واحد لمنع تكرار الكلاسات")
+        }
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0") {
+            because("إجبار إصدار واحد لمنع تكرار الكلاسات")
+        }
+    }
 }
