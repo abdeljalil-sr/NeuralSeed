@@ -4,9 +4,12 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // تحديث النسخة لتناسب Gradle 8.1.1
+        // النسخة المتوافقة مع Gradle 8.1.1
         classpath 'com.android.tools.build:gradle:8.1.1'
         classpath 'com.google.gms:google-services:4.4.0'
+        
+        // إضافة هذا السطر لتوحيد نسخة Kotlin وحل خطأ Duplicate class
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10"
     }
 }
 
