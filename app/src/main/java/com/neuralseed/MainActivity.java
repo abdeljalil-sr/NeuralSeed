@@ -1,5 +1,6 @@
 package com.neuralseed;
 
+import androidx.appcompat.app.AlertDialog;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
