@@ -39,3 +39,4 @@ jobs:
         with:
           name: NeuralSeed-Debug
           path: app/build/outputs/apk/debug/*.apk
+          
