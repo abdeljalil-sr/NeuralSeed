@@ -26,7 +26,9 @@ jobs:
           gradle-version: 8.1.1
 
       - name: Build with Gradle
-        run: gradle assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
