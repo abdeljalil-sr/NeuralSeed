@@ -486,6 +486,7 @@ public class SemanticEmotionalEngine {
         meaning.relatedConcepts.putAll(emotions);
         meanings.put(concept, meaning);
     }
+
     
     private void initializeEmotionRules() {
         // قواعد استنتاج العواطف
@@ -655,15 +656,7 @@ public class SemanticEmotionalEngine {
     /**
      * إضافة معنى جديد
      */
-    public void addMeaning(String concept, String definition, 
-                          List<String> synonyms, List<String> antonyms,
-                          Map<String, Double> emotionWeights) {
-        Meaning meaning = new Meaning(concept, definition);
-        meaning.synonyms.addAll(synonyms);
-        meaning.antonyms.addAll(antonyms);
-        meaning.relatedConcepts.putAll(emotionWeights);
-        meanings.put(concept, meaning);
-    }
+    
     
     /**
      * إضافة ربط بين كلمة ومعنى
