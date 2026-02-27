@@ -25,8 +25,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.util.*;
 
-public class MainActivity extends Activity implements NeuralSeed.ConsciousnessListener, 
-        LinguisticCortex.LinguisticListener {
+public class MainActivity extends AppCompatActivity implements NeuralSeed.ConsciousnessListener, LinguisticCortex.LinguisticListener {
     
     private NeuralSeed seed;
     private LinguisticCortex linguistic;
