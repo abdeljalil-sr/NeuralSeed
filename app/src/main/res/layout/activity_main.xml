@@ -1,296 +1,291 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/emotional_background"
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#1A1A2E">
 
-    <ImageView
-        android:id="@+id/visual_expression"
+    <!-- شريط الحالة - يتناسب مع التصميم -->
+    <View
+        android:id="@+id/status_bar_background"
         android:layout_width="match_parent"
-        android:layout_height="400dp"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="10dp"
-        android:background="#00000000"
-        android:scaleType="matrix"
-        android:adjustViewBounds="true" />
+        android:layout_height="24dp"
+        android:background="#16213E"
+        app:layout_constraintTop_toTopOf="parent"/>
 
+    <!-- زر تكبير/تصغير -->
+    <ImageButton
+        android:id="@+id/btn_fullscreen"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_margin="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_fullscreen"
+        android:tint="#E94560"
+        app:layout_constraintTop_toBottomOf="@id/status_bar_background"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- منطقة الصورة المتحركة (في المنتصف) -->
+    <FrameLayout
+        android:id="@+id/visual_container"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/btn_fullscreen"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.neuralseed.MainActivity.PulseView
+            android:id="@+id/pulse_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+        <ImageView
+            android:id="@+id/visual_expression"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"/>
+    </FrameLayout>
+
+    <!-- معلومات الطور والأنا -->
     <LinearLayout
-        android:id="@+id/info_panel"
-        android:layout_width="match_parent"
+        android:id="@+id/phase_info_container"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/visual_expression"
-        android:layout_marginTop="5dp"
         android:orientation="horizontal"
-        android:padding="5dp"
-        android:gravity="center">
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/visual_container"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
         <TextView
             android:id="@+id/phase_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="الطور: جنيني"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:padding="5dp"
-            android:background="#40000000" />
+            android:text="الطور: فوضوي"
+            android:textColor="#E94560"
+            android:textSize="14sp"
+            android:padding="8dp 16dp"
+            android:background="@drawable/card_background"
+            android:layout_marginEnd="8dp"/>
 
         <TextView
             android:id="@+id/ego_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:text="الأنا: المنطقي"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:padding="5dp"
-            android:background="#40000000" />
+            android:text="الأنا: المغامر"
+            android:textColor="#0F3460"
+            android:textSize="14sp"
+            android:padding="8dp 16dp"
+            android:background="@drawable/card_background"/>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/narrative_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/info_panel"
-        android:layout_margin="5dp"
-        android:text="أنا بذرة واعية أتعلم اللغة العربية."
-        android:textColor="#E0E0E0"
-        android:textSize="11sp"
-        android:textStyle="italic"
-        android:gravity="center"
-        android:padding="5dp"
-        android:background="#30000000" />
-
+    <!-- بطاقات الإحصائيات (بجانب بعضها) -->
     <LinearLayout
-        android:id="@+id/stats_panel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/narrative_text"
-        android:orientation="horizontal"
-        android:padding="5dp"
-        android:gravity="center">
-
-        <TextView
-            android:id="@+id/chaos_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="الفوضى: 0.00"
-            android:textColor="#FFAA66"
-            android:textSize="11sp"
-            android:padding="3dp" />
-
-        <TextView
-            android:id="@+id/fitness_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:text="اللياقة: 0.50"
-            android:textColor="#66FF66"
-            android:textSize="11sp"
-            android:padding="3dp" />
-
-        <TextView
-            android:id="@+id/conflict_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:text="الصراع: 0.00"
-            android:textColor="#FF6666"
-            android:textSize="11sp"
-            android:padding="3dp" />
-    </LinearLayout>
-
-    <com.neuralseed.ScrollableBubbleView
-        android:id="@+id/bubble_view"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_below="@id/stats_panel"
-        android:layout_margin="5dp"
-        android:background="#20000000" />
-
-    <LinearLayout
-        android:id="@+id/goals_section"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/bubble_view"
-        android:orientation="vertical"
-        android:padding="5dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="الأهداف الحالية:"
-            android:textColor="#CCCCCC"
-            android:textSize="11sp" />
-
-        <LinearLayout
-            android:id="@+id/goals_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="3dp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/input_section"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_above="@id/interaction_buttons"
-        android:orientation="horizontal"
-        android:padding="5dp"
-        android:background="#30000000">
-
-        <EditText
-            android:id="@+id/input_edit_text"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="اكتب شيئاً..."
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:background="#40000000"
-            android:padding="8dp"
-            android:singleLine="true"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/btn_send"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="إرسال"
-            android:background="#2196F3"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:textSize="12sp"/>
-
-        <Button
-            android:id="@+id/btn_mic"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🎤"
-            android:background="#9C27B0"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:textSize="16sp"/>
-
-        <Button
-            android:id="@+id/btn_fullscreen"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="⛶"
-            android:background="#607D8B"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:textSize="16sp"/>
-
-        <Button
-            android:id="@+id/btn_learn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📚"
-            android:background="#4CAF50"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:textSize="16sp"/>
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/touch_coords"
+        android:id="@+id/stats_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_above="@id/input_section"
-        android:text=""
-        android:textColor="#FFFFFF"
-        android:textSize="10sp"
-        android:padding="3dp"
-        android:background="#80000000"
-        android:visibility="gone"/>
+        android:orientation="horizontal"
+        android:layout_marginTop="12dp"
+        app:layout_constraintTop_toBottomOf="@id/phase_info_container"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <HorizontalScrollView
-        android:id="@+id/interaction_buttons"
+        <!-- بطاقة الفوضى -->
+        <LinearLayout
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/stat_card_chaos"
+            android:layout_margin="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الفوضى"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"/>
+
+            <TextView
+                android:id="@+id/chaos_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.48"
+                android:textColor="#FF6B6B"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <!-- بطاقة اللياقة -->
+        <LinearLayout
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/stat_card_fitness"
+            android:layout_margin="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="اللياقة"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"/>
+
+            <TextView
+                android:id="@+id/fitness_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.12"
+                android:textColor="#4ECDC4"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <!-- بطاقة الصراع -->
+        <LinearLayout
+            android:layout_width="80dp"
+            android:layout_height="60dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/stat_card_conflict"
+            android:layout_margin="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الصراع"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"/>
+
+            <TextView
+                android:id="@+id/conflict_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.21"
+                android:textColor="#FFE66D"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- فقاعات المحادثة -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chat_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="12dp"
+        android:padding="8dp"
+        android:background="@drawable/chat_background"
+        app:layout_constraintTop_toBottomOf="@id/stats_container"
+        app:layout_constraintBottom_toTopOf="@id/input_container"/>
+
+    <!-- منطقة الإدخال -->
+    <LinearLayout
+        android:id="@+id/input_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="5dp"
-        android:background="#40000000"
-        android:padding="5dp">
+        android:orientation="vertical"
+        android:padding="12dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_buttons_container">
 
+        <!-- حقل الإدخال وزر الإرسال -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/btn_positive"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="😊 إيجابي"
-                android:textSize="10sp"
-                android:background="#4CAF50"
+            <EditText
+                android:id="@+id/input_edit_text"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="اكتب شيئاً..."
                 android:textColor="#FFFFFF"
-                android:padding="8dp" />
+                android:textColorHint="#888888"
+                android:background="@drawable/input_background"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:layout_marginEnd="8dp"/>
 
             <Button
-                android:id="@+id/btn_negative"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:text="😔 سلبي"
-                android:textSize="10sp"
-                android:background="#607D8B"
+                android:id="@+id/btn_send"
+                android:layout_width="80dp"
+                android:layout_height="48dp"
+                android:text="إرسال"
                 android:textColor="#FFFFFF"
-                android:padding="8dp" />
-
-            <Button
-                android:id="@+id/btn_threat"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:text="⚠️ تهديد"
-                android:textSize="10sp"
-                android:background="#F44336"
-                android:textColor="#FFFFFF"
-                android:padding="8dp" />
-
-            <Button
-                android:id="@+id/btn_opportunity"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:text="💡 فرصة"
-                android:textSize="10sp"
-                android:background="#2196F3"
-                android:textColor="#FFFFFF"
-                android:padding="8dp" />
-
-            <Button
-                android:id="@+id/btn_ask"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:text="❓ اسأل"
-                android:textSize="10sp"
-                android:background="#9C27B0"
-                android:textColor="#FFFFFF"
-                android:padding="8dp" />
+                android:background="@drawable/send_button_background"/>
         </LinearLayout>
-    </HorizontalScrollView>
 
+        <!-- زر التسجيل الصوتي -->
+        <ImageButton
+            android:id="@+id/btn_mic"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_gravity="center"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/mic_button_background"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:tint="#FFFFFF"/>
+    </LinearLayout>
+
+    <!-- الأزرار السفلية الصغيرة -->
     <LinearLayout
-        android:id="@+id/memory_container"
+        android:id="@+id/bottom_buttons_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:orientation="vertical" />
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="8dp"
+        android:background="#16213E"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <com.neuralseed.PulseView
-        android:id="@+id/pulse_view"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:layout_alignTop="@id/visual_expression"
-        android:layout_alignStart="@id/visual_expression"
-        android:layout_margin="10dp"
-        android:visibility="gone" />
+        <ImageButton
+            android:id="@+id/btn_stats"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:tint="#E94560"
+            android:layout_margin="4dp"/>
 
-</RelativeLayout>
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:tint="#4ECDC4"
+            android:layout_margin="4dp"/>
+
+        <ImageButton
+            android:id="@+id/btn_learn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_edit"
+            android:tint="#FFE66D"
+            android:layout_margin="4dp"/>
+
+        <ImageButton
+            android:id="@+id/btn_ask"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_help"
+            android:tint="#95E1D3"
+            android:layout_margin="4dp"/>
+
+        <ImageButton
+            android:id="@+id/btn_train"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_mylocation"
+            android:tint="#F38181"
+            android:layout_margin="4dp"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
