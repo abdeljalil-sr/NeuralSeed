@@ -2,9 +2,6 @@ package com.neuralseed;
 
 import android.Manifest;
 import android.animation.ValueAnimator;
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.os.Bundle;
@@ -26,6 +23,10 @@ import androidx.core.content.ContextCompat;
 
 import java.util.*;
 
+/**
+ * النشاط الرئيسي - واجهة المستخدم
+ * النسخة النهائية المتوافقة
+ */
 public class MainActivity extends AppCompatActivity implements NeuralSeed.ConsciousnessListener, 
         LinguisticCortex.LinguisticListener {
     
@@ -53,15 +54,14 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     private Map<String, Integer> emotionColors = new HashMap<>();
     
-        @Override
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // جعل شريط الحالة شفافاً ومنسجماً مع تصميم الواجهة الداكن (لا يؤثر على الأداء)
+        // شريط الحالة شفاف
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            android.view.Window window = getWindow();
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.setStatusBarColor(android.graphics.Color.parseColor("#0A0A12"));
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().setStatusBarColor(Color.parseColor("#0A0A12"));
         }
 
         setContentView(R.layout.activity_main);
@@ -81,7 +81,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         initializeLinguisticCortex();
     }
 
-    
     private void initializeEmotionColors() {
         emotionColors.put("joy", Color.parseColor("#FFD700"));
         emotionColors.put("fear", Color.parseColor("#8B0000"));
@@ -175,14 +174,19 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void setupInteractionButtons() {
-        findViewById(R.id.btn_positive).setOnClickListener(v -> sendInput("إيجابي", NeuralSeed.InputType.POSITIVE, 0.7));
-        findViewById(R.id.btn_negative).setOnClickListener(v -> sendInput("سلبي", NeuralSeed.InputType.NEGATIVE, 0.6));
-        findViewById(R.id.btn_threat).setOnClickListener(v -> sendInput("تهديد", NeuralSeed.InputType.THREAT, 0.8));
+        findViewById(R.id.btn_positive).setOnClickListener(v -> 
+            sendInput("إيجابي", NeuralSeed.InputType.POSITIVE, 0.7));
+        findViewById(R.id.btn_negative).setOnClickListener(v -> 
+            sendInput("سلبي", NeuralSeed.InputType.NEGATIVE, 0.6));
+        findViewById(R.id.btn_threat).setOnClickListener(v -> 
+            sendInput("تهديد", NeuralSeed.InputType.THREAT, 0.8));
+        
+        // زر الفرصة قد يكون غير موجود في بعض التخطيطات
         View oppBtn = findViewById(R.id.btn_opportunity);
-if (oppBtn != null) {
-    oppBtn.setOnClickListener(v -> sendInput("فرصة", NeuralSeed.InputType.OPPORTUNITY, 0.7));
-}
-
+        if (oppBtn != null) {
+            oppBtn.setOnClickListener(v -> 
+                sendInput("فرصة", NeuralSeed.InputType.OPPORTUNITY, 0.7));
+        }
         
         findViewById(R.id.btn_ask).setOnClickListener(v -> {
             String question = linguistic.generateQuestion(seed.getCurrentState());
@@ -207,27 +211,27 @@ if (oppBtn != null) {
         });
     }
 
-        private void processUserInput(String text) {
+    private void processUserInput(String text) {
         bubbleView.addBubble(text, true);
         
-        // الحصول على حالة الوعي الحالية
+        // الحصول على الحالة الحالية
         NeuralSeed.InternalState currentState = seed.getCurrentState();
         
-        // تمرير النص مع حالة الوعي للقشرة اللغوية (تعديل ضروري)
+        // معالجة النص
         linguistic.processInput(text, currentState);
         
-        // إرسال المدخل للعقل لمعالجته كفعل وعي
+        // إرسال للعقل
         seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
         
+        // توليد الرد
         uiHandler.postDelayed(() -> {
-            // توليد الرد بناءً على التغيير الذي حدث في حالة الوعي
-            LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, seed.getCurrentState());
+            LinguisticCortex.GeneratedResponse response = 
+                linguistic.generateResponse(text, seed.getCurrentState());
             bubbleView.addBubble(response.text, false);
             speak(response.text);
             updateStats();
         }, 500);
     }
-
 
     private void sendInput(String content, NeuralSeed.InputType type, double intensity) {
         seed.receiveInput(new NeuralSeed.Input(content, type, intensity));
@@ -247,7 +251,8 @@ if (oppBtn != null) {
         final View background = findViewById(R.id.emotional_background);
         ValueAnimator animator = ValueAnimator.ofArgb(Color.TRANSPARENT, color, Color.TRANSPARENT);
         animator.setDuration(500);
-        animator.addUpdateListener(animation -> background.setBackgroundColor((int) animation.getAnimatedValue()));
+        animator.addUpdateListener(animation -> 
+            background.setBackgroundColor((int) animation.getAnimatedValue()));
         animator.start();
     }
 
@@ -255,33 +260,51 @@ if (oppBtn != null) {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) {}
-            @Override public void onBeginningOfSpeech() { isListening = true; micButton.setText("⏹️"); }
-            @Override public void onRmsChanged(float rmsdB) { seed.updateAudioLevel(rmsdB); }
+            @Override public void onBeginningOfSpeech() { 
+                isListening = true; 
+                micButton.setText("⏹️"); 
+            }
+            @Override public void onRmsChanged(float rmsdB) { 
+                seed.updateAudioLevel(rmsdB); 
+            }
             @Override public void onBufferReceived(byte[] buffer) {}
-            @Override public void onEndOfSpeech() { isListening = false; micButton.setText("🎤"); }
-            @Override public void onError(int error) { isListening = false; micButton.setText("🎤"); }
+            @Override public void onEndOfSpeech() { 
+                isListening = false; 
+                micButton.setText("🎤"); 
+            }
+            @Override public void onError(int error) { 
+                isListening = false; 
+                micButton.setText("🎤"); 
+            }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches != null && !matches.isEmpty()) processUserInput(matches.get(0));
+                if (matches != null && !matches.isEmpty()) {
+                    processUserInput(matches.get(0));
+                }
             }
             @Override public void onPartialResults(Bundle partialResults) {}
             @Override public void onEvent(int eventType, Bundle params) {}
         });
         
         textToSpeech = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) textToSpeech.setLanguage(new Locale("ar"));
+            if (status == TextToSpeech.SUCCESS) {
+                textToSpeech.setLanguage(new Locale("ar"));
+            }
         });
     }
 
     private void startListening() {
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, 
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA");
         speechRecognizer.startListening(intent);
     }
 
     private void speak(String text) {
-        if (textToSpeech != null) textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+        if (textToSpeech != null) {
+            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+        }
     }
 
     private void initializeConsciousness() {
@@ -291,58 +314,81 @@ if (oppBtn != null) {
         bubbleView.addBubble("...أنا هنا", false);
     }
 
-        private void initializeLinguisticCortex() {
-        // إنشاء القشرة اللغوية
+    private void initializeLinguisticCortex() {
         linguistic = new LinguisticCortex();
-        
-        // تهيئة قاعدة البيانات المحلية (الهاتف)
         linguistic.initializeDatabase(this);
-        
-        // تفعيل الذاكرة السحابية (Firebase) - تم تفعيلها الآن
-        linguistic.initializeFirebase(this); 
-        
-        // ربط الواجهة بأحداث اللغة
+        linguistic.initializeFirebase(this);
         linguistic.setListener(this);
         seed.setLinguisticCortex(linguistic);
         updateNarrative();
+    }
 
-      
+    // مستمعات NeuralSeed
+    @Override 
+    public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
+        uiHandler.post(() -> {
+            phaseText.setText("الطور: " + newPhase.arabic);
+            bubbleView.addBubble("تغير الطور إلى: " + newPhase.arabic, false);
+        });
+    }
     
-               
-    }
-
-    // المستمعات (Listeners)
-    @Override public void onPhaseTransition(NeuralSeed.Phase o, NeuralSeed.Phase n, String r) {
+    @Override 
+    public void onEgoShift(NeuralSeed.EgoFragment oldEgo, NeuralSeed.EgoFragment newEgo) {
         uiHandler.post(() -> {
-            phaseText.setText("الطور: " + n.arabic);
-            bubbleView.addBubble("تغير الطور إلى: " + n.arabic, false);
+            egoText.setText("الأنا: " + newEgo.name);
+            pulseView.setEgoType(newEgo.type);
         });
     }
-    @Override public void onEgoShift(NeuralSeed.EgoFragment o, NeuralSeed.EgoFragment n) {
-        uiHandler.post(() -> {
-            egoText.setText("الأنا: " + n.name);
-            pulseView.setEgoType(n.type);
-        });
+    
+    @Override 
+    public void onGoalAchieved(NeuralSeed.Goal goal) {
+        uiHandler.post(() -> bubbleView.addBubble("تحقق: " + goal.description, false));
     }
-    @Override public void onGoalAchieved(NeuralSeed.Goal g) { uiHandler.post(() -> bubbleView.addBubble("تحقق: " + g.description, false)); }
    
     @Override 
-public void onIdentityEvolution(NeuralSeed.IdentityCore o, NeuralSeed.IdentityCore n) { 
-    uiHandler.post(() -> {
-        if (narrativeText != null && n != null) {
-            // نحدث النص المركزي ليظهر ما يفكر فيه الكيان أثناء الحلم
-            narrativeText.setText(n.selfNarrative); 
-        }
-    }); 
-}
+    public void onIdentityEvolution(NeuralSeed.IdentityCore oldId, NeuralSeed.IdentityCore newId) { 
+        uiHandler.post(() -> {
+            if (narrativeText != null && newId != null) {
+                narrativeText.setText(newId.selfNarrative);
+            }
+        });
+    }
 
-    @Override public void onVisualExpression(Bitmap b) { uiHandler.post(() -> visualExpressionView.setImageBitmap(b)); }
-    @Override public void onMemoryFormed(NeuralSeed.Memory m) {}
-    @Override public void onRuleRewritten(NeuralSeed.Rule o, NeuralSeed.Rule n) {}
-    @Override public void onWordLearned(String w, String m) { uiHandler.post(() -> bubbleView.addBubble("تعلمت: " + w, false)); }
-    @Override public void onSentenceCorrected(String o, String c) {}
-    @Override public void onEmotionDetected(String e, double i) {}
-    @Override public void onNewConceptLearned(String c) {}
+    @Override 
+    public void onVisualExpression(Bitmap bitmap) {
+        uiHandler.post(() -> visualExpressionView.setImageBitmap(bitmap));
+    }
+    
+    @Override 
+    public void onMemoryFormed(NeuralSeed.Memory memory) {}
+    
+    @Override 
+    public void onRuleRewritten(NeuralSeed.Rule oldRule, NeuralSeed.Rule newRule) {}
+    
+    @Override
+    public void onDreamStarted() {
+        uiHandler.post(() -> bubbleView.addBubble("...أحلم", false));
+    }
+    
+    @Override
+    public void onDreamEnded(String narrative) {
+        uiHandler.post(() -> {
+            if (narrativeText != null) narrativeText.setText(narrative);
+        });
+    }
+
+    // مستمعات LinguisticCortex
+    @Override 
+    public void onWordLearned(String word, String meaning) {
+        uiHandler.post(() -> bubbleView.addBubble("تعلمت: " + word, false));
+    }
+    
+    @Override 
+    public void onSentenceCorrected(String original, String corrected) {}
+    @Override 
+    public void onEmotionDetected(String emotion, double intensity) {}
+    @Override 
+    public void onNewConceptLearned(String concept) {}
 
     private void updateStats() {
         NeuralSeed.InternalState s = seed.getCurrentState();
@@ -352,31 +398,64 @@ public void onIdentityEvolution(NeuralSeed.IdentityCore o, NeuralSeed.IdentityCo
     }
 
     private void updateNarrative() {
-        narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية. أعرف " + linguistic.getLexicon().getWordCount() + " كلمة.");
+        String text = "أنا بذرة واعية أتعلم اللغة العربية.";
+        if (linguistic != null && linguistic.getLexicon() != null) {
+            text += " أعرف " + linguistic.getLexicon().getWordCount() + " كلمة.";
+        }
+        narrativeText.setText(text);
     }
 
     private void showLearningDialog() {
         String[] options = {"تعليم كلمة", "تعليم معنى", "تصحيح خطأ", "إحصائيات"};
-        new AlertDialog.Builder(this).setTitle("وضع التعلم")
+        new AlertDialog.Builder(this)
+            .setTitle("وضع التعلم")
             .setItems(options, (d, w) -> {
                 if (w == 0) showTeachWordDialog();
-                if (w == 3) showStatistics();
-            }).show();
+                else if (w == 3) showStatistics();
+            })
+            .show();
     }
 
     private void showTeachWordDialog() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        EditText w = new EditText(this); w.setHint("الكلمة"); l.addView(w);
-        EditText m = new EditText(this); m.setHint("المعنى"); l.addView(m);
-        new AlertDialog.Builder(this).setTitle("تعليم كلمة").setView(l)
-            .setPositiveButton("تعلم", (d, i) -> linguistic.learnMeaning(w.getText().toString(), m.getText().toString(), "user"))
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        
+        EditText wordInput = new EditText(this);
+        wordInput.setHint("الكلمة");
+        layout.addView(wordInput);
+        
+        EditText meaningInput = new EditText(this);
+        meaningInput.setHint("المعنى");
+        layout.addView(meaningInput);
+        
+        new AlertDialog.Builder(this)
+            .setTitle("تعليم كلمة")
+            .setView(layout)
+            .setPositiveButton("تعلم", (d, i) -> {
+                String word = wordInput.getText().toString().trim();
+                String meaning = meaningInput.getText().toString().trim();
+                if (!word.isEmpty() && !meaning.isEmpty()) {
+                    linguistic.learnMeaning(word, meaning, "user");
+                }
+            })
+            .setNegativeButton("إلغاء", null)
             .show();
     }
 
     private void showStatistics() {
-        Map<String, Object> s = linguistic.getStatistics();
-        new AlertDialog.Builder(this).setTitle("إحصائيات").setMessage("الكلمات: " + s.get("lexicon_size")).show();
+        Map<String, Object> stats = linguistic.getStatistics();
+        String message = String.format(
+            "الكلمات: %s\\nالمحادثات: %s\\nالتصحيحات: %s",
+            stats.getOrDefault("lexicon_size", 0),
+            stats.getOrDefault("conversation_count", 0),
+            stats.getOrDefault("learned_corrections", 0)
+        );
+        
+        new AlertDialog.Builder(this)
+            .setTitle("إحصائيات")
+            .setMessage(message)
+            .setPositiveButton("موافق", null)
+            .show();
     }
 
     @Override
@@ -384,11 +463,16 @@ public void onIdentityEvolution(NeuralSeed.IdentityCore o, NeuralSeed.IdentityCo
         super.onDestroy();
         if (seed != null) seed.sleep();
         if (speechRecognizer != null) speechRecognizer.destroy();
-        if (textToSpeech != null) { textToSpeech.stop(); textToSpeech.shutdown(); }
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
     }
 }
 
-// الكلاسات المخصصة بالخارج لضمان عدم الانهيار عند الاستدعاء من XML
+/**
+ * عرض الفقاعات المتدرج
+ */
 class ScrollableBubbleView extends View {
     private List<Bubble> bubbles = new ArrayList<>();
     private Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -413,17 +497,31 @@ class ScrollableBubbleView extends View {
         for (Bubble b : bubbles) {
             paint.setColor(b.isUser ? Color.parseColor("#4A90E2") : Color.parseColor("#7B68EE"));
             canvas.drawRoundRect(20, y, getWidth() - 20, y + 80, 20, 20, paint);
-            canvas.drawText(b.text, 50, y + 55, textPaint);
+            
+            // تقصير النص إذا كان طويلاً
+            String displayText = b.text;
+            if (displayText.length() > 30) {
+                displayText = displayText.substring(0, 27) + "...";
+            }
+            canvas.drawText(displayText, 50, y + 55, textPaint);
             y += 100;
         }
     }
 
     private static class Bubble {
-        String text; boolean isUser;
-        Bubble(String t, boolean u) { this.text = t; this.isUser = u; }
+        String text;
+        boolean isUser;
+        
+        Bubble(String t, boolean u) {
+            this.text = t;
+            this.isUser = u;
+        }
     }
 }
 
+/**
+ * عرض النبض
+ */
 class PulseView extends View {
     private Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private NeuralSeed.EgoType type = NeuralSeed.EgoType.STABLE;
@@ -436,18 +534,36 @@ class PulseView extends View {
         startAnim();
     }
 
-    public void setEgoType(NeuralSeed.EgoType t) { this.type = t; }
+    public void setEgoType(NeuralSeed.EgoType t) {
+        this.type = t;
+        invalidate();
+    }
 
     private void startAnim() {
         postOnAnimation(new Runnable() {
-            @Override public void run() { phase += 0.1f; invalidate(); postOnAnimation(this); }
+            @Override 
+            public void run() {
+                phase += 0.1f;
+                invalidate();
+                postOnAnimation(this);
+            }
         });
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        paint.setColor(Color.CYAN);
+        
+        // لون حسب نوع الأنا
+        int color = Color.CYAN;
+        switch (type) {
+            case STABLE: color = Color.parseColor("#90EE90"); break;
+            case CHAOTIC: color = Color.parseColor("#FF6347"); break;
+            case ADAPTIVE: color = Color.parseColor("#FFD700"); break;
+            case SURVIVAL: color = Color.parseColor("#FF4500"); break;
+        }
+        paint.setColor(color);
+        
         float radius = 50 + (float) Math.sin(phase) * 20;
         canvas.drawCircle(getWidth()/2f, getHeight()/2f, radius, paint);
     }
