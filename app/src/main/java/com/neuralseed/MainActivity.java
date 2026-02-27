@@ -345,38 +345,65 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
 }
 
 // الكلاسات المخصصة بالخارج لضمان عدم الانهيار عند الاستدعاء من XML
-class ScrollableBubbleView extends View {
-    private List<Bubble> bubbles = new ArrayList<>();
-    private Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    public ScrollableBubbleView(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        textPaint.setTextSize(36);
-        textPaint.setColor(Color.WHITE);
-    }
-
-    public void addBubble(String text, boolean isUser) {
-        bubbles.add(new Bubble(text, isUser));
-        if (bubbles.size() > 5) bubbles.remove(0);
-        invalidate();
-    }
-
-    @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
-        int y = 50;
-        for (Bubble b : bubbles) {
-            paint.setColor(b.isUser ? Color.parseColor("#4A90E2") : Color.parseColor("#7B68EE"));
-            canvas.drawRoundRect(20, y, getWidth() - 20, y + 80, 20, 20, paint);
-            canvas.drawText(b.text, 50, y + 55, textPaint);
-            y += 100;
+// استبدل كلاس ScrollableBubbleView بهذا:
+public static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
+    private List<ChatMessage> messages = new ArrayList<>();
+    
+    public static class ChatMessage {
+        String text;
+        boolean isUser;
+        long timestamp;
+        
+        ChatMessage(String text, boolean isUser) {
+            this.text = text;
+            this.isUser = isUser;
+            this.timestamp = System.currentTimeMillis();
         }
     }
-
-    private static class Bubble {
-        String text; boolean isUser;
-        Bubble(String t, boolean u) { this.text = t; this.isUser = u; }
+    
+    public static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView messageText;
+        LinearLayout bubbleContainer;
+        
+        public ViewHolder(View itemView) {
+            super(itemView);
+            messageText = itemView.findViewById(R.id.message_text);
+            bubbleContainer = itemView.findViewById(R.id.bubble_container);
+        }
+    }
+    
+    @Override
+    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+            .inflate(R.layout.item_chat_message, parent, false);
+        return new ViewHolder(view);
+    }
+    
+    @Override
+    public void onBindViewHolder(ViewHolder holder, int position) {
+        ChatMessage msg = messages.get(position);
+        holder.messageText.setText(msg.text);
+        
+        // تنسيق الفقاعة حسب المرسل
+        if (msg.isUser) {
+            holder.bubbleContainer.setGravity(Gravity.END);
+            holder.messageText.setBackgroundResource(R.drawable.bubble_user);
+            holder.messageText.setTextColor(Color.WHITE);
+        } else {
+            holder.bubbleContainer.setGravity(Gravity.START);
+            holder.messageText.setBackgroundResource(R.drawable.bubble_ai);
+            holder.messageText.setTextColor(Color.WHITE);
+        }
+    }
+    
+    @Override
+    public int getItemCount() {
+        return messages.size();
+    }
+    
+    public void addMessage(String text, boolean isUser) {
+        messages.add(new ChatMessage(text, isUser));
+        notifyItemInserted(messages.size() - 1);
     }
 }
 
