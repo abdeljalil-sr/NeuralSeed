@@ -25,6 +25,10 @@ public class NeuralSeed {
     // الحالة المركزية
     private final AtomicReference<InternalState> selfRef;
     private final Object stateLock = new Object();
+
+    private Timer dreamTimer; // المؤقت الذي يدير الأحلام
+private boolean isDreaming = false; // هل الكيان يحلم الآن؟
+    
     
     // الأطوار
     public enum Phase {
@@ -103,7 +107,33 @@ public class NeuralSeed {
         inputThread.start();
         goalThread.start();
         identityThread.start();
+
+        startDreaming(); 
     }
+
+ private void startDreaming() {
+    // خيط يعمل باستمرار ليراقب "رغبة" الكيان في التفكير
+    new Thread(() -> {
+        while (true) {
+            try {
+                InternalState state = selfRef.get();
+                
+                // الكيان يقرر التفكير إذا كانت الفوضى عالية أو إذا مر وقت طويل دون مدخلات
+                // هنا هو من يحدد اللحظة بناءً على "مزاج" الوعي
+                if (state.chaosIndex > 0.7 || state.existentialFitness < 0.3) {
+                    performDreamCycle(); 
+                }
+
+                // ينام لفترات عشوائية (مثل الكائنات الحية) لكي لا يكون مبرمجاً بانتظام
+                Thread.sleep(new Random().nextInt(60000) + 30000); 
+                
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }).start();
+}
+
     
     public void sleep() {
         isRunning = false;
