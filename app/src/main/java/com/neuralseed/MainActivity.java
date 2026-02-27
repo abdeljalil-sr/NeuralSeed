@@ -299,8 +299,12 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         
         // ربط الواجهة بأحداث اللغة
         linguistic.setListener(this);
-        
+        seed.setLinguisticCortex(linguistic);
         updateNarrative();
+
+      
+    
+               
     }
 
     // المستمعات (Listeners)
