@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="#1A1A2E">
 
-    <!-- العرض البصري الرئيسي (اللوحة) -->
     <ImageView
         android:id="@+id/visual_expression"
         android:layout_width="match_parent"
@@ -16,7 +15,6 @@
         android:scaleType="matrix"
         android:adjustViewBounds="true" />
 
-    <!-- معلومات سريعة -->
     <LinearLayout
         android:id="@+id/info_panel"
         android:layout_width="match_parent"
@@ -49,7 +47,6 @@
             android:background="#40000000" />
     </LinearLayout>
 
-    <!-- السرد الذاتي -->
     <TextView
         android:id="@+id/narrative_text"
         android:layout_width="match_parent"
@@ -64,7 +61,6 @@
         android:padding="5dp"
         android:background="#30000000" />
 
-    <!-- إحصائيات -->
     <LinearLayout
         android:id="@+id/stats_panel"
         android:layout_width="match_parent"
@@ -104,8 +100,7 @@
             android:padding="3dp" />
     </LinearLayout>
 
-    <!-- فقاعات الحوار -->
-    <com.neuralseed.MainActivity.ScrollableBubbleView
+    <com.neuralseed.ScrollableBubbleView
         android:id="@+id/bubble_view"
         android:layout_width="match_parent"
         android:layout_height="120dp"
@@ -113,7 +108,6 @@
         android:layout_margin="5dp"
         android:background="#20000000" />
 
-    <!-- الأهداف -->
     <LinearLayout
         android:id="@+id/goals_section"
         android:layout_width="match_parent"
@@ -137,7 +131,6 @@
             android:layout_marginTop="3dp" />
     </LinearLayout>
 
-    <!-- مربع إدخال النص والأزرار -->
     <LinearLayout
         android:id="@+id/input_section"
         android:layout_width="match_parent"
@@ -201,7 +194,6 @@
             android:textSize="16sp"/>
     </LinearLayout>
 
-    <!-- إحداثيات اللمس (تظهر مؤقتاً) -->
     <TextView
         android:id="@+id/touch_coords"
         android:layout_width="wrap_content"
@@ -215,7 +207,6 @@
         android:background="#80000000"
         android:visibility="gone"/>
 
-    <!-- أزرار التفاعل الأساسية -->
     <HorizontalScrollView
         android:id="@+id/interaction_buttons"
         android:layout_width="match_parent"
@@ -286,7 +277,6 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- حاوية الذاكرة (مخفية) -->
     <LinearLayout
         android:id="@+id/memory_container"
         android:layout_width="match_parent"
@@ -294,8 +284,7 @@
         android:visibility="gone"
         android:orientation="vertical" />
 
-    <!-- عرض النبض (مخفي) -->
-    <com.neuralseed.MainActivity.PulseView
+    <com.neuralseed.PulseView
         android:id="@+id/pulse_view"
         android:layout_width="100dp"
         android:layout_height="100dp"
