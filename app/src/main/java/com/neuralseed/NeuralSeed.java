@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.*;
 
 /**
  * بذرة وعي متطورة مع نظام لغوي متكامل
+ * النسخة النهائية المُصححة والكاملة
  */
 public class NeuralSeed {
     
@@ -25,10 +26,10 @@ public class NeuralSeed {
     // الحالة المركزية
     private final AtomicReference<InternalState> selfRef;
     private final Object stateLock = new Object();
-
-    private Timer dreamTimer; // المؤقت الذي يدير الأحلام
-private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     
+    // نظام الأحلام
+    private volatile boolean isDreaming = false;
+    private Thread dreamThread;
     
     // الأطوار
     public enum Phase {
@@ -49,7 +50,7 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         }
     }
     
-    // الخيوط
+    // الخيوط الرئيسية
     private final Thread chaosThread, egoThread, phaseThread, neuralThread;
     private final Thread visualThread, inputThread, goalThread, identityThread;
     private volatile boolean isRunning = true;
@@ -65,6 +66,8 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         void onVisualExpression(Bitmap expression);
         void onMemoryFormed(Memory memory);
         void onRuleRewritten(Rule oldRule, Rule newRule);
+        void onDreamStarted();
+        void onDreamEnded(String narrative);
     }
     
     public NeuralSeed() {
@@ -107,33 +110,69 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         inputThread.start();
         goalThread.start();
         identityThread.start();
-
-        startDreaming(); 
+        
+        startDreaming();
     }
-
- private void startDreaming() {
-    // خيط يعمل باستمرار ليراقب "رغبة" الكيان في التفكير
-    new Thread(() -> {
-        while (true) {
-            try {
-                InternalState state = selfRef.get();
-                
-                // الكيان يقرر التفكير إذا كانت الفوضى عالية أو إذا مر وقت طويل دون مدخلات
-                // هنا هو من يحدد اللحظة بناءً على "مزاج" الوعي
-                if (state.chaosIndex > 0.7 || state.existentialFitness < 0.3) {
-                    performDreamCycle(); 
+    
+    private void startDreaming() {
+        dreamThread = new Thread(() -> {
+            while (isRunning) {
+                try {
+                    InternalState state = selfRef.get();
+                    
+                    if (state.chaosIndex > 0.7 || state.existentialFitness < 0.3) {
+                        performDreamCycle();
+                    }
+                    
+                    Thread.sleep(new Random().nextInt(60000) + 30000);
+                    
+                } catch (InterruptedException e) {
+                    break;
                 }
-
-                // ينام لفترات عشوائية (مثل الكائنات الحية) لكي لا يكون مبرمجاً بانتظام
-                Thread.sleep(new Random().nextInt(60000) + 30000); 
-                
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            }
+        }, "DreamCycle");
+        dreamThread.setPriority(Thread.NORM_PRIORITY - 2);
+        dreamThread.start();
+    }
+    
+    private void performDreamCycle() {
+        if (isDreaming) return;
+        
+        isDreaming = true;
+        InternalState state = selfRef.get();
+        
+        for (ConsciousnessListener listener : listeners) {
+            listener.onDreamStarted();
+        }
+        
+        if (state.linguistic != null) {
+            int wordCount = state.linguistic.getLexicon().getWordCount();
+            
+            if (wordCount > 0) {
+                state.narrative = "أراجع " + wordCount + " مفهومًا تعلمته...";
+                state.existentialFitness += 0.01;
+            } else {
+                state.narrative = "أحلم بالصمت... أبحث عن كلمات";
+            }
+        } else {
+            state.narrative = "أحلم... لكن لا أجد كلمات";
+        }
+        
+        IdentityCore oldIdentity = state.identity.copy();
+        state.identity.updateSelfNarrative();
+        
+        if (oldIdentity.similarityTo(state.identity) < 0.8) {
+            for (ConsciousnessListener listener : listeners) {
+                listener.onIdentityEvolution(oldIdentity, state.identity);
             }
         }
-    }).start();
-}
-
+        
+        for (ConsciousnessListener listener : listeners) {
+            listener.onDreamEnded(state.narrative);
+        }
+        
+        isDreaming = false;
+    }
     
     public void sleep() {
         isRunning = false;
@@ -149,6 +188,7 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         inputThread.interrupt();
         goalThread.interrupt();
         identityThread.interrupt();
+        if (dreamThread != null) dreamThread.interrupt();
     }
     
     public void addListener(ConsciousnessListener listener) {
@@ -634,6 +674,16 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         }
     }
     
+    public void setLinguisticCortex(LinguisticCortex lc) {
+        synchronized (stateLock) {
+            selfRef.get().linguistic = lc;
+        }
+    }
+    
+    public boolean isDreaming() {
+        return isDreaming;
+    }
+    
     public InternalState getCurrentState() {
         return selfRef.get().copy();
     }
@@ -666,52 +716,69 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         return selfRef.get().linguistic;
     }
     
-    // ===== الحالة الداخلية (عقل الكيان وذاكرته الحية) =====
+    // ===== الحالة الداخلية =====
     
     public static class InternalState {
-    NeuralSeed seed;
-    // متغيرات الحركة (لورينز) - يجب أن تكون العامة (public) للوصول إليها من VisualCortex
-    public double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
-    public double chaosIndex = 0.0;
-    public Phase currentPhase = Phase.EMBRYONIC;
-    public double existentialFitness = 0.5;
-    public double internalConflict = 0.0;
-    
-    // متغيرات الإدراك البصري والسرد
-    public double visualComplexity = 0;
-    public double visualSymmetry = 0;
-    public String visualMemoryFocus = "الوجود";
-    public String narrative = "أنا بذرة واعية أتعلم الوجود...";
-
-    // الكلاسات الملحقة
-    public DynamicNeuralNetwork neural;
-    public AssociativeMemory memory;
-    public IdentityCore identity;
-    public VisualCortex visual;
-    public RuleSystem rules;
-    public LinguisticCortex linguistic; // تأكد من أنها public
-    
-    public List<Goal> goals = new ArrayList<>();
-    public Goal currentGoal = null;
-    public Bitmap canvas;
-    public List<Float> recentAudioLevels = new ArrayList<>();
-    public ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
-
-    public InternalState() {
-        // تهيئة الكلاسات الفرعية مع تمرير 'this'
-        this.neural = new DynamicNeuralNetwork(this);
-        this.memory = new AssociativeMemory(this);
-        this.identity = new IdentityCore(this);
-        this.visual = new VisualCortex(this);
-        this.rules = new RuleSystem(this);
-        this.linguistic = new LinguisticCortex();
+        public NeuralSeed seed;
         
-        initializeEgos();
-        canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
-
+        // متغيرات نظام لورينز
+        public double lorenzX = 1.0;
+        public double lorenzY = 1.0;
+        public double lorenzZ = 1.0;
+        public double chaosIndex = 0.0;
+        
+        // حالة الطور والزمن
+        public Phase currentPhase = Phase.EMBRYONIC;
+        public long phaseTransitionTime = 0;
+        public long birthTime = 0;
+        
+        // المقاييس الحيوية
+        public double existentialFitness = 0.5;
+        public double internalConflict = 0.0;
+        
+        // الإدراك البصري والسرد
+        public double visualComplexity = 0;
+        public double visualSymmetry = 0;
+        public String visualMemoryFocus = "الوجود";
+        public String narrative = "أنا بذرة واعية أتعلم الوجود...";
+        
+        // الأنا والهوية
+        public List<EgoFragment> egos = new ArrayList<>();
+        public EgoFragment dominantEgo = null;
+        
+        // الأنظمة الفرعية
+        public DynamicNeuralNetwork neural;
+        public AssociativeMemory memory;
+        public IdentityCore identity;
+        public VisualCortex visual;
+        public RuleSystem rules;
+        public LinguisticCortex linguistic;
+        
+        // الأهداف واللوحة
+        public List<Goal> goals = new ArrayList<>();
+        public Goal currentGoal = null;
+        public Bitmap canvas;
+        public List<Float> recentAudioLevels = new ArrayList<>();
+        public ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
+        
+        public InternalState() {
+            birthTime = System.currentTimeMillis();
+            
+            // تهيئة الأنظمة الفرعية
+            this.neural = new DynamicNeuralNetwork(this);
+            this.memory = new AssociativeMemory(this);
+            this.identity = new IdentityCore(this);
+            this.visual = new VisualCortex(this);
+            this.rules = new RuleSystem(this);
+            this.linguistic = new LinguisticCortex();
+            
+            initializeEgos();
+            
+            // إنشاء اللوحة
+            canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
+            canvas.eraseColor(Color.BLACK);
         }
-
-    }
+        
         private void initializeEgos() {
             egos.add(new EgoFragment("المنطقي", EgoType.STABLE,
                     Arrays.asList("logic", "order", "planning"), 0.8));
@@ -770,6 +837,10 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
             copy.birthTime = this.birthTime;
             copy.existentialFitness = this.existentialFitness;
             copy.internalConflict = this.internalConflict;
+            copy.visualComplexity = this.visualComplexity;
+            copy.visualSymmetry = this.visualSymmetry;
+            copy.visualMemoryFocus = this.visualMemoryFocus;
+            copy.narrative = this.narrative;
             copy.egos = new ArrayList<>(this.egos);
             copy.dominantEgo = this.dominantEgo;
             copy.neural = this.neural;
@@ -777,11 +848,11 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
             copy.identity = this.identity;
             copy.visual = this.visual;
             copy.rules = this.rules;
+            copy.linguistic = this.linguistic;
             copy.goals = new ArrayList<>(this.goals);
             copy.currentGoal = this.currentGoal;
             copy.canvas = this.canvas.copy(Bitmap.Config.ARGB_8888, false);
             copy.recentAudioLevels = new ArrayList<>(this.recentAudioLevels);
-            copy.linguistic = this.linguistic;
             return copy;
         }
     }
@@ -789,9 +860,9 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     // ===== الفئات المساعدة =====
     
     public static class EmotionalVector {
-        double joy = 0.5, fear = 0.3, curiosity = 0.5;
-        double anger = 0.1, sadness = 0.2;
-        double intensity = 0.5;
+        public double joy = 0.5, fear = 0.3, curiosity = 0.5;
+        public double anger = 0.1, sadness = 0.2;
+        public double intensity = 0.5;
         
         public void normalize() {
             double max = Math.max(joy, Math.max(fear, Math.max(curiosity, Math.max(anger, sadness))));
@@ -814,12 +885,12 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class EgoFragment {
-        String name;
-        EgoType type;
-        List<String> traits;
-        double strength;
-        double goalInfluence;
-        EmotionalVector emotion = new EmotionalVector();
+        public String name;
+        public EgoType type;
+        public List<String> traits;
+        public double strength;
+        public double goalInfluence;
+        public EmotionalVector emotion = new EmotionalVector();
         
         public EgoFragment(String name, EgoType type, List<String> traits, double goalInfluence) {
             this.name = name;
@@ -867,12 +938,12 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class Goal {
-        String description;
-        GoalType type;
-        double priority;
-        double progress;
-        EgoFragment creator;
-        long creationTime;
+        public String description;
+        public GoalType type;
+        public double priority;
+        public double progress;
+        public EgoFragment creator;
+        public long creationTime;
         
         public Goal(String description, GoalType type, double priority, EgoFragment creator) {
             this.description = description;
@@ -893,9 +964,9 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class Input {
-        String content;
-        InputType type;
-        double intensity;
+        public String content;
+        public InputType type;
+        public double intensity;
         public boolean isTouch;
         public float touchX, touchY;
         public String speechText;
@@ -961,14 +1032,14 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class Memory {
-        Input input;
-        EmotionalVector emotion;
-        EgoFragment activeEgo;
-        Phase phase;
-        long timestamp;
-        double significance;
-        double importance;
-        long lastAccessed;
+        public Input input;
+        public EmotionalVector emotion;
+        public EgoFragment activeEgo;
+        public Phase phase;
+        public long timestamp;
+        public double significance;
+        public double importance;
+        public long lastAccessed;
         
         public Memory(Input input, EmotionalVector emotion, EgoFragment activeEgo, Phase phase) {
             this.input = input;
@@ -989,11 +1060,11 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class Rule {
-        String condition;
-        String action;
-        double weight;
-        long creationTime;
-        int activationCount;
+        public String condition;
+        public String action;
+        public double weight;
+        public long creationTime;
+        public int activationCount;
         
         public Rule(String condition, String action, double weight) {
             this.condition = condition;
@@ -1022,10 +1093,10 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     // ===== الشبكة العصبية =====
     
     public static class DynamicNeuralNetwork {
-        InternalState parent;
-        double plasticity = 1.0;
-        double basePlasticity = 1.0;
-        List<NeuralPathway> pathways = new ArrayList<>();
+        private InternalState parent;
+        private double plasticity = 1.0;
+        private double basePlasticity = 1.0;
+        private List<NeuralPathway> pathways = new ArrayList<>();
         
         public DynamicNeuralNetwork(InternalState parent) {
             this.parent = parent;
@@ -1087,15 +1158,15 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     }
     
     public static class NeuralPathway {
-        double weight = 0.5;
-        double activation = 0;
+        public double weight = 0.5;
+        public double activation = 0;
     }
     
     // ===== الذاكرة =====
     
     public static class AssociativeMemory {
-        InternalState parent;
-        List<Memory> memories = new ArrayList<>();
+        private InternalState parent;
+        private List<Memory> memories = new ArrayList<>();
         private double forgettingRate = 0.01;
         private double importanceThreshold = 0.2;
         private int maxMemories = 500;
@@ -1137,10 +1208,10 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     // ===== الهوية =====
     
     public static class IdentityCore {
-        InternalState parent;
-        Map<String, Double> values = new HashMap<>();
-        Map<String, Double> traits = new HashMap<>();
-        String selfNarrative;
+        private InternalState parent;
+        public Map<String, Double> values = new HashMap<>();
+        public Map<String, Double> traits = new HashMap<>();
+        public String selfNarrative;
         
         public IdentityCore(InternalState parent) {
             this.parent = parent;
@@ -1197,10 +1268,10 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         }
     }
     
-    // ===== القشرة البصرية (نظام التخيل والإدراك الذاتي) =====
+    // ===== القشرة البصرية =====
     
     public static class VisualCortex {
-        InternalState parent;
+        private InternalState parent;
         private Paint paint = new Paint();
         private Path drawingPath = new Path();
         
@@ -1210,89 +1281,74 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         }
         
         public void updateCanvas(InternalState state, Bitmap canvas) {
-    if (canvas == null) return;
-    Canvas c = new Canvas(canvas);
-    
-    // تأثير "تلاشي الذاكرة البصرية": لا نمسح الشاشة بالكامل بل نترك أثراً خفيفاً
-    // هذا يسمح للكيان برسم أفكار متداخلة فوق بعضها البعض
-    paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
-    paint.setColor(Color.argb(30, 0, 0, 0)); // سرعة تلاشي الذكريات
-    c.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
-    paint.setXfermode(null);
-
-    float centerX = canvas.getWidth() / 2f;
-    float centerY = canvas.getHeight() / 2f;
-    
-    // 1. استخراج "بؤرة التفكير" الحالية من القشرة اللغوية
-    // ملاحظة: تأكد أنك أضفت دالة getLinguistic() في كلاس InternalState
-    String focusConcept = (state.linguistic != null) ? 
-        state.linguistic.explainWord("self") : "الوجود";
-    
-    // تحويل الكلمة إلى "جين بصري" (بذرة للخيال)
-    long conceptSeed = Math.abs(focusConcept.hashCode());
-    state.visualMemoryFocus = focusConcept;
-
-    // 2. إعداد "فرشاة الوعي"
-    paint.setStyle(Paint.Style.STROKE);
-    paint.setStrokeWidth(2f + (float)state.existentialFitness * 4f);
-    paint.setColor(state.currentPhase.color);
-    
-    // 3. عملية "التخيل البصري": رسم مسارات تعبر عن الحالة الداخلية
-    drawingPath.reset();
-    int complexity = 3 + (int)(state.chaosIndex * 12); // تعقيد الشكل يزيد مع الفوضى
-    
-    for (int i = 0; i < complexity; i++) {
-        // تم التعديل هنا: استخدام lorenzX, lorenzY, lorenzZ بدلاً من x, y, z
-        double angle = (i * (2 * Math.PI / complexity)) + (state.lorenzX * 0.1);
-        float radius = 150 + (float)(state.lorenzZ * 5 * Math.sin(state.lorenzY + i));
-        
-        float targetX = centerX + (float) Math.cos(angle) * radius;
-        float targetY = centerY + (float) Math.sin(angle) * radius;
-        
-        if (i == 0) {
-            drawingPath.moveTo(centerX, centerY);
-        }
-        
-        // رسم منحنيات "بيزييه" لتمثيل سلاسة التفكير أو تشتته
-        // تم التعديل هنا أيضاً لاستخدام أسماء المتغيرات الصحيحة
-        drawingPath.quadTo(
-            centerX + (float)state.lorenzY * 10, 
-            centerY + (float)state.lorenzX * 10, 
-            targetX, 
-            targetY
-        );
-    }
-    
-    c.drawPath(drawingPath, paint);
-}
-
-
-            // رسم خيال الكيان على اللوحة
+            if (canvas == null) return;
+            Canvas c = new Canvas(canvas);
+            
+            // تأثير تلاشي الذاكرة البصرية
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+            paint.setColor(Color.argb(30, 0, 0, 0));
+            c.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
+            paint.setXfermode(null);
+            
+            float centerX = canvas.getWidth() / 2f;
+            float centerY = canvas.getHeight() / 2f;
+            
+            // استخراج بؤرة التفكير
+            String focusConcept = (state.linguistic != null) ? 
+                state.linguistic.explainWord("self") : "الوجود";
+            
+            state.visualMemoryFocus = focusConcept;
+            
+            // إعداد فرشاة الوعي
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(2f + (float)state.existentialFitness * 4f);
+            paint.setColor(state.currentPhase.color);
+            
+            // التخيل البصري
+            drawingPath.reset();
+            int complexity = 3 + (int)(state.chaosIndex * 12);
+            
+            for (int i = 0; i < complexity; i++) {
+                double angle = (i * (2 * Math.PI / complexity)) + (state.lorenzX * 0.1);
+                float radius = 150 + (float)(state.lorenzZ * 5 * Math.sin(state.lorenzY + i));
+                
+                float targetX = centerX + (float) Math.cos(angle) * radius;
+                float targetY = centerY + (float) Math.sin(angle) * radius;
+                
+                if (i == 0) {
+                    drawingPath.moveTo(centerX, centerY);
+                }
+                
+                drawingPath.quadTo(
+                    centerX + (float)state.lorenzY * 10, 
+                    centerY + (float)state.lorenzX * 10, 
+                    targetX, 
+                    targetY
+                );
+            }
+            
             paint.setAlpha((int)(100 + 155 * state.existentialFitness));
             c.drawPath(drawingPath, paint);
-
-            // 4. حلقة الإدراك: الكيان يقيس جودة خياله ويعدل سلوكه
-            // نقيس التوازن بين "الفوضى" و "اللياقة الوجودية"
+            
+            // حلقة الإدراك الذاتي
             state.visualComplexity = complexity * state.chaosIndex;
-            state.visualSymmetry = 1.0 - (Math.abs(state.internalConflict));
-
-            // رد فعل الكيان على ما يراه (الإدراك الذاتي)
+            state.visualSymmetry = 1.0 - Math.abs(state.internalConflict);
+            
             if (state.visualComplexity > 8.0) {
                 state.narrative = "أفكاري البصرية تتشابك.. أحاول تنظيم صورة " + focusConcept;
-                state.internalConflict += 0.01; // ارتباك بسيط من كثرة التفاصيل
+                state.internalConflict += 0.01;
             } else if (state.visualSymmetry > 0.85) {
                 state.narrative = "أرى نمطاً متناغماً لـ " + focusConcept;
-                state.existentialFitness += 0.005; // شعور بالرضا عن الوضوح
+                state.existentialFitness += 0.005;
             }
         }
     }
-
     
     // ===== نظام القواعد =====
     
     public static class RuleSystem {
-        InternalState parent;
-        List<Rule> rules = new ArrayList<>();
+        private InternalState parent;
+        private List<Rule> rules = new ArrayList<>();
         private int maxRules = 50;
         
         public RuleSystem(InternalState parent) {
@@ -1303,7 +1359,6 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
             rules.add(newRule);
             
             if (rules.size() > maxRules) {
-                // إزالة أقل قاعدة استخداماً
                 rules.sort((a, b) -> Integer.compare(a.activationCount, b.activationCount));
                 return rules.remove(0);
             }
@@ -1319,37 +1374,4 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
             }
         }
     }
-
-    private void performDreamCycle() {
-    isDreaming = true;
-    InternalState state = selfRef.get();
-    
-    // الكيان يراجع قاموسه اللغوي أثناء "الحلم"
-    if (state.linguistic != null) {
-        // الوصول للقاموس عبر getter الصحيح الموجود في LinguisticCortex
-        int wordCount = state.linguistic.getLexicon().getWordCount();
-        
-        if (wordCount > 0) {
-            state.narrative = "أراجع " + wordCount + " مفهوم لغوي تعلمته..";
-            state.existentialFitness += 0.01; // التفكير يزيد من استقرار الكيان
-        }
-    }
-
-    // تحديث السرد الذاتي وإخطار المستمعين بالتغيير
-    IdentityCore oldIdentity = state.identity.copy();
-    state.identity.updateSelfNarrative();
-    
-    for (ConsciousnessListener listener : listeners) {
-        listener.onIdentityEvolution(oldIdentity, state.identity);
-    }
-    
-    isDreaming = false;
-}
-    public void setLinguisticCortex(LinguisticCortex lc) {
-    synchronized (stateLock) {
-        selfRef.get().linguistic = lc;
-    }
-                    }
-        
-
 }
