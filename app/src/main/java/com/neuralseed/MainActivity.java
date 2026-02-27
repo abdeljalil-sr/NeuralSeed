@@ -317,7 +317,17 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         });
     }
     @Override public void onGoalAchieved(NeuralSeed.Goal g) { uiHandler.post(() -> bubbleView.addBubble("تحقق: " + g.description, false)); }
-    @Override public void onIdentityEvolution(NeuralSeed.IdentityCore o, NeuralSeed.IdentityCore n) { uiHandler.post(() -> narrativeText.setText(n.selfNarrative)); }
+   
+    @Override 
+public void onIdentityEvolution(NeuralSeed.IdentityCore o, NeuralSeed.IdentityCore n) { 
+    uiHandler.post(() -> {
+        if (narrativeText != null && n != null) {
+            // نحدث النص المركزي ليظهر ما يفكر فيه الكيان أثناء الحلم
+            narrativeText.setText(n.selfNarrative); 
+        }
+    }); 
+}
+
     @Override public void onVisualExpression(Bitmap b) { uiHandler.post(() -> visualExpressionView.setImageBitmap(b)); }
     @Override public void onMemoryFormed(NeuralSeed.Memory m) {}
     @Override public void onRuleRewritten(NeuralSeed.Rule o, NeuralSeed.Rule n) {}
