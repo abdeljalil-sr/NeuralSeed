@@ -40,6 +40,17 @@ public class ArabicLexicon {
             lastUsed = System.currentTimeMillis();
             familiarity = Math.min(1.0, familiarity + 0.01);
         }
+                // أضف هذه الدوال هنا
+        public void addMeaning(String meaning) {
+            if (!this.meanings.contains(meaning)) {
+                this.meanings.add(meaning);
+            }
+        }
+
+        public void addEmotion(String emotion, double intensity) {
+            this.emotions.put(emotion, intensity);
+        }
+
     }
     
     private Map<String, Word> wordsByRoot = new HashMap<>();
