@@ -203,18 +203,27 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         });
     }
 
-    private void processUserInput(String text) {
+        private void processUserInput(String text) {
         bubbleView.addBubble(text, true);
-        linguistic.processInput(text);
+        
+        // الحصول على حالة الوعي الحالية
+        NeuralSeed.InternalState currentState = seed.getCurrentState();
+        
+        // تمرير النص مع حالة الوعي للقشرة اللغوية (تعديل ضروري)
+        linguistic.processInput(text, currentState);
+        
+        // إرسال المدخل للعقل لمعالجته كفعل وعي
         seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
         
         uiHandler.postDelayed(() -> {
+            // توليد الرد بناءً على التغيير الذي حدث في حالة الوعي
             LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, seed.getCurrentState());
             bubbleView.addBubble(response.text, false);
             speak(response.text);
             updateStats();
         }, 500);
     }
+
 
     private void sendInput(String content, NeuralSeed.InputType type, double intensity) {
         seed.receiveInput(new NeuralSeed.Input(content, type, intensity));
@@ -278,11 +287,19 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         bubbleView.addBubble("...أنا هنا", false);
     }
 
-    private void initializeLinguisticCortex() {
+        private void initializeLinguisticCortex() {
+        // إنشاء القشرة اللغوية
         linguistic = new LinguisticCortex();
+        
+        // تهيئة قاعدة البيانات المحلية (الهاتف)
         linguistic.initializeDatabase(this);
-        // linguistic.initializeFirebase(this); // مفعل فقط إذا وجد google-services.json
+        
+        // تفعيل الذاكرة السحابية (Firebase) - تم تفعيلها الآن
+        linguistic.initializeFirebase(this); 
+        
+        // ربط الواجهة بأحداث اللغة
         linguistic.setListener(this);
+        
         updateNarrative();
     }
 
