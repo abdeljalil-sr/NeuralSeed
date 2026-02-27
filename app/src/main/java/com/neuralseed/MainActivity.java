@@ -178,7 +178,11 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         findViewById(R.id.btn_positive).setOnClickListener(v -> sendInput("إيجابي", NeuralSeed.InputType.POSITIVE, 0.7));
         findViewById(R.id.btn_negative).setOnClickListener(v -> sendInput("سلبي", NeuralSeed.InputType.NEGATIVE, 0.6));
         findViewById(R.id.btn_threat).setOnClickListener(v -> sendInput("تهديد", NeuralSeed.InputType.THREAT, 0.8));
-        findViewById(R.id.btn_opportunity).setOnClickListener(v -> sendInput("فرصة", NeuralSeed.InputType.OPPORTUNITY, 0.7));
+        View oppBtn = findViewById(R.id.btn_opportunity);
+if (oppBtn != null) {
+    oppBtn.setOnClickListener(v -> sendInput("فرصة", NeuralSeed.InputType.OPPORTUNITY, 0.7));
+}
+
         
         findViewById(R.id.btn_ask).setOnClickListener(v -> {
             String question = linguistic.generateQuestion(seed.getCurrentState());
