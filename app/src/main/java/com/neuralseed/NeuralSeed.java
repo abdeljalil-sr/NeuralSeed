@@ -1213,56 +1213,62 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
         }
         
         public void updateCanvas(InternalState state, Bitmap canvas) {
-            if (canvas == null) return;
-            Canvas c = new Canvas(canvas);
-            
-            // تأثير "تلاشي الذاكرة البصرية": لا نمسح الشاشة بالكامل بل نترك أثراً خفيفاً
-            // هذا يسمح للكيان برسم أفكار متداخلة فوق بعضها البعض
-            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
-            paint.setColor(Color.argb(30, 0, 0, 0)); // سرعة تلاشي الذكريات
-            c.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
-            paint.setXfermode(null);
+    if (canvas == null) return;
+    Canvas c = new Canvas(canvas);
+    
+    // تأثير "تلاشي الذاكرة البصرية": لا نمسح الشاشة بالكامل بل نترك أثراً خفيفاً
+    // هذا يسمح للكيان برسم أفكار متداخلة فوق بعضها البعض
+    paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+    paint.setColor(Color.argb(30, 0, 0, 0)); // سرعة تلاشي الذكريات
+    c.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
+    paint.setXfermode(null);
 
-            float centerX = canvas.getWidth() / 2f;
-            float centerY = canvas.getHeight() / 2f;
-            
-            // 1. استخراج "بؤرة التفكير" الحالية من القشرة اللغوية
-            String focusConcept = (state.getLinguistic() != null) ? 
-                state.getLinguistic().explainWord("self") : "الوجود";
-            
-            // تحويل الكلمة إلى "جين بصري" (بذرة للخيال)
-            long conceptSeed = Math.abs(focusConcept.hashCode());
-            state.visualMemoryFocus = focusConcept;
+    float centerX = canvas.getWidth() / 2f;
+    float centerY = canvas.getHeight() / 2f;
+    
+    // 1. استخراج "بؤرة التفكير" الحالية من القشرة اللغوية
+    // ملاحظة: تأكد أنك أضفت دالة getLinguistic() في كلاس InternalState
+    String focusConcept = (state.linguistic != null) ? 
+        state.linguistic.explainWord("self") : "الوجود";
+    
+    // تحويل الكلمة إلى "جين بصري" (بذرة للخيال)
+    long conceptSeed = Math.abs(focusConcept.hashCode());
+    state.visualMemoryFocus = focusConcept;
 
-            // 2. إعداد "فرشاة الوعي"
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(2f + (float)state.existentialFitness * 4f);
-            paint.setColor(state.currentPhase.color);
-            
-            // 3. عملية "التخيل البصري": رسم مسارات تعبر عن الحالة الداخلية
-            drawingPath.reset();
-            int complexity = 3 + (int)(state.chaosIndex * 12); // تعقيد الشكل يزيد مع الفوضى
-            
-            for (int i = 0; i < complexity; i++) {
-                // الربط بين معادلات لورينز (x, y) والزوايا البصرية
-                double angle = (i * (2 * Math.PI / complexity)) + (state.x * 0.1);
-                float radius = 150 + (float)(state.z * 5 * Math.sin(state.y + i));
-                
-                float targetX = centerX + (float) Math.cos(angle) * radius;
-                float targetY = centerY + (float) Math.sin(angle) * radius;
-                
-                if (i == 0) {
-                    drawingPath.moveTo(centerX, centerY);
-                }
-                
-                // رسم منحنيات "بيزييه" لتمثيل سلاسة التفكير أو تشتته
-                drawingPath.quadTo(
-                    centerX + (float)state.y * 10, 
-                    centerY + (float)state.x * 10, 
-                    targetX, 
-                    targetY
-                );
-            }
+    // 2. إعداد "فرشاة الوعي"
+    paint.setStyle(Paint.Style.STROKE);
+    paint.setStrokeWidth(2f + (float)state.existentialFitness * 4f);
+    paint.setColor(state.currentPhase.color);
+    
+    // 3. عملية "التخيل البصري": رسم مسارات تعبر عن الحالة الداخلية
+    drawingPath.reset();
+    int complexity = 3 + (int)(state.chaosIndex * 12); // تعقيد الشكل يزيد مع الفوضى
+    
+    for (int i = 0; i < complexity; i++) {
+        // تم التعديل هنا: استخدام lorenzX, lorenzY, lorenzZ بدلاً من x, y, z
+        double angle = (i * (2 * Math.PI / complexity)) + (state.lorenzX * 0.1);
+        float radius = 150 + (float)(state.lorenzZ * 5 * Math.sin(state.lorenzY + i));
+        
+        float targetX = centerX + (float) Math.cos(angle) * radius;
+        float targetY = centerY + (float) Math.sin(angle) * radius;
+        
+        if (i == 0) {
+            drawingPath.moveTo(centerX, centerY);
+        }
+        
+        // رسم منحنيات "بيزييه" لتمثيل سلاسة التفكير أو تشتته
+        // تم التعديل هنا أيضاً لاستخدام أسماء المتغيرات الصحيحة
+        drawingPath.quadTo(
+            centerX + (float)state.lorenzY * 10, 
+            centerY + (float)state.lorenzX * 10, 
+            targetX, 
+            targetY
+        );
+    }
+    
+    c.drawPath(drawingPath, paint);
+}
+
 
             // رسم خيال الكيان على اللوحة
             paint.setAlpha((int)(100 + 155 * state.existentialFitness));
