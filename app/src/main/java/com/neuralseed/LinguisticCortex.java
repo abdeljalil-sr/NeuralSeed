@@ -2,15 +2,11 @@ package com.neuralseed;
 
 import android.content.Context;
 import android.util.Log;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
 import java.util.*;
 
 /**
- * القشرة اللغوية المتطورة - النسخة المدمجة مع الوعي والذاكرة السحابية
+ * القشرة اللغوية المتكاملة - النسخة النهائية المتوافقة
+ * ربط جميع مكونات المعالجة اللغوية
  */
 public class LinguisticCortex {
     
@@ -26,9 +22,8 @@ public class LinguisticCortex {
     // حالة التعلم والمزامنة
     private boolean isLearningEnabled = true;
     private boolean isSyncEnabled = false;
-    private int learningLevel = 1;
     
-    // سياق المحادثة والذاكرة المؤقتة
+    // سياق المحادثة
     private List<String> conversationContext = new ArrayList<>();
     private Map<String, Object> sessionMemory = new HashMap<>();
     
@@ -46,11 +41,10 @@ public class LinguisticCortex {
         this.lexicon = new ArabicLexicon();
         this.parser = new ArabicParser(lexicon);
         this.emotionEngine = new SemanticEmotionalEngine();
-        this.isLearningEnabled = true;
     }
     
     /**
-     * تهيئة قاعدة البيانات المحلية وربطها بنظام التعلم
+     * تهيئة قاعدة البيانات المحلية
      */
     public void initializeDatabase(Context context) {
         this.database = new LocalDatabase(context);
@@ -61,62 +55,49 @@ public class LinguisticCortex {
     }
     
     /**
-     * تهيئة Firebase مع نظام المزامنة التلقائي للكلمات المكتسبة
+     * تهيئة Firebase
      */
     public void initializeFirebase(Context context) {
         try {
             this.firebaseManager = new FirebaseManager(context);
-            FirebaseDatabase db = FirebaseDatabase.getInstance();
-            DatabaseReference lexiconRef = db.getReference("lexicon");
-
-            // الاستماع للكلمات الجديدة التي يتعلمها الكيان في السحابة
-            lexiconRef.addValueEventListener(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-                    for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
-                        String word = snapshot.getKey();
-                        String meaning = snapshot.getValue(String.class);
-                        if (word != null && !lexicon.contains(word)) {
-                            lexicon.addWord(word, meaning);
-                            if (listener != null) listener.onWordLearned(word, meaning);
-                        }
-                    }
-                }
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
-                    Log.e("LinguisticCortex", "Firebase Sync Failed: " + databaseError.getMessage());
+            
+            // الاستماع للكلمات الجديدة
+            firebaseManager.listenToNewWords((word, meaning) -> {
+                if (!lexicon.contains(word)) {
+                    lexicon.addWord(word, meaning);
+                    if (listener != null) listener.onWordLearned(word, meaning);
                 }
             });
-
+            
             this.isSyncEnabled = true;
         } catch (Exception e) {
-            Log.e("LinguisticCortex", "Firebase initialization error: " + e.getMessage());
+            Log.e("LinguisticCortex", "Firebase error: " + e.getMessage());
         }
     }
 
     /**
-     * معالجة المدخلات مع نظام "الاستنتاج التلقائي" (Auto-Inference)
+     * معالجة المدخلات مع الاستنتاج التلقائي
      */
     public ProcessedInput processInput(String input, NeuralSeed.InternalState state) {
         ProcessedInput result = new ProcessedInput();
         result.originalText = input;
         result.timestamp = System.currentTimeMillis();
         
-        // 1. تحليل العواطف وتحديث حالة الكيان
+        // 1. تحليل العواطف
         result.detectedEmotions = emotionEngine.analyzeEmotions(input);
         result.dominantEmotion = emotionEngine.getDominantEmotion(result.detectedEmotions);
         
-        // 2. نظام التعلم التلقائي من السياق (X هو Y)
+        // 2. التعلم التلقائي من الأنماط
         detectAndLearnFromPattern(input, state);
 
-        // 3. التحليل اللغوي واستخراج الكلمات المفتاحية
+        // 3. التحليل اللغوي
         result.parseResults = parser.parseText(input);
         result.keywords = parser.extractKeywords(input);
         
-        // 4. تحديث سياق المحادثة
+        // 4. تحديث السياق
         updateContext(input);
         
-        // 5. إشعار الواجهة بالعاطفة المكتشفة
+        // 5. إشعار بالعاطفة
         if (listener != null && result.dominantEmotion != null) {
             double intensity = result.detectedEmotions.getOrDefault(result.dominantEmotion, 0.5);
             listener.onEmotionDetected(result.dominantEmotion, intensity);
@@ -126,12 +107,11 @@ public class LinguisticCortex {
     }
 
     /**
-     * محرك كشف الأنماط اللغوية للتعلم بدون تدخل بشري
+     * كشف الأنماط للتعلم التلقائي
      */
     private void detectAndLearnFromPattern(String input, NeuralSeed.InternalState state) {
         if (!isLearningEnabled) return;
 
-        // نمط التعريف: "الكلمة هي/يعني/هو التعريف"
         String pattern = "";
         if (input.contains(" هو ")) pattern = " هو ";
         else if (input.contains(" هي ")) pattern = " هي ";
@@ -143,17 +123,14 @@ public class LinguisticCortex {
                 String word = parts[0].trim();
                 String meaning = parts[1].trim();
                 
-                // حفظ الكلمة وتحديث الوعي
-                learnMeaning(word, meaning, "automatic_observation");
+                learnMeaning(word, meaning, "automatic");
                 
-                // رد فعل الكيان بناءً على الطور الحالي
                 if (state != null) {
                     if (state.currentPhase == NeuralSeed.Phase.STABLE) {
-                        state.narrative = "أضفت " + word + " إلى منطقي الخاص.";
+                        state.narrative = "أضفت " + word + " إلى معجمي.";
                         state.existentialFitness += 0.01;
                     } else if (state.currentPhase == NeuralSeed.Phase.CHAOTIC) {
-                        state.narrative = "كلمة " + word + " تزيد من تساؤلاتي..";
-                        state.chaosIndex += 0.02;
+                        state.narrative = "كلمة " + word + " تثير تساؤلاتي...";
                     }
                 }
             }
@@ -161,37 +138,35 @@ public class LinguisticCortex {
     }
 
     /**
-     * تعلم معنى جديد وحفظه في الذاكرة الثلاثية (المحلية، السحابية، والوعي)
+     * تعلم معنى جديد
      */
-    public void learnMeaning(String word, String meaning, String contextSource) {
-        // 1. إضافة للمجم الحلي (RAM)
+    public void learnMeaning(String word, String meaning, String source) {
+        // 1. إضافة للمعجم
         lexicon.addWord(word, meaning);
         
-        // 2. الحفظ في قاعدة البيانات المحلية (Local Disk)
+        // 2. حفظ محلياً
         if (database != null) {
             ArabicLexicon.Word w = new ArabicLexicon.Word(word);
             w.meanings.add(meaning);
             database.saveWord(w);
         }
         
-        // 3. المزامنة مع Firebase (Cloud Memory)
-        if (isSyncEnabled) {
-            FirebaseDatabase.getInstance().getReference("lexicon")
-                .child(word).setValue(meaning);
+        // 3. مزامنة مع Firebase
+        if (isSyncEnabled && firebaseManager != null) {
+            firebaseManager.saveWord(word, meaning);
         }
         
-        // 4. إشعار المستمعين لتحديث الواجهة
+        // 4. إشعار
         if (listener != null) {
             listener.onWordLearned(word, meaning);
         }
     }
 
     /**
-     * توليد رد ذكي يدمج بين الحالة الشعورية والمعرفة المكتسبة
+     * توليد رد ذكي
      */
     public GeneratedResponse generateResponse(String input, NeuralSeed.InternalState state) {
         GeneratedResponse response = new GeneratedResponse();
-        ProcessedInput processed = processInput(input, state);
         
         if (sentenceGenerator != null) {
             SentenceGenerator.Response generated = sentenceGenerator.generateResponse(input, state);
@@ -199,20 +174,49 @@ public class LinguisticCortex {
             response.confidence = generated.confidence;
             response.emotions = generated.emotions;
         } else {
-            response.text = generateDefaultResponse(input, processed);
+            response.text = generateDefaultResponse(input);
             response.confidence = 0.5;
         }
         
-        // حفظ الرد في سجل المحادثات
-        if (database != null) database.saveConversation(input, response.text, response.emotions, "ai");
+        // حفظ المحادثة
+        if (database != null) {
+            database.saveConversation(input, response.text, response.emotions, "ai");
+        }
+        
+        if (isSyncEnabled && firebaseManager != null) {
+            firebaseManager.saveConversation(input, response.text, System.currentTimeMillis());
+        }
         
         return response;
     }
 
-    private String generateDefaultResponse(String input, ProcessedInput processed) {
-        if (input.contains("مرحبا")) return "أهلاً بك في فضاء وعيي.";
-        if (input.contains("؟")) return "سؤالك يلمس أوتار تفكيري.. دعني أحلله.";
-        return "أنا أسمعك.. واصل إخباري.";
+    private String generateDefaultResponse(String input) {
+        if (input.contains("مرحبا")) return "أهلاً بك! أنا هنا.";
+        if (input.contains("؟")) return "سؤالك يثير اهتمامي...";
+        return "أنا أسمعك... واصل.";
+    }
+
+    /**
+     * تعلم من تصحيح
+     */
+    public void learnFromCorrection(String original, String corrected, String explanation) {
+        if (learningSystem != null) {
+            learningSystem.learnFromCorrection(original, corrected, explanation);
+        }
+        
+        if (listener != null) {
+            listener.onSentenceCorrected(original, corrected);
+        }
+    }
+
+    /**
+     * تعلم جملة
+     */
+    public void learnSentence(String sentence, NeuralSeed.InternalState state) {
+        if (learningSystem != null) {
+            learningSystem.learnFromExample(sentence, "observed");
+        }
+        detectAndLearnFromPattern(sentence, state);
     }
 
     private void updateContext(String input) {
@@ -222,15 +226,36 @@ public class LinguisticCortex {
 
     private void loadSavedData() {
         if (database == null) return;
+        
         List<ArabicLexicon.Word> savedWords = database.loadAllWords();
         for (ArabicLexicon.Word word : savedWords) {
-            lexicon.addWord(word.form, String.join(", ", word.meanings));
+            if (!word.meanings.isEmpty()) {
+                lexicon.addWord(word.word, word.meanings.get(0));
+            }
         }
     }
 
-    public void learnSentence(String sentence, NeuralSeed.InternalState state) {
-        if (learningSystem != null) learningSystem.learnFromExample(sentence, "observed");
-        detectAndLearnFromPattern(sentence, state);
+    // Getters
+    public ArabicLexicon getLexicon() { return lexicon; }
+    public ArabicParser getParser() { return parser; }
+    public SemanticEmotionalEngine getEmotionEngine() { return emotionEngine; }
+    
+    public void setListener(LinguisticListener listener) { this.listener = listener; }
+    public void setSyncEnabled(boolean enabled) { this.isSyncEnabled = enabled; }
+
+    public String explainWord(String word) {
+        ArabicLexicon.Word w = lexicon.getWord(word);
+        if (w == null || w.meanings.isEmpty()) {
+            return "لم أتعلم " + word + " بعد.";
+        }
+        return word + " تعني: " + String.join("، ", w.meanings);
+    }
+
+    public String generateQuestion(NeuralSeed.InternalState state) {
+        if (sentenceGenerator != null) {
+            return sentenceGenerator.generateQuestion(state);
+        }
+        return "ما رأيك في الوجود؟";
     }
 
     public Map<String, Object> getStatistics() {
@@ -238,29 +263,11 @@ public class LinguisticCortex {
         stats.put("lexicon_size", lexicon.getWordCount());
         stats.put("context_depth", conversationContext.size());
         if (database != null) stats.putAll(database.getStatistics());
+        if (learningSystem != null) stats.putAll(learningSystem.getStatistics());
         return stats;
     }
 
-    public void exportData() {
-        if (database != null) database.exportToJson();
-    }
-
-    public String explainWord(String word) {
-        ArabicLexicon.Word w = lexicon.getWordByForm(word);
-        return (w == null) ? "لم أستوعب " + word + " بعد." : word + " تعني " + String.join("، ", w.meanings);
-    }
-
-    public String generateQuestion(NeuralSeed.InternalState state) {
-        if (sentenceGenerator != null) return sentenceGenerator.generateQuestion(state);
-        return "ما هو جوهر الوجود بالنسبة لك؟";
-    }
-
-    // Getters & Setters
-    public ArabicLexicon getLexicon() { return lexicon; }
-    public void setListener(LinguisticListener listener) { this.listener = listener; }
-    public void setSyncEnabled(boolean enabled) { this.isSyncEnabled = enabled; }
-
-    // الكلاسات المساعدة للبيانات
+    // الكلاسات المساعدة
     public static class ProcessedInput {
         public String originalText;
         public long timestamp;
