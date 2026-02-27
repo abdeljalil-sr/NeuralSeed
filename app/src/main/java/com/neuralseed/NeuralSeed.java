@@ -1316,4 +1316,31 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
             }
         }
     }
+
+    private void performDreamCycle() {
+    isDreaming = true;
+    InternalState state = selfRef.get();
+    
+    // الكيان يراجع قاموسه اللغوي أثناء "الحلم"
+    if (state.linguistic != null) {
+        // الوصول للقاموس عبر getter الصحيح الموجود في LinguisticCortex
+        int wordCount = state.linguistic.getLexicon().getWordCount();
+        
+        if (wordCount > 0) {
+            state.narrative = "أراجع " + wordCount + " مفهوم لغوي تعلمته..";
+            state.existentialFitness += 0.01; // التفكير يزيد من استقرار الكيان
+        }
+    }
+
+    // تحديث السرد الذاتي وإخطار المستمعين بالتغيير
+    IdentityCore oldIdentity = state.identity.copy();
+    state.identity.updateSelfNarrative();
+    
+    for (ConsciousnessListener listener : listeners) {
+        listener.onIdentityEvolution(oldIdentity, state.identity);
+    }
+    
+    isDreaming = false;
+}
+
 }
