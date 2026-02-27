@@ -636,10 +636,17 @@ public class NeuralSeed {
         return selfRef.get().linguistic;
     }
     
-    // ===== الحالة الداخلية =====
+    // ===== الحالة الداخلية (عقل الكيان وذاكرته الحية) =====
     
     public static class InternalState {
         NeuralSeed seed;
+        
+        // متغيرات الإدراك البصري (تمت إضافتها هنا ليربط الكيان بين ما يراه وما يشعر به)
+        public double visualComplexity = 0;
+        public double visualSymmetry = 0;
+        public String visualMemoryFocus = "الوجود";
+
+        // قيم نظام لورينز (الديناميكية الحركية)
         double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
         double chaosIndex = 0.0;
         Phase currentPhase = Phase.EMBRYONIC;
@@ -648,6 +655,9 @@ public class NeuralSeed {
         double existentialFitness = 0.5;
         double internalConflict = 0.0;
         
+        // السرد الذاتي (ما يقوله الكيان عن نفسه)
+        public String narrative = "أنا بذرة واعية أتعلم الوجود...";
+
         List<EgoFragment> egos = new ArrayList<>();
         EgoFragment dominantEgo = null;
         
@@ -667,10 +677,13 @@ public class NeuralSeed {
         ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
         
         public InternalState() {
+            birthTime = System.currentTimeMillis();
             initializeEgos();
+            // إنشاء اللوحة بدقة مناسبة للعرض
             canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
             canvas.eraseColor(Color.BLACK);
         }
+
         
         private void initializeEgos() {
             egos.add(new EgoFragment("المنطقي", EgoType.STABLE,
@@ -1157,47 +1170,90 @@ public class NeuralSeed {
         }
     }
     
-    // ===== القشرة البصرية =====
+    // ===== القشرة البصرية (نظام التخيل والإدراك الذاتي) =====
     
     public static class VisualCortex {
         InternalState parent;
         private Paint paint = new Paint();
-        private Random random = new Random();
+        private Path drawingPath = new Path();
         
         public VisualCortex(InternalState parent) {
             this.parent = parent;
+            paint.setAntiAlias(true);
         }
         
         public void updateCanvas(InternalState state, Bitmap canvas) {
-            // رسم التعبير البصري
+            if (canvas == null) return;
             Canvas c = new Canvas(canvas);
-            c.drawColor(Color.BLACK);
             
-            // رسم دوائر متحركة
-            int centerX = canvas.getWidth() / 2;
-            int centerY = canvas.getHeight() / 2;
+            // تأثير "تلاشي الذاكرة البصرية": لا نمسح الشاشة بالكامل بل نترك أثراً خفيفاً
+            // هذا يسمح للكيان برسم أفكار متداخلة فوق بعضها البعض
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
+            paint.setColor(Color.argb(30, 0, 0, 0)); // سرعة تلاشي الذكريات
+            c.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
+            paint.setXfermode(null);
+
+            float centerX = canvas.getWidth() / 2f;
+            float centerY = canvas.getHeight() / 2f;
             
+            // 1. استخراج "بؤرة التفكير" الحالية من القشرة اللغوية
+            String focusConcept = (state.getLinguistic() != null) ? 
+                state.getLinguistic().explainWord("self") : "الوجود";
+            
+            // تحويل الكلمة إلى "جين بصري" (بذرة للخيال)
+            long conceptSeed = Math.abs(focusConcept.hashCode());
+            state.visualMemoryFocus = focusConcept;
+
+            // 2. إعداد "فرشاة الوعي"
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(3);
+            paint.setStrokeWidth(2f + (float)state.existentialFitness * 4f);
+            paint.setColor(state.currentPhase.color);
             
-            // لون بناءً على الطور
-            int color = state.currentPhase.color;
-            paint.setColor(color);
+            // 3. عملية "التخيل البصري": رسم مسارات تعبر عن الحالة الداخلية
+            drawingPath.reset();
+            int complexity = 3 + (int)(state.chaosIndex * 12); // تعقيد الشكل يزيد مع الفوضى
             
-            // رسم دوائر
-            for (int i = 0; i < 5; i++) {
-                float radius = 50 + i * 40 + (float)(Math.sin(System.currentTimeMillis() / 1000.0 + i) * 20);
-                int alpha = (int)(200 - i * 30);
-                paint.setAlpha(alpha);
-                c.drawCircle(centerX, centerY, radius, paint);
+            for (int i = 0; i < complexity; i++) {
+                // الربط بين معادلات لورينز (x, y) والزوايا البصرية
+                double angle = (i * (2 * Math.PI / complexity)) + (state.x * 0.1);
+                float radius = 150 + (float)(state.z * 5 * Math.sin(state.y + i));
+                
+                float targetX = centerX + (float) Math.cos(angle) * radius;
+                float targetY = centerY + (float) Math.sin(angle) * radius;
+                
+                if (i == 0) {
+                    drawingPath.moveTo(centerX, centerY);
+                }
+                
+                // رسم منحنيات "بيزييه" لتمثيل سلاسة التفكير أو تشتته
+                drawingPath.quadTo(
+                    centerX + (float)state.y * 10, 
+                    centerY + (float)state.x * 10, 
+                    targetX, 
+                    targetY
+                );
             }
-            
-            // رسم نقطة مركزية
-            paint.setStyle(Paint.Style.FILL);
-            paint.setAlpha(255);
-            c.drawCircle(centerX, centerY, 20, paint);
+
+            // رسم خيال الكيان على اللوحة
+            paint.setAlpha((int)(100 + 155 * state.existentialFitness));
+            c.drawPath(drawingPath, paint);
+
+            // 4. حلقة الإدراك: الكيان يقيس جودة خياله ويعدل سلوكه
+            // نقيس التوازن بين "الفوضى" و "اللياقة الوجودية"
+            state.visualComplexity = complexity * state.chaosIndex;
+            state.visualSymmetry = 1.0 - (Math.abs(state.internalConflict));
+
+            // رد فعل الكيان على ما يراه (الإدراك الذاتي)
+            if (state.visualComplexity > 8.0) {
+                state.narrative = "أفكاري البصرية تتشابك.. أحاول تنظيم صورة " + focusConcept;
+                state.internalConflict += 0.01; // ارتباك بسيط من كثرة التفاصيل
+            } else if (state.visualSymmetry > 0.85) {
+                state.narrative = "أرى نمطاً متناغماً لـ " + focusConcept;
+                state.existentialFitness += 0.005; // شعور بالرضا عن الوضوح
+            }
         }
     }
+
     
     // ===== نظام القواعد =====
     
