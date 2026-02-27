@@ -1342,5 +1342,11 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     
     isDreaming = false;
 }
+    public void setLinguisticCortex(LinguisticCortex lc) {
+    synchronized (stateLock) {
+        selfRef.get().linguistic = lc;
+    }
+                    }
+        
 
 }
