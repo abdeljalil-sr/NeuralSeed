@@ -1,9 +1,8 @@
 package com.neuralseed;
 
-
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
+import android.content.Context;
+import android.util.AttributeSet;
+import androidx.appcompat.app.AppCompatActivity;
 import android.animation.ValueAnimator;
 import android.graphics.Color;
 import androidx.appcompat.app.AlertDialog;
