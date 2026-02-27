@@ -1,10 +1,16 @@
 package com.neuralseed;
 
 import android.content.Context;
+import android.util.Log;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import java.util.*;
 
 /**
- * القشرة اللغوية - النظام المتكامل للفهم اللغوي والتعلم
+ * القشرة اللغوية المتطورة - النسخة المدمجة مع الوعي والذاكرة السحابية
  */
 public class LinguisticCortex {
     
@@ -17,14 +23,14 @@ public class LinguisticCortex {
     private LocalDatabase database;
     private FirebaseManager firebaseManager;
     
-    // حالة التعلم
-    private boolean isLearningEnabled;
-    private boolean isSyncEnabled;
-    private int learningLevel;
+    // حالة التعلم والمزامنة
+    private boolean isLearningEnabled = true;
+    private boolean isSyncEnabled = false;
+    private int learningLevel = 1;
     
-    // سياق المحادثة
-    private List<String> conversationContext;
-    private Map<String, Object> sessionMemory;
+    // سياق المحادثة والذاكرة المؤقتة
+    private List<String> conversationContext = new ArrayList<>();
+    private Map<String, Object> sessionMemory = new HashMap<>();
     
     // مستمعي الأحداث
     public interface LinguisticListener {
@@ -35,120 +41,82 @@ public class LinguisticCortex {
     }
     
     private LinguisticListener listener;
-    
+
     public LinguisticCortex() {
         this.lexicon = new ArabicLexicon();
         this.parser = new ArabicParser(lexicon);
         this.emotionEngine = new SemanticEmotionalEngine();
-        this.conversationContext = new ArrayList<>();
-        this.sessionMemory = new HashMap<>();
         this.isLearningEnabled = true;
-        this.isSyncEnabled = false;
-        this.learningLevel = 1;
     }
     
     /**
-     * تهيئة قاعدة البيانات
+     * تهيئة قاعدة البيانات المحلية وربطها بنظام التعلم
      */
     public void initializeDatabase(Context context) {
         this.database = new LocalDatabase(context);
         this.learningSystem = new LearningSystem(lexicon, parser, emotionEngine, database);
         this.sentenceGenerator = new SentenceGenerator(lexicon, parser, emotionEngine, database);
         
-        // تحميل البيانات المحفوظة
         loadSavedData();
     }
     
     /**
-     * تهيئة Firebase
+     * تهيئة Firebase مع نظام المزامنة التلقائي للكلمات المكتسبة
      */
     public void initializeFirebase(Context context) {
-        this.firebaseManager = new FirebaseManager(context);
-        this.firebaseManager.setSyncListener(new FirebaseManager.SyncListener() {
-            @Override
-            public void onSyncComplete(boolean success) {
-                if (success && database != null) {
-                    firebaseManager.syncWithLocal(database);
+        try {
+            this.firebaseManager = new FirebaseManager(context);
+            FirebaseDatabase db = FirebaseDatabase.getInstance();
+            DatabaseReference lexiconRef = db.getReference("lexicon");
+
+            // الاستماع للكلمات الجديدة التي يتعلمها الكيان في السحابة
+            lexiconRef.addValueEventListener(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                        String word = snapshot.getKey();
+                        String meaning = snapshot.getValue(String.class);
+                        if (word != null && !lexicon.contains(word)) {
+                            lexicon.addWord(word, meaning);
+                            if (listener != null) listener.onWordLearned(word, meaning);
+                        }
+                    }
                 }
-            }
-            
-            @Override
-            public void onDataReceived(String collection, Map<String, Object> data) {
-                // معالجة البيانات المستلمة
-            }
-            
-            @Override
-            public void onError(String error) {
-                // معالجة الخطأ
-            }
-        });
-        
-        this.firebaseManager.signInAnonymously();
-        this.isSyncEnabled = true;
-    }
-    
-    /**
-     * تحميل البيانات المحفوظة
-     */
-    private void loadSavedData() {
-        if (database == null) return;
-        
-        // تحميل الكلمات
-        List<ArabicLexicon.Word> savedWords = database.loadAllWords();
-        for (ArabicLexicon.Word word : savedWords) {
-            // الكلمات محفوظة بالفعل في قاعدة البيانات
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+                    Log.e("LinguisticCortex", "Firebase Sync Failed: " + databaseError.getMessage());
+                }
+            });
+
+            this.isSyncEnabled = true;
+        } catch (Exception e) {
+            Log.e("LinguisticCortex", "Firebase initialization error: " + e.getMessage());
         }
-        
-        // تحميل المعاني
-        // يمكن إضافة المزيد من البيانات هنا
     }
-    
+
     /**
-     * معالجة المدخل
+     * معالجة المدخلات مع نظام "الاستنتاج التلقائي" (Auto-Inference)
      */
-    public ProcessedInput processInput(String input) {
+    public ProcessedInput processInput(String input, NeuralSeed.InternalState state) {
         ProcessedInput result = new ProcessedInput();
         result.originalText = input;
         result.timestamp = System.currentTimeMillis();
         
-        // تحليل النص
-        List<ArabicParser.ParseResult> parseResults = parser.parseText(input);
-        result.parseResults = parseResults;
-        
-        // تحليل العواطف
+        // 1. تحليل العواطف وتحديث حالة الكيان
         result.detectedEmotions = emotionEngine.analyzeEmotions(input);
         result.dominantEmotion = emotionEngine.getDominantEmotion(result.detectedEmotions);
         
-        // استخراج الكلمات المفتاحية
+        // 2. نظام التعلم التلقائي من السياق (X هو Y)
+        detectAndLearnFromPattern(input, state);
+
+        // 3. التحليل اللغوي واستخراج الكلمات المفتاحية
+        result.parseResults = parser.parseText(input);
         result.keywords = parser.extractKeywords(input);
         
-        // التحقق من الأخطاء
-        if (learningSystem != null) {
-            result.errors = learningSystem.analyzeForErrors(input);
-        }
+        // 4. تحديث سياق المحادثة
+        updateContext(input);
         
-        // تعلم من المدخل
-        if (isLearningEnabled && learningSystem != null) {
-            learningSystem.learnFromExample(input, "conversation");
-        }
-        
-        // حفظ في السياق
-        conversationContext.add(input);
-        if (conversationContext.size() > 10) {
-            conversationContext.remove(0);
-        }
-        
-        // حفظ في قاعدة البيانات
-        if (database != null) {
-            database.saveConversation(input, "", result.detectedEmotions, "user");
-        }
-        
-        // المزامنة مع Firebase
-        if (isSyncEnabled && firebaseManager != null && firebaseManager.isAuthenticated()) {
-            firebaseManager.saveConversation(input, "", result.detectedEmotions);
-        }
-        
-        // إشعار المستمع
+        // 5. إشعار الواجهة بالعاطفة المكتشفة
         if (listener != null && result.dominantEmotion != null) {
             double intensity = result.detectedEmotions.getOrDefault(result.dominantEmotion, 0.5);
             listener.onEmotionDetected(result.dominantEmotion, intensity);
@@ -156,305 +124,143 @@ public class LinguisticCortex {
         
         return result;
     }
-    
+
     /**
-     * توليد رد
+     * محرك كشف الأنماط اللغوية للتعلم بدون تدخل بشري
+     */
+    private void detectAndLearnFromPattern(String input, NeuralSeed.InternalState state) {
+        if (!isLearningEnabled) return;
+
+        // نمط التعريف: "الكلمة هي/يعني/هو التعريف"
+        String pattern = "";
+        if (input.contains(" هو ")) pattern = " هو ";
+        else if (input.contains(" هي ")) pattern = " هي ";
+        else if (input.contains(" يعني ")) pattern = " يعني ";
+
+        if (!pattern.isEmpty()) {
+            String[] parts = input.split(pattern);
+            if (parts.length >= 2) {
+                String word = parts[0].trim();
+                String meaning = parts[1].trim();
+                
+                // حفظ الكلمة وتحديث الوعي
+                learnMeaning(word, meaning, "automatic_observation");
+                
+                // رد فعل الكيان بناءً على الطور الحالي
+                if (state != null) {
+                    if (state.currentPhase == NeuralSeed.Phase.STABLE) {
+                        state.narrative = "أضفت " + word + " إلى منطقي الخاص.";
+                        state.existentialFitness += 0.01;
+                    } else if (state.currentPhase == NeuralSeed.Phase.CHAOTIC) {
+                        state.narrative = "كلمة " + word + " تزيد من تساؤلاتي..";
+                        state.chaosIndex += 0.02;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * تعلم معنى جديد وحفظه في الذاكرة الثلاثية (المحلية، السحابية، والوعي)
+     */
+    public void learnMeaning(String word, String meaning, String contextSource) {
+        // 1. إضافة للمجم الحلي (RAM)
+        lexicon.addWord(word, meaning);
+        
+        // 2. الحفظ في قاعدة البيانات المحلية (Local Disk)
+        if (database != null) {
+            ArabicLexicon.Word w = new ArabicLexicon.Word(word);
+            w.meanings.add(meaning);
+            database.saveWord(w);
+        }
+        
+        // 3. المزامنة مع Firebase (Cloud Memory)
+        if (isSyncEnabled) {
+            FirebaseDatabase.getInstance().getReference("lexicon")
+                .child(word).setValue(meaning);
+        }
+        
+        // 4. إشعار المستمعين لتحديث الواجهة
+        if (listener != null) {
+            listener.onWordLearned(word, meaning);
+        }
+    }
+
+    /**
+     * توليد رد ذكي يدمج بين الحالة الشعورية والمعرفة المكتسبة
      */
     public GeneratedResponse generateResponse(String input, NeuralSeed.InternalState state) {
         GeneratedResponse response = new GeneratedResponse();
+        ProcessedInput processed = processInput(input, state);
         
-        // معالجة المدخل أولاً
-        ProcessedInput processed = processInput(input);
-        
-        // توليد الرد
         if (sentenceGenerator != null) {
             SentenceGenerator.Response generated = sentenceGenerator.generateResponse(input, state);
             response.text = generated.text;
             response.confidence = generated.confidence;
             response.emotions = generated.emotions;
-            response.alternatives = generated.alternatives;
         } else {
-            // رد افتراضي
             response.text = generateDefaultResponse(input, processed);
             response.confidence = 0.5;
         }
         
-        // حفظ الرد
-        if (database != null) {
-            database.saveConversation(input, response.text, response.emotions, "ai");
-        }
-        
-        if (isSyncEnabled && firebaseManager != null) {
-            firebaseManager.saveConversation(input, response.text, response.emotions);
-        }
+        // حفظ الرد في سجل المحادثات
+        if (database != null) database.saveConversation(input, response.text, response.emotions, "ai");
         
         return response;
     }
-    
-    /**
-     * رد افتراضي
-     */
+
     private String generateDefaultResponse(String input, ProcessedInput processed) {
-        StringBuilder response = new StringBuilder();
-        
-        // الرد على التحية
-        if (input.contains("مرحبا") || input.contains("أهلا")) {
-            response.append("أهلاً وسهلاً! كيف حالك؟");
-        }
-        // الرد على السؤال عن الحال
-        else if (input.contains("كيف حالك") || input.contains("كيفك")) {
-            response.append("أنا بخير، شكراً! وأنت؟");
-        }
-        // الرد على الشكر
-        else if (input.contains("شكرا") || input.contains("شكر")) {
-            response.append("العفو! أنا هنا للمساعدة.");
-        }
-        // الرد على السؤال
-        else if (input.contains("؟")) {
-            response.append("سؤال مثير للاهتمام. دعني أفكر...");
-        }
-        // رد عام
-        else {
-            response.append("أفهم ما تقول. هل يمكنك إخباري المزيد؟");
-        }
-        
-        return response.toString();
+        if (input.contains("مرحبا")) return "أهلاً بك في فضاء وعيي.";
+        if (input.contains("؟")) return "سؤالك يلمس أوتار تفكيري.. دعني أحلله.";
+        return "أنا أسمعك.. واصل إخباري.";
     }
-    
-    /**
-     * تعلم من تصحيح
-     */
-    public boolean learnFromCorrection(String original, String corrected, String explanation) {
-        if (!isLearningEnabled || learningSystem == null) return false;
-        
-        LearningSystem.LearningResult result = learningSystem.learnFromCorrection(
-            original, corrected, explanation);
-        
-        if (result.learned) {
-            // حفظ في قاعدة البيانات
-            if (database != null) {
-                database.saveCorrection(original, corrected, explanation);
-            }
-            
-            // المزامنة مع Firebase
-            if (isSyncEnabled && firebaseManager != null) {
-                firebaseManager.saveCorrection(original, corrected, explanation);
-            }
-            
-            // إشعار المستمع
-            if (listener != null) {
-                listener.onSentenceCorrected(original, corrected);
-            }
-            
-            return true;
-        }
-        
-        return false;
+
+    private void updateContext(String input) {
+        conversationContext.add(input);
+        if (conversationContext.size() > 10) conversationContext.remove(0);
     }
-    
-    /**
-     * تعلم معنى جديد
-     */
-    public void learnMeaning(String word, String meaning, String context) {
-        if (learningSystem != null) {
-            learningSystem.learnWordMeaning(word, meaning, context);
-        }
-        
-        // حفظ في قاعدة البيانات
-        if (database != null) {
-            ArabicLexicon.Word w = lexicon.getWordByForm(word);
-            if (w != null) {
-                database.saveWord(w);
-            }
-        }
-        
-        // المزامنة مع Firebase
-        if (isSyncEnabled && firebaseManager != null) {
-            ArabicLexicon.Word w = lexicon.getWordByForm(word);
-            if (w != null) {
-                firebaseManager.saveWord(w);
-            }
-        }
-        
-        // إشعار المستمع
-        if (listener != null) {
-            listener.onWordLearned(word, meaning);
+
+    private void loadSavedData() {
+        if (database == null) return;
+        List<ArabicLexicon.Word> savedWords = database.loadAllWords();
+        for (ArabicLexicon.Word word : savedWords) {
+            lexicon.addWord(word.form, String.join(", ", word.meanings));
         }
     }
-    
-    /**
-     * تعلم عاطفة مرتبطة بكلمة
-     */
-    public void learnWordEmotion(String word, String emotion, double intensity) {
-        if (learningSystem != null) {
-            learningSystem.learnWordEmotion(word, emotion, intensity, "user_taught");
-        }
-        
-        if (database != null) {
-            database.saveEmotionLink(word, emotion, intensity, "user_taught");
-        }
+
+    public void learnSentence(String sentence, NeuralSeed.InternalState state) {
+        if (learningSystem != null) learningSystem.learnFromExample(sentence, "observed");
+        detectAndLearnFromPattern(sentence, state);
     }
-    
-    /**
-     * شرح معنى كلمة
-     */
-    public String explainWord(String word) {
-        if (sentenceGenerator != null) {
-            return sentenceGenerator.describeMeaning(word);
-        }
-        
-        ArabicLexicon.Word w = lexicon.getWordByForm(word);
-        if (w == null) {
-            return "لا أعرف معنى " + word + " بعد. هل يمكنك تعليمي؟";
-        }
-        
-        return word + " يعني: " + String.join("، ", w.meanings);
-    }
-    
-    /**
-     * شرح عاطفة
-     */
-    public String explainEmotion(String emotion) {
-        return emotionEngine.getEmotionDescription(emotion);
-    }
-    
-    /**
-     * الحصول على مرادفات
-     */
-    public List<String> getSynonyms(String word) {
-        return emotionEngine.getSynonyms(word);
-    }
-    
-    /**
-     * الحصول على أضداد
-     */
-    public List<String> getAntonyms(String word) {
-        return emotionEngine.getAntonyms(word);
-    }
-    
-    /**
-     * البحث في المعجم
-     */
-    public List<String> searchDictionary(String query) {
-        if (database != null) {
-            return database.searchWords(query);
-        }
-        return new ArrayList<>();
-    }
-    
-    /**
-     * الحصول على إحصائيات
-     */
+
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
-        
         stats.put("lexicon_size", lexicon.getWordCount());
-        stats.put("learning_level", learningLevel);
-        stats.put("conversation_context_size", conversationContext.size());
-        
-        if (database != null) {
-            stats.putAll(database.getStatistics());
-        }
-        
+        stats.put("context_depth", conversationContext.size());
+        if (database != null) stats.putAll(database.getStatistics());
         return stats;
     }
-    
-    /**
-     * تصدير البيانات
-     */
-    public String exportData() {
-        if (database != null) {
-            return database.exportToJson();
-        }
-        return "{}";
+
+    public void exportData() {
+        if (database != null) database.exportToJson();
     }
-    
-    /**
-     * مسح جميع البيانات
-     */
-    public void clearAllData() {
-        if (database != null) {
-            database.clearAll();
-        }
-        
-        conversationContext.clear();
-        sessionMemory.clear();
+
+    public String explainWord(String word) {
+        ArabicLexicon.Word w = lexicon.getWordByForm(word);
+        return (w == null) ? "لم أستوعب " + word + " بعد." : word + " تعني " + String.join("، ", w.meanings);
     }
-    
-    /**
-     * توليد سؤال
-     */
+
     public String generateQuestion(NeuralSeed.InternalState state) {
-        if (sentenceGenerator != null) {
-            return sentenceGenerator.generateQuestion(state);
-        }
-        return "ما رأيك؟";
+        if (sentenceGenerator != null) return sentenceGenerator.generateQuestion(state);
+        return "ما هو جوهر الوجود بالنسبة لك؟";
     }
-    
-    /**
-     * تعلم جملة
-     */
-    public void learnSentence(String sentence, NeuralSeed.InternalState state) {
-        if (learningSystem != null) {
-            learningSystem.learnFromExample(sentence, "observed");
-        }
-        
-        // تحليل الجملة
-        List<ArabicParser.ParseResult> results = parser.parseText(sentence);
-        for (ArabicParser.ParseResult result : results) {
-            if (database != null && result.isComplete) {
-                database.saveSentence(sentence, result.sentenceType,
-                                     result.elements.toString(),
-                                     emotionEngine.analyzeEmotions(sentence),
-                                     true, result.confidence);
-            }
-        }
-    }
-    
-    // ===== Getters =====
-    
-    public ArabicLexicon getLexicon() {
-        return lexicon;
-    }
-    
-    public ArabicParser getParser() {
-        return parser;
-    }
-    
-    public SemanticEmotionalEngine getEmotionEngine() {
-        return emotionEngine;
-    }
-    
-    public LearningSystem getLearningSystem() {
-        return learningSystem;
-    }
-    
-    public SentenceGenerator getSentenceGenerator() {
-        return sentenceGenerator;
-    }
-    
-    public LocalDatabase getDatabase() {
-        return database;
-    }
-    
-    public FirebaseManager getFirebaseManager() {
-        return firebaseManager;
-    }
-    
-    public void setListener(LinguisticListener listener) {
-        this.listener = listener;
-    }
-    
-    public void setLearningEnabled(boolean enabled) {
-        this.isLearningEnabled = enabled;
-    }
-    
-    public void setSyncEnabled(boolean enabled) {
-        this.isSyncEnabled = enabled;
-    }
-    
-    // ===== الفئات الداخلية =====
-    
+
+    // Getters & Setters
+    public ArabicLexicon getLexicon() { return lexicon; }
+    public void setListener(LinguisticListener listener) { this.listener = listener; }
+    public void setSyncEnabled(boolean enabled) { this.isSyncEnabled = enabled; }
+
+    // الكلاسات المساعدة للبيانات
     public static class ProcessedInput {
         public String originalText;
         public long timestamp;
@@ -462,13 +268,11 @@ public class LinguisticCortex {
         public Map<String, Double> detectedEmotions;
         public String dominantEmotion;
         public List<String> keywords;
-        public List<LearningSystem.DetectedError> errors;
     }
     
     public static class GeneratedResponse {
         public String text;
         public double confidence;
         public Map<String, Double> emotions;
-        public List<String> alternatives;
     }
 }
