@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+
+
+    <color name="primary_dark">#1A1A2E</color>
+    <color name="secondary_dark">#16213E</color>
+    <color name="accent_red">#E94560</color>
+    <color name="accent_blue">#0F3460</color>
+    <color name="accent_teal">#4ECDC4</color>
+    <color name="accent_yellow">#FFE66D</color>
+    <color name="accent_purple">#533483</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_gray">#888888</color>
+
     <!-- Primary Colors -->
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
