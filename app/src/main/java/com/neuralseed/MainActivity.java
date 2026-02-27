@@ -53,9 +53,17 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     private Map<String, Integer> emotionColors = new HashMap<>();
     
-    @Override
+        @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // جعل شريط الحالة شفافاً ومنسجماً مع تصميم الواجهة الداكن (لا يؤثر على الأداء)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            android.view.Window window = getWindow();
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            window.setStatusBarColor(android.graphics.Color.parseColor("#0A0A12"));
+        }
+
         setContentView(R.layout.activity_main);
         
         // طلب إذن الميكروفون
@@ -72,6 +80,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         initializeConsciousness();
         initializeLinguisticCortex();
     }
+
     
     private void initializeEmotionColors() {
         emotionColors.put("joy", Color.parseColor("#FFD700"));
