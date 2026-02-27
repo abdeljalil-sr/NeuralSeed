@@ -1,415 +1,260 @@
 package com.neuralseed;
 
 import android.content.Context;
-import com.google.firebase.firestore.*;
-import com.google.firebase.storage.*;
-import com.google.firebase.auth.*;
+import android.util.Log;
+import com.google.firebase.database.*;
+import com.google.firebase.auth.FirebaseAuth;
 import java.util.*;
-import java.util.concurrent.*;
 
 /**
- * مدير Firebase - للتخزين السحابي والمزامنة
+ * مدير Firebase - المزامنة السحابية والتخزين
  */
 public class FirebaseManager {
     
-    private FirebaseFirestore db;
-    private FirebaseStorage storage;
+    private FirebaseDatabase database;
+    private DatabaseReference lexiconRef;
+    private DatabaseReference conversationsRef;
+    private DatabaseReference stateRef;
     private FirebaseAuth auth;
     
-    // مستمعي الأحداث
+    private String deviceId;
+    private boolean isInitialized = false;
+    
     public interface SyncListener {
-        void onSyncComplete(boolean success);
-        void onDataReceived(String collection, Map<String, Object> data);
-        void onError(String error);
+        void onWordSynced(String word, String meaning);
+        void onSyncError(String error);
+        void onConnectionStateChanged(boolean connected);
     }
     
-    private SyncListener syncListener;
-    private String userId;
-    private boolean isAuthenticated;
+    private SyncListener listener;
     
     public FirebaseManager(Context context) {
         try {
-            db = FirebaseFirestore.getInstance();
-            storage = FirebaseStorage.getInstance();
+            database = FirebaseDatabase.getInstance();
             auth = FirebaseAuth.getInstance();
-            isAuthenticated = false;
+            deviceId = getDeviceId(context);
+            
+            // المصادقة المجهولة
+            authenticateAnonymous();
+            
         } catch (Exception e) {
-            // Firebase غير مهيأ
+            Log.e("FirebaseManager", "Initialization error: " + e.getMessage());
         }
     }
     
-    public void setSyncListener(SyncListener listener) {
-        this.syncListener = listener;
-    }
-    
-    // ===== المصادقة =====
-    
-    public void signInAnonymously() {
-        if (auth == null) return;
-        
-        auth.signInAnonymously()
-            .addOnSuccessListener(result -> {
-                userId = result.getUser().getUid();
-                isAuthenticated = true;
-                if (syncListener != null) {
-                    syncListener.onSyncComplete(true);
-                }
-            })
-            .addOnFailureListener(e -> {
-                isAuthenticated = false;
-                if (syncListener != null) {
-                    syncListener.onError(e.getMessage());
-                }
-            });
-    }
-    
-    public void signOut() {
-        if (auth != null) {
-            auth.signOut();
-            isAuthenticated = false;
-            userId = null;
+    private void authenticateAnonymous() {
+        if (auth.getCurrentUser() == null) {
+            auth.signInAnonymously()
+                .addOnSuccessListener(result -> {
+                    Log.i("FirebaseManager", "Anonymous auth successful");
+                    initializeReferences();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("FirebaseManager", "Auth failed: " + e.getMessage());
+                    if (listener != null) listener.onSyncError("Authentication failed");
+                });
+        } else {
+            initializeReferences();
         }
     }
     
-    public boolean isAuthenticated() {
-        return isAuthenticated && userId != null;
-    }
-    
-    // ===== حفظ البيانات =====
-    
-    public void saveWord(ArabicLexicon.Word word) {
-        if (!isAuthenticated() || db == null) return;
+    private void initializeReferences() {
+        lexiconRef = database.getReference("lexicon");
+        conversationsRef = database.getReference("conversations").child(deviceId);
+        stateRef = database.getReference("states").child(deviceId);
+        isInitialized = true;
         
-        Map<String, Object> data = new HashMap<>();
-        data.put("word", word.word);
-        data.put("root", word.root);
-        data.put("type", word.type.name());
-        data.put("meanings", word.meanings);
-        data.put("emotions", word.emotions);
-        data.put("familiarity", word.familiarity);
-        data.put("usageCount", word.usageCount);
-        data.put("lastUsed", word.lastUsed);
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("words").document(word.word)
-          .set(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    public void saveMeaning(SemanticEmotionalEngine.Meaning meaning) {
-        if (!isAuthenticated() || db == null) return;
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("concept", meaning.concept);
-        data.put("definition", meaning.definition);
-        data.put("synonyms", meaning.synonyms);
-        data.put("antonyms", meaning.antonyms);
-        data.put("relatedConcepts", meaning.relatedConcepts);
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("meanings").document(meaning.concept)
-          .set(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    public void saveConversation(String userMessage, String aiResponse, 
-                                  Map<String, Double> emotions) {
-        if (!isAuthenticated() || db == null) return;
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("userMessage", userMessage);
-        data.put("aiResponse", aiResponse);
-        data.put("emotions", emotions);
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("conversations")
-          .add(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    public void saveExperience(String description, Map<String, Double> emotions,
-                                String outcome, String lesson, double importance) {
-        if (!isAuthenticated() || db == null) return;
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("description", description);
-        data.put("emotions", emotions);
-        data.put("outcome", outcome);
-        data.put("lesson", lesson);
-        data.put("importance", importance);
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("experiences")
-          .add(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    public void saveCorrection(String original, String corrected, String explanation) {
-        if (!isAuthenticated() || db == null) return;
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("original", original);
-        data.put("corrected", corrected);
-        data.put("explanation", explanation);
-        data.put("learned", true);
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("corrections")
-          .add(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    public void saveState(NeuralSeed.InternalState state) {
-        if (!isAuthenticated() || db == null) return;
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("chaosIndex", state.chaosIndex);
-        data.put("existentialFitness", state.existentialFitness);
-        data.put("internalConflict", state.internalConflict);
-        data.put("currentPhase", state.currentPhase != null ? state.currentPhase.name() : "EMBRYONIC");
-        data.put("dominantEgo", state.dominantEgo != null ? state.dominantEgo.name : "unknown");
-        data.put("timestamp", System.currentTimeMillis());
-        
-        db.collection("users").document(userId)
-          .collection("states")
-          .add(data)
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-          });
-    }
-    
-    // ===== استرجاع البيانات =====
-    
-    public void loadWords(OnWordsLoadedListener listener) {
-        if (!isAuthenticated() || db == null) {
-            if (listener != null) listener.onLoaded(new ArrayList<>());
-            return;
-        }
-        
-        db.collection("users").document(userId)
-          .collection("words")
-          .orderBy("timestamp", Query.Direction.DESCENDING)
-          .limit(100)
-          .get()
-          .addOnSuccessListener(querySnapshot -> {
-              List<Map<String, Object>> words = new ArrayList<>();
-              for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
-                  words.add(doc.getData());
-              }
-              if (listener != null) listener.onLoaded(words);
-          })
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-              if (listener != null) listener.onLoaded(new ArrayList<>());
-          });
-    }
-    
-    public interface OnWordsLoadedListener {
-        void onLoaded(List<Map<String, Object>> words);
-    }
-    
-    public void loadConversations(int limit, OnConversationsLoadedListener listener) {
-        if (!isAuthenticated() || db == null) {
-            if (listener != null) listener.onLoaded(new ArrayList<>());
-            return;
-        }
-        
-        db.collection("users").document(userId)
-          .collection("conversations")
-          .orderBy("timestamp", Query.Direction.DESCENDING)
-          .limit(limit)
-          .get()
-          .addOnSuccessListener(querySnapshot -> {
-              List<Map<String, Object>> conversations = new ArrayList<>();
-              for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
-                  conversations.add(doc.getData());
-              }
-              if (listener != null) listener.onLoaded(conversations);
-          })
-          .addOnFailureListener(e -> {
-              if (syncListener != null) syncListener.onError(e.getMessage());
-              if (listener != null) listener.onLoaded(new ArrayList<>());
-          });
-    }
-    
-    public interface OnConversationsLoadedListener {
-        void onLoaded(List<Map<String, Object>> conversations);
-    }
-    
-    // ===== المزامنة =====
-    
-    public void syncWithLocal(LocalDatabase localDb) {
-        if (!isAuthenticated() || db == null || localDb == null) return;
-        
-        // مزامنة الكلمات
-        loadWords(words -> {
-            for (Map<String, Object> wordData : words) {
-                String word = (String) wordData.get("word");
-                if (word != null && localDb.loadWord(word) == null) {
-                    // إضافة الكلمة المحلية
-                    ArabicLexicon.Word w = new ArabicLexicon.Word(
-                        (String) wordData.get("root"),
-                        word,
-                        ArabicLexicon.WordType.valueOf((String) wordData.get("type"))
-                    );
-                    
-                    List<String> meanings = (List<String>) wordData.get("meanings");
-                    if (meanings != null) w.meanings.addAll(meanings);
-                    
-                    Map<String, Double> emotions = (Map<String, Double>) wordData.get("emotions");
-                    if (emotions != null) w.emotions.putAll(emotions);
-                    
-                    w.familiarity = ((Number) wordData.get("familiarity")).doubleValue();
-                    w.usageCount = ((Number) wordData.get("usageCount")).intValue();
-                    
-                    localDb.saveWord(w);
+        // مراقبة حالة الاتصال
+        DatabaseReference connectedRef = database.getReference(".info/connected");
+        connectedRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                boolean connected = snapshot.getValue(Boolean.class);
+                if (listener != null) {
+                    listener.onConnectionStateChanged(connected);
                 }
             }
             
-            if (syncListener != null) {
-                syncListener.onSyncComplete(true);
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Log.e("FirebaseManager", "Connection listener cancelled");
             }
         });
     }
     
-    // ===== الاستماع للتغييرات =====
-    
-    public void listenToConversations() {
-        if (!isAuthenticated() || db == null) return;
+    /**
+     * حفظ كلمة في السحابة
+     */
+    public void saveWord(String word, String meaning) {
+        if (!isInitialized || lexiconRef == null) return;
         
-        db.collection("users").document(userId)
-          .collection("conversations")
-          .orderBy("timestamp", Query.Direction.DESCENDING)
-          .limit(1)
-          .addSnapshotListener((snapshot, error) -> {
-              if (error != null) {
-                  if (syncListener != null) syncListener.onError(error.getMessage());
-                  return;
-              }
-              
-              if (snapshot != null && !snapshot.isEmpty()) {
-                  for (DocumentChange change : snapshot.getDocumentChanges()) {
-                      if (change.getType() == DocumentChange.Type.ADDED) {
-                          if (syncListener != null) {
-                              syncListener.onDataReceived("conversations", 
-                                  change.getDocument().getData());
-                          }
-                      }
-                  }
-              }
-          });
-    }
-    
-    // ===== التخزين السحابي =====
-    
-    public void uploadBackup(String data, OnUploadCompleteListener listener) {
-        if (storage == null) {
-            if (listener != null) listener.onComplete(false, null);
-            return;
-        }
-        
-        String filename = "backup_" + System.currentTimeMillis() + ".json";
-        StorageReference ref = storage.getReference().child("backups").child(userId).child(filename);
-        
-        ref.putBytes(data.getBytes())
-            .addOnSuccessListener(taskSnapshot -> {
-                ref.getDownloadUrl().addOnSuccessListener(uri -> {
-                    if (listener != null) listener.onComplete(true, uri.toString());
-                });
+        lexiconRef.child(word).setValue(meaning)
+            .addOnSuccessListener(aVoid -> {
+                Log.i("FirebaseManager", "Word saved: " + word);
             })
             .addOnFailureListener(e -> {
-                if (listener != null) listener.onComplete(false, null);
+                Log.e("FirebaseManager", "Failed to save word: " + e.getMessage());
             });
     }
     
-    public interface OnUploadCompleteListener {
-        void onComplete(boolean success, String downloadUrl);
-    }
-    
-    // ===== الإحصائيات =====
-    
-    public void getStatistics(OnStatisticsLoadedListener listener) {
-        if (!isAuthenticated() || db == null) {
-            if (listener != null) listener.onLoaded(new HashMap<>());
+    /**
+     * استرجاع كلمة من السحابة
+     */
+    public void loadWord(String word, final WordLoadCallback callback) {
+        if (!isInitialized || lexiconRef == null) {
+            if (callback != null) callback.onWordLoaded(null, null);
             return;
         }
         
-        Map<String, Object> stats = new HashMap<>();
-        
-        // عدد الكلمات
-        db.collection("users").document(userId)
-          .collection("words")
-          .get()
-          .addOnSuccessListener(snapshot -> {
-              stats.put("wordCount", snapshot.size());
-              
-              // عدد المحادثات
-              db.collection("users").document(userId)
-                .collection("conversations")
-                .get()
-                .addOnSuccessListener(convSnapshot -> {
-                    stats.put("conversationCount", convSnapshot.size());
-                    
-                    // عدد التجارب
-                    db.collection("users").document(userId)
-                      .collection("experiences")
-                      .get()
-                      .addOnSuccessListener(expSnapshot -> {
-                          stats.put("experienceCount", expSnapshot.size());
-                          
-                          if (listener != null) listener.onLoaded(stats);
-                      });
-                });
-          });
-    }
-    
-    public interface OnStatisticsLoadedListener {
-        void onLoaded(Map<String, Object> statistics);
-    }
-    
-    // ===== حذف البيانات =====
-    
-    public void deleteAllData(OnDeleteCompleteListener listener) {
-        if (!isAuthenticated() || db == null) {
-            if (listener != null) listener.onComplete(false);
-            return;
-        }
-        
-        // حذف جميع المجموعات الفرعية
-        deleteCollection(db.collection("users").document(userId).collection("words"));
-        deleteCollection(db.collection("users").document(userId).collection("meanings"));
-        deleteCollection(db.collection("users").document(userId).collection("conversations"));
-        deleteCollection(db.collection("users").document(userId).collection("experiences"));
-        deleteCollection(db.collection("users").document(userId).collection("corrections"));
-        deleteCollection(db.collection("users").document(userId).collection("states"));
-        
-        if (listener != null) listener.onComplete(true);
-    }
-    
-    private void deleteCollection(CollectionReference collection) {
-        collection.get().addOnSuccessListener(snapshot -> {
-            for (DocumentSnapshot doc : snapshot.getDocuments()) {
-                doc.getReference().delete();
+        lexiconRef.child(word).addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                String meaning = snapshot.getValue(String.class);
+                if (callback != null) callback.onWordLoaded(word, meaning);
+            }
+            
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Log.e("FirebaseManager", "Load word cancelled: " + error.getMessage());
+                if (callback != null) callback.onWordLoaded(null, null);
             }
         });
     }
     
-    public interface OnDeleteCompleteListener {
-        void onComplete(boolean success);
+    public interface WordLoadCallback {
+        void onWordLoaded(String word, String meaning);
+    }
+    
+    /**
+     * الاستماع للكلمات الجديدة
+     */
+    public void listenToNewWords(final NewWordListener listener) {
+        if (!isInitialized || lexiconRef == null) return;
+        
+        lexiconRef.addChildEventListener(new ChildEventListener() {
+            @Override
+            public void onChildAdded(DataSnapshot snapshot, String previousChildName) {
+                String word = snapshot.getKey();
+                String meaning = snapshot.getValue(String.class);
+                if (listener != null) listener.onNewWord(word, meaning);
+            }
+            
+            @Override
+            public void onChildChanged(DataSnapshot snapshot, String previousChildName) {}
+            
+            @Override
+            public void onChildRemoved(DataSnapshot snapshot) {}
+            
+            @Override
+            public void onChildMoved(DataSnapshot snapshot, String previousChildName) {}
+            
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Log.e("FirebaseManager", "Listen cancelled: " + error.getMessage());
+            }
+        });
+    }
+    
+    public interface NewWordListener {
+        void onNewWord(String word, String meaning);
+    }
+    
+    /**
+     * حفظ محادثة
+     */
+    public void saveConversation(String userMessage, String aiResponse, long timestamp) {
+        if (!isInitialized || conversationsRef == null) return;
+        
+        Map<String, Object> conversation = new HashMap<>();
+        conversation.put("user", userMessage);
+        conversation.put("ai", aiResponse);
+        conversation.put("timestamp", timestamp);
+        
+        conversationsRef.push().setValue(conversation);
+    }
+    
+    /**
+     * حفظ حالة الوعي
+     */
+    public void saveState(NeuralSeed.InternalState state) {
+        if (!isInitialized || stateRef == null || state == null) return;
+        
+        Map<String, Object> stateData = new HashMap<>();
+        stateData.put("phase", state.currentPhase.name());
+        stateData.put("chaosIndex", state.chaosIndex);
+        stateData.put("existentialFitness", state.existentialFitness);
+        stateData.put("internalConflict", state.internalConflict);
+        stateData.put("timestamp", System.currentTimeMillis());
+        
+        if (state.dominantEgo != null) {
+            stateData.put("dominantEgo", state.dominantEgo.name);
+        }
+        
+        stateRef.setValue(stateData);
+    }
+    
+    /**
+     * مزامنة المعجم المحلي مع السحابة
+     */
+    public void syncLexicon(ArabicLexicon lexicon) {
+        if (!isInitialized || lexiconRef == null) return;
+        
+        // رفع الكلمات المحلية
+        for (ArabicLexicon.Word word : lexicon.getAllWords()) {
+            if (!word.meanings.isEmpty()) {
+                saveWord(word.word, word.meanings.get(0));
+            }
+        }
+        
+        // استرجاع الكلمات الجديدة من السحابة
+        lexiconRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    String word = child.getKey();
+                    String meaning = child.getValue(String.class);
+                    
+                    if (!lexicon.contains(word)) {
+                        lexicon.addWord(word, meaning);
+                        if (listener != null) {
+                            listener.onWordSynced(word, meaning);
+                        }
+                    }
+                }
+            }
+            
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Log.e("FirebaseManager", "Sync failed: " + error.getMessage());
+                if (listener != null) {
+                    listener.onSyncError(error.getMessage());
+                }
+            }
+        });
+    }
+    
+    /**
+     * الحصول على معرف الجهاز
+     */
+    private String getDeviceId(Context context) {
+        String id = android.provider.Settings.Secure.getString(
+            context.getContentResolver(),
+            android.provider.Settings.Secure.ANDROID_ID
+        );
+        return id != null ? id : "unknown_device";
+    }
+    
+    /**
+     * التحقق من حالة الاتصال
+     */
+    public boolean isConnected() {
+        return isInitialized;
+    }
+    
+    /**
+     * تعيين المستمع
+     */
+    public void setListener(SyncListener listener) {
+        this.listener = listener;
     }
 }
