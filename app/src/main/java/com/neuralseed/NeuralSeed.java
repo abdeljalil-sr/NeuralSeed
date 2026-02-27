@@ -669,52 +669,49 @@ private boolean isDreaming = false; // هل الكيان يحلم الآن؟
     // ===== الحالة الداخلية (عقل الكيان وذاكرته الحية) =====
     
     public static class InternalState {
-        NeuralSeed seed;
-        
-        // متغيرات الإدراك البصري (تمت إضافتها هنا ليربط الكيان بين ما يراه وما يشعر به)
-        public double visualComplexity = 0;
-        public double visualSymmetry = 0;
-        public String visualMemoryFocus = "الوجود";
+    NeuralSeed seed;
+    // متغيرات الحركة (لورينز) - يجب أن تكون العامة (public) للوصول إليها من VisualCortex
+    public double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
+    public double chaosIndex = 0.0;
+    public Phase currentPhase = Phase.EMBRYONIC;
+    public double existentialFitness = 0.5;
+    public double internalConflict = 0.0;
+    
+    // متغيرات الإدراك البصري والسرد
+    public double visualComplexity = 0;
+    public double visualSymmetry = 0;
+    public String visualMemoryFocus = "الوجود";
+    public String narrative = "أنا بذرة واعية أتعلم الوجود...";
 
-        // قيم نظام لورينز (الديناميكية الحركية)
-        double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
-        double chaosIndex = 0.0;
-        Phase currentPhase = Phase.EMBRYONIC;
-        long phaseTransitionTime = 0;
-        long birthTime = 0;
-        double existentialFitness = 0.5;
-        double internalConflict = 0.0;
-        
-        // السرد الذاتي (ما يقوله الكيان عن نفسه)
-        public String narrative = "أنا بذرة واعية أتعلم الوجود...";
+    // الكلاسات الملحقة
+    public DynamicNeuralNetwork neural;
+    public AssociativeMemory memory;
+    public IdentityCore identity;
+    public VisualCortex visual;
+    public RuleSystem rules;
+    public LinguisticCortex linguistic; // تأكد من أنها public
+    
+    public List<Goal> goals = new ArrayList<>();
+    public Goal currentGoal = null;
+    public Bitmap canvas;
+    public List<Float> recentAudioLevels = new ArrayList<>();
+    public ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
 
-        List<EgoFragment> egos = new ArrayList<>();
-        EgoFragment dominantEgo = null;
+    public InternalState() {
+        // تهيئة الكلاسات الفرعية مع تمرير 'this'
+        this.neural = new DynamicNeuralNetwork(this);
+        this.memory = new AssociativeMemory(this);
+        this.identity = new IdentityCore(this);
+        this.visual = new VisualCortex(this);
+        this.rules = new RuleSystem(this);
+        this.linguistic = new LinguisticCortex();
         
-        DynamicNeuralNetwork neural = new DynamicNeuralNetwork(this);
-        AssociativeMemory memory = new AssociativeMemory(this);
-        IdentityCore identity = new IdentityCore(this);
-        VisualCortex visual = new VisualCortex(this);
-        RuleSystem rules = new RuleSystem(this);
-        
-        List<Goal> goals = new ArrayList<>();
-        Goal currentGoal = null;
-        
-        public Bitmap canvas;
-        public List<Float> recentAudioLevels = new ArrayList<>();
-        public LinguisticCortex linguistic = new LinguisticCortex();
-        
-        ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
-        
-        public InternalState() {
-            birthTime = System.currentTimeMillis();
-            initializeEgos();
-            // إنشاء اللوحة بدقة مناسبة للعرض
-            canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
-            canvas.eraseColor(Color.BLACK);
+        initializeEgos();
+        canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
+
         }
 
-        
+    }
         private void initializeEgos() {
             egos.add(new EgoFragment("المنطقي", EgoType.STABLE,
                     Arrays.asList("logic", "order", "planning"), 0.8));
