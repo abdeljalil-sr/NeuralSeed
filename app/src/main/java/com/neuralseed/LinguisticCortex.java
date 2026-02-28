@@ -26,14 +26,14 @@ public class LinguisticCortex {
     private static final String PREFS_NAME = "NeuralSeedKnowledge";
     private static final String TAG = "LinguisticCortex";
     
-    // أنماط التعلم المتقدمة
+    // أنماط التعلم المتقدمة - محسّنة للعربية
     private final Pattern DEFINITION_PATTERN = Pattern.compile(
-        "(\\w+)\\s+(?:هي|هو|عبارة عن|نوع من|جزء من|تعني|تعرف بأنها?)\\s+(.+)",
+        "([\\p{L}\\p{Nd}]+)\\s+(?:هي|هو|عبارة عن|نوع من|جزء من|تعني|تعرف بأنها?)\\s+(.+)",
         Pattern.UNICODE_CHARACTER_CLASS
     );
     
     private final Pattern RELATIONSHIP_PATTERN = Pattern.compile(
-        "(\\w+)\\s+(?:تتكون من|تحتوي على|تنتمي إلى|تعيش في|تأكل|تشرب|تستخدم|تصنع|تنتج)\\s+(.+)",
+        "([\\p{L}\\p{Nd}]+)\\s+(?:تتكون من|تحتوي على|تنتمي إلى|تعيش في|تأكل|تشرب|تستخدم|تصنع|تنتج)\\s+(.+)",
         Pattern.UNICODE_CHARACTER_CLASS
     );
     
@@ -60,32 +60,30 @@ public class LinguisticCortex {
     }
     
     public GeneratedResponse generateResponse(String userInput, NeuralSeed.InternalState state) {
-        // تحليل السياق العميق
+        if (userInput == null || userInput.trim().isEmpty()) {
+            return new GeneratedResponse("لم أفهم ما قلت، هل يمكنك التوضيح؟");
+        }
+        
         SemanticAnalysis analysis = analyzeSemantics(userInput);
         
-        // إذا كان المستخدم يعلم شيئاً جديداً
         if (analysis.isTeaching) {
             return handleTeaching(userInput, analysis);
         }
         
-        // إذا كان المستخدم يسأل
         if (analysis.isQuestion) {
             return answerQuestion(userInput, analysis);
         }
         
-        // رد عادي مع استخدام المعرفة المكتسبة
         return generateContextualResponse(userInput, state, analysis);
     }
     
     public String generateQuestion(NeuralSeed.InternalState state) {
-        // توليد أسئلة بناءً على الثغرات في المعرفة
         List<String> unknownConcepts = knowledgeGraph.getUnknownConcepts();
         if (!unknownConcepts.isEmpty()) {
             String concept = unknownConcepts.get(0);
             return "ما هي " + concept + "؟ هل يمكنك أن تشرح لي؟";
         }
         
-        // أسئلة عن العلاقات
         List<Relationship> incompleteRelations = knowledgeGraph.getIncompleteRelationships();
         if (!incompleteRelations.isEmpty()) {
             Relationship rel = incompleteRelations.get(0);
@@ -96,27 +94,24 @@ public class LinguisticCortex {
     }
     
     public void learnSentence(String sentence, NeuralSeed.InternalState state) {
-        // تعلم التعريفات
+        if (sentence == null || sentence.trim().isEmpty()) return;
+        
         learnDefinitions(sentence);
-        
-        // تعلم العلاقات
         learnRelationships(sentence);
-        
-        // تعلم الصفات والخصائص
         learnAttributes(sentence);
-        
-        // حفظ السياق
         saveKnowledge();
     }
     
     private void learnDefinitions(String sentence) {
-        // نمط: "X هي Y"
+        boolean foundSimple = false;
+        
         Matcher matcher = DEFINITION_PATTERN.matcher(sentence);
         while (matcher.find()) {
+            foundSimple = true;
             String concept = normalizeWord(matcher.group(1));
-            String definition = matcher.group(2).trim();
+            if (concept.isEmpty()) continue;
             
-            // تحليل التعريف إذا كان معقداً
+            String definition = matcher.group(2).trim();
             Definition def = parseComplexDefinition(definition);
             
             lexicon.addWord(concept, def.meaning, def.category, sentence);
@@ -130,20 +125,24 @@ public class LinguisticCortex {
             Log.d(TAG, "تعلمت تعريف: " + concept + " = " + def.meaning);
         }
         
-        // نمط التعريف المعقد
-        Matcher complexMatcher = COMPLEX_DEFINITION.matcher(sentence);
-        if (complexMatcher.find() && !matcher.find()) {
-            String concept = normalizeWord(complexMatcher.group(1));
-            String definition = complexMatcher.group(2).trim();
-            String reason = complexMatcher.group(3);
-            
-            Definition def = new Definition(definition, extractCategory(definition), reason);
-            lexicon.addWord(concept, def.meaning, def.category, sentence);
-            knowledgeGraph.addConcept(concept, def);
-            
-            if (listener != null) {
-                listener.onWordLearned(concept, def.meaning, sentence);
-                listener.onNewConceptLearned(concept, def.meaning);
+        // نمط التعريف المعقد فقط إذا لم يُعثر على نمط بسيط
+        if (!foundSimple) {
+            Matcher complexMatcher = COMPLEX_DEFINITION.matcher(sentence);
+            if (complexMatcher.find()) {
+                String concept = normalizeWord(complexMatcher.group(1));
+                if (concept.isEmpty()) return;
+                
+                String definition = complexMatcher.group(2).trim();
+                String reason = complexMatcher.group(3);
+                
+                Definition def = new Definition(definition, extractCategory(definition), reason);
+                lexicon.addWord(concept, def.meaning, def.category, sentence);
+                knowledgeGraph.addConcept(concept, def);
+                
+                if (listener != null) {
+                    listener.onWordLearned(concept, def.meaning, sentence);
+                    listener.onNewConceptLearned(concept, def.meaning);
+                }
             }
         }
     }
@@ -152,8 +151,11 @@ public class LinguisticCortex {
         Matcher matcher = RELATIONSHIP_PATTERN.matcher(sentence);
         while (matcher.find()) {
             String subject = normalizeWord(matcher.group(1));
-            String relationship = extractRelationship(sentence);
             String object = normalizeWord(matcher.group(2));
+            
+            if (subject.isEmpty() || object.isEmpty()) continue;
+            
+            String relationship = extractRelationship(sentence);
             
             knowledgeGraph.addRelationship(subject, relationship, object, sentence);
             
@@ -166,10 +168,9 @@ public class LinguisticCortex {
     }
     
     private void learnAttributes(String sentence) {
-        // تعلم الصفات مثل: "الشجرة خضراء"، "السماء زرقاء"
         Pattern attributePattern = Pattern.compile(
-            "(\\w+)\\s+(?:تكون|يكون|تصبح|يصبح)\\s+(\\w+)|" +
-            "(\\w+)\\s+(\\w+)\\s+(?:اللون|الحجم|الشكل|الطعم|الرائحة)",
+            "([\\p{L}\\p{Nd}]+)\\s+(?:تكون|يكون|تصبح|يصبح)\\s+([\\p{L}\\p{Nd}]+)|" +
+            "([\\p{L}\\p{Nd}]+)\\s+([\\p{L}\\p{Nd}]+)\\s+(?:اللون|الحجم|الشكل|الطعم|الرائحة)",
             Pattern.UNICODE_CHARACTER_CLASS
         );
         
@@ -178,12 +179,13 @@ public class LinguisticCortex {
             String concept = matcher.group(1) != null ? matcher.group(1) : matcher.group(3);
             String attribute = matcher.group(2) != null ? matcher.group(2) : matcher.group(4);
             
-            knowledgeGraph.addAttribute(concept, "صفة", attribute);
+            if (concept != null && !concept.isEmpty() && attribute != null && !attribute.isEmpty()) {
+                knowledgeGraph.addAttribute(concept, "صفة", attribute);
+            }
         }
     }
     
     private Definition parseComplexDefinition(String definition) {
-        // تحليل "نوع من النباتات" -> category: نبات، meaning: نوع من النباتات
         String category = "مفهوم عام";
         String meaning = definition;
         String reason = null;
@@ -227,7 +229,8 @@ public class LinguisticCortex {
     private SemanticAnalysis analyzeSemantics(String text) {
         SemanticAnalysis analysis = new SemanticAnalysis();
         analysis.isTeaching = isTeachingStatement(text);
-        analysis.isQuestion = text.contains("؟") || text.contains("ما") || text.contains("من") || text.contains("كيف");
+        analysis.isQuestion = text.contains("؟") || 
+                             text.matches(".*\\b(ما|من|أين|كيف|لماذا|هل)\\b.*");
         analysis.mainConcepts = extractConcepts(text);
         return analysis;
     }
@@ -241,18 +244,21 @@ public class LinguisticCortex {
     private GeneratedResponse handleTeaching(String input, SemanticAnalysis analysis) {
         learnSentence(input, null);
         
-        // تأكيد التعلم بذكاء
         List<String> learnedConcepts = analysis.mainConcepts;
         if (!learnedConcepts.isEmpty()) {
             String concept = learnedConcepts.get(0);
             Definition def = lexicon.getDefinition(concept);
             
+            // ✅ إصلاح: التحقق من null
+            if (def == null) {
+                return new GeneratedResponse("شكراً لتعليمي عن " + concept + "! هل يمكنك توضيح المزيد؟");
+            }
+            
             String response = "فهمت! " + concept + " " + def.meaning;
-            if (def.reason != null) {
+            if (def.reason != null && !def.reason.isEmpty()) {
                 response += "، وأفهم الآن أن السبب هو " + def.reason;
             }
             
-            // طرح سؤال متابع للتعمق
             response += ". هل " + concept + " " + generateFollowUpQuestion(concept) + "؟";
             
             return new GeneratedResponse(response);
@@ -273,36 +279,43 @@ public class LinguisticCortex {
     }
     
     private GeneratedResponse answerQuestion(String question, SemanticAnalysis analysis) {
-        // استخراج المفهوم المسؤول عنه
         String targetConcept = extractTargetConcept(question);
         
-        if (targetConcept != null && lexicon.hasWord(targetConcept)) {
+        if (targetConcept != null && !targetConcept.isEmpty() && lexicon.hasWord(targetConcept)) {
             Definition def = lexicon.getDefinition(targetConcept);
+            
+            // ✅ إصلاح: التحقق من null
+            if (def == null) {
+                return new GeneratedResponse("لم أجد معلومات كافية عن " + targetConcept);
+            }
+            
             String answer = targetConcept + " " + def.meaning;
             
-            // إضافة معلومات إضافية إذا وجدت
             List<String> related = knowledgeGraph.getRelatedConcepts(targetConcept);
             if (!related.isEmpty()) {
-                answer += ". كما أنها " + String.join(" و", related.subList(0, Math.min(3, related.size())));
+                answer += ". كما أنها " + String.join(" و", 
+                    related.subList(0, Math.min(3, related.size())));
             }
             
             return new GeneratedResponse(answer);
         }
         
-        return new GeneratedResponse("لم أتعلم بعد عن " + (targetConcept != null ? targetConcept : "هذا") + 
-                                   ". هل يمكنك أن تعلمني؟");
+        return new GeneratedResponse("لم أتعلم بعد عن " + 
+            (targetConcept != null && !targetConcept.isEmpty() ? targetConcept : "هذا") + 
+            ". هل يمكنك أن تعلمني؟");
     }
     
     private GeneratedResponse generateContextualResponse(String input, NeuralSeed.InternalState state, 
                                                         SemanticAnalysis analysis) {
-        // استخدام المعرفة المكتسبة في الرد
         StringBuilder response = new StringBuilder();
         
-        // الإشارة إلى معلومات سابقة إذا وجدت صلة
         for (String concept : analysis.mainConcepts) {
             if (lexicon.hasWord(concept)) {
                 Definition def = lexicon.getDefinition(concept);
-                response.append("أتذكر أن ").append(concept).append(" ").append(def.meaning).append(". ");
+                if (def != null) {
+                    response.append("أتذكر أن ").append(concept).append(" ")
+                           .append(def.meaning).append(". ");
+                }
             }
         }
         
@@ -316,18 +329,21 @@ public class LinguisticCortex {
     }
     
     private String extractTargetConcept(String question) {
-        // استخراج المفهوم من السؤال مثل "ما هي الشجرة؟" -> "شجرة"
-        Pattern pattern = Pattern.compile("(?:ما|من|أين|كيف|لماذا)\\s+(?:هي|هو|تكون|يكون)?\\s+(\\w+)");
+        // ✅ إصلاح: regex محسّن للعربية
+        Pattern pattern = Pattern.compile(
+            "(?:ما|من|أين|كيف|لماذا)\\s+(?:هي|هو|تكون|يكون)?\\s+([\\p{L}\\p{Nd}]+)",
+            Pattern.UNICODE_CHARACTER_CLASS
+        );
         Matcher matcher = pattern.matcher(question);
         if (matcher.find()) {
-            return normalizeWord(matcher.group(1));
+            String found = normalizeWord(matcher.group(1));
+            if (!found.isEmpty()) return found;
         }
         
-        // البحث عن أي كلمة معروفة في السؤال
         String[] words = question.split("\\s+");
         for (String word : words) {
             String normalized = normalizeWord(word);
-            if (lexicon.hasWord(normalized)) {
+            if (!normalized.isEmpty() && lexicon.hasWord(normalized)) {
                 return normalized;
             }
         }
@@ -341,7 +357,7 @@ public class LinguisticCortex {
         
         for (String word : words) {
             String normalized = normalizeWord(word);
-            if (normalized.length() > 2 && !isCommonWord(normalized)) {
+            if (!normalized.isEmpty() && normalized.length() > 2 && !isCommonWord(normalized)) {
                 concepts.add(normalized);
             }
         }
@@ -350,13 +366,16 @@ public class LinguisticCortex {
     }
     
     private String normalizeWord(String word) {
-        return word.replaceAll("[^\\p{L}\\p{Nd}]", "").toLowerCase();
+        if (word == null) return "";
+        // ✅ إصلاح: إزالة التشكيل والرموز الخاصة
+        return word.replaceAll("[^\\p{L}\\p{Nd}]", "").toLowerCase().trim();
     }
     
     private boolean isCommonWord(String word) {
         Set<String> common = new HashSet<>(Arrays.asList(
             "هي", "هو", "التي", "الذي", "في", "من", "إلى", "على", "هذا", "هذه",
-            "أن", "أو", "و", "مع", "عن", "كان", "يكون", "التعريف", "المعنى"
+            "أن", "أو", "و", "مع", "عن", "كان", "يكون", "التعريف", "المعنى",
+            "التي", "الذين", "هؤلاء", "ذلك", "هناك", "عند", "بعد", "قبل"
         ));
         return common.contains(word);
     }
@@ -370,33 +389,37 @@ public class LinguisticCortex {
     }
     
     private double calculateIntensity(String text) {
+        if (text == null || text.isEmpty()) return 0.5;
         int caps = 0;
         for (char c : text.toCharArray()) {
             if (Character.isUpperCase(c)) caps++;
         }
-        return Math.min(1.0, 0.5 + (caps / (double) text.length()));
+        return Math.min(1.0, 0.5 + (caps / (double) Math.max(1, text.length())));
     }
     
     public void learnMeaning(String word, String meaning, String source) {
+        if (word == null || meaning == null) return;
+        
         Definition def = new Definition(meaning, extractCategory(meaning), null);
         lexicon.addWord(normalizeWord(word), def.meaning, def.category, source);
         saveKnowledge();
     }
     
     public void learnWordEmotion(String word, String emotion, double intensity) {
+        if (word == null || emotion == null) return;
         lexicon.addEmotion(normalizeWord(word), emotion, intensity);
         saveKnowledge();
     }
     
     public boolean learnFromCorrection(String original, String corrected, String explanation) {
-        // تعلم من التصحيحات النحوية والمعنوية
-        Pattern pattern = Pattern.compile("(\\w+)\\s+(\\w+)");
+        if (original == null || corrected == null) return false;
+        
+        Pattern pattern = Pattern.compile("([\\p{L}\\p{Nd}]+)\\s+([\\p{L}\\p{Nd}]+)");
         Matcher matcher = pattern.matcher(original);
         
         while (matcher.find()) {
             String word = matcher.group(1);
             String wrongUsage = matcher.group(2);
-            // تسجيل الخطأ الشائع لتجنبه
             lexicon.addCommonMistake(word, wrongUsage, corrected);
         }
         
@@ -432,57 +455,54 @@ public class LinguisticCortex {
     }
     
     private void saveKnowledge() {
-    if (appContext == null) return;
-    
-    try {
-        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
+        if (appContext == null) return;
         
-        JSONObject knowledge = new JSONObject();
-        knowledge.put("lexicon", lexicon.toJSON());
-        knowledge.put("knowledgeGraph", knowledgeGraph.toJSON());
-        
-        editor.putString("knowledge_base", knowledge.toString());
-        editor.apply();
-        
-        Log.d(TAG, "Knowledge saved successfully");
-    } catch (Exception e) {
-        Log.e(TAG, "Error saving knowledge", e);
+        try {
+            SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            
+            JSONObject knowledge = new JSONObject();
+            knowledge.put("lexicon", lexicon.toJSON());
+            knowledge.put("knowledgeGraph", knowledgeGraph.toJSON());
+            
+            editor.putString("knowledge_base", knowledge.toString());
+            editor.apply();
+            
+            Log.d(TAG, "Knowledge saved successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving knowledge", e);
+        }
     }
-}
-
     
     private void loadKnowledge() {
-    if (appContext == null) return;
-    
-    try {
-        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String knowledgeJson = prefs.getString("knowledge_base", null);
+        if (appContext == null) return;
         
-        if (knowledgeJson != null && !knowledgeJson.isEmpty()) {
-            try {
-                JSONObject knowledge = new JSONObject(knowledgeJson);
-                
-                // ✅ تحقق من وجود المفاتيح قبل استخدامها
-                if (knowledge.has("lexicon")) {
-                    lexicon.fromJSON(knowledge.getJSONObject("lexicon"));
+        try {
+            SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            String knowledgeJson = prefs.getString("knowledge_base", null);
+            
+            if (knowledgeJson != null && !knowledgeJson.isEmpty()) {
+                try {
+                    JSONObject knowledge = new JSONObject(knowledgeJson);
+                    
+                    if (knowledge.has("lexicon")) {
+                        lexicon.fromJSON(knowledge.getJSONObject("lexicon"));
+                    }
+                    if (knowledge.has("knowledgeGraph")) {
+                        knowledgeGraph.fromJSON(knowledge.getJSONObject("knowledgeGraph"));
+                    }
+                    
+                    Log.d(TAG, "Knowledge loaded: " + lexicon.getWordCount() + " words");
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error parsing knowledge, clearing corrupted data", e);
+                    prefs.edit().remove("knowledge_base").apply();
                 }
-                if (knowledge.has("knowledgeGraph")) {
-                    knowledgeGraph.fromJSON(knowledge.getJSONObject("knowledgeGraph"));
-                }
-                
-                Log.d(TAG, "Knowledge loaded: " + lexicon.getWordCount() + " words");
-            } catch (JSONException e) {
-                Log.e(TAG, "Error parsing knowledge, clearing corrupted data", e);
-                // ✅ امسح البيانات التالفة
-                prefs.edit().remove("knowledge_base").apply();
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading knowledge", e);
         }
-    } catch (Exception e) {
-        Log.e(TAG, "Error loading knowledge", e);
     }
-}
-
+    
     // ===== Classes =====
     
     public static class ProcessedInput {
@@ -492,7 +512,7 @@ public class LinguisticCortex {
         public List<String> extractedConcepts = new ArrayList<>();
         
         public ProcessedInput(String text) {
-            this.text = text;
+            this.text = text != null ? text : "";
         }
     }
     
@@ -501,7 +521,7 @@ public class LinguisticCortex {
         public double confidence;
         
         public GeneratedResponse(String text) {
-            this.text = text;
+            this.text = text != null ? text : "";
             this.confidence = 0.8;
         }
     }
@@ -509,13 +529,13 @@ public class LinguisticCortex {
     public static class Definition {
         public String meaning;
         public String category;
-        public String reason; // السبب (لأنها...)
-        public String source; // مصدر التعلم
+        public String reason;
+        public String source;
         public long timestamp;
         
         public Definition(String meaning, String category, String reason) {
-            this.meaning = meaning;
-            this.category = category;
+            this.meaning = meaning != null ? meaning : "غير معروف";
+            this.category = category != null ? category : "مفهوم عام";
             this.reason = reason;
             this.timestamp = System.currentTimeMillis();
         }
@@ -529,10 +549,10 @@ public class LinguisticCortex {
         public long timestamp;
         
         public Relationship(String s, String r, String o, String c) {
-            this.subject = s;
-            this.relationship = r;
-            this.object = o;
-            this.context = c;
+            this.subject = s != null ? s : "";
+            this.relationship = r != null ? r : "";
+            this.object = o != null ? o : "";
+            this.context = c != null ? c : "";
             this.timestamp = System.currentTimeMillis();
         }
     }
@@ -552,25 +572,29 @@ public class LinguisticCortex {
         private int conversationCount = 0;
         
         public void addWord(String word, String meaning, String category, String source) {
+            if (word == null || word.isEmpty()) return;
+            
             Definition def = new Definition(meaning, category, null);
             def.source = source;
             words.put(word, def);
         }
         
         public void addEmotion(String word, String emotion, double intensity) {
+            if (word == null || emotion == null) return;
             emotions.computeIfAbsent(word, k -> new HashMap<>()).put(emotion, intensity);
         }
         
         public void addCommonMistake(String word, String wrong, String correct) {
+            if (word == null) return;
             commonMistakes.computeIfAbsent(word, k -> new ArrayList<>()).add(wrong + "->" + correct);
         }
         
         public boolean hasWord(String word) {
-            return words.containsKey(word);
+            return word != null && words.containsKey(word);
         }
         
         public Definition getDefinition(String word) {
-            return words.get(word);
+            return word != null ? words.get(word) : null;
         }
         
         public int getWordCount() {
@@ -586,6 +610,8 @@ public class LinguisticCortex {
             JSONObject wordsJson = new JSONObject();
             
             for (Map.Entry<String, Definition> entry : words.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null) continue;
+                
                 JSONObject def = new JSONObject();
                 def.put("meaning", entry.getValue().meaning);
                 def.put("category", entry.getValue().category);
@@ -600,35 +626,33 @@ public class LinguisticCortex {
         }
         
         public void fromJSON(JSONObject json) throws JSONException {
-    if (json == null || !json.has("words")) {
-        words.clear();
-        return;
-    }
-    
-    words.clear();
-    JSONObject wordsJson = json.getJSONObject("words");
-    Iterator<String> keys = wordsJson.keys();
-    
-    while (keys.hasNext()) {
-        String word = keys.next();
-        try {
-            JSONObject def = wordsJson.getJSONObject(word);
+            words.clear();
+            if (json == null || !json.has("words")) return;
             
-            Definition definition = new Definition(
-                def.optString("meaning", "غير معروف"),
-                def.optString("category", "مفهوم عام"),
-                def.optString("reason", null)
-            );
-            definition.source = def.optString("source", "unknown");
-            words.put(word, definition);
-        } catch (Exception e) {
-            Log.e(TAG, "Error loading word: " + word, e);
+            JSONObject wordsJson = json.getJSONObject("words");
+            Iterator<String> keys = wordsJson.keys();
+            
+            while (keys.hasNext()) {
+                String word = keys.next();
+                if (word == null) continue;
+                
+                try {
+                    JSONObject def = wordsJson.getJSONObject(word);
+                    
+                    Definition definition = new Definition(
+                        def.optString("meaning", "غير معروف"),
+                        def.optString("category", "مفهوم عام"),
+                        def.optString("reason", null)
+                    );
+                    definition.source = def.optString("source", "unknown");
+                    words.put(word, definition);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error loading word: " + word, e);
+                }
+            }
+            
+            conversationCount = json.optInt("conversationCount", 0);
         }
-    }
-    
-    conversationCount = json.optInt("conversationCount", 0);
-}
-
     }
     
     // ===== KnowledgeGraph =====
@@ -639,22 +663,27 @@ public class LinguisticCortex {
         private Map<String, List<String>> attributes = new HashMap<>();
         
         public void addConcept(String concept, Definition def) {
-            concepts.put(concept, def);
+            if (concept != null && def != null) {
+                concepts.put(concept, def);
+            }
         }
         
         public void addRelationship(String subject, String rel, String object, String context) {
-            relationships.add(new Relationship(subject, rel, object, context));
+            if (subject != null && rel != null && object != null) {
+                relationships.add(new Relationship(subject, rel, object, context));
+            }
         }
         
         public void addAttribute(String concept, String type, String value) {
-            attributes.computeIfAbsent(concept, k -> new ArrayList<>()).add(type + ":" + value);
+            if (concept != null && type != null && value != null) {
+                attributes.computeIfAbsent(concept, k -> new ArrayList<>()).add(type + ":" + value);
+            }
         }
         
         public List<String> getUnknownConcepts() {
             List<String> unknown = new ArrayList<>();
-            // إرجاع مفاهيم تم ذكرها في العلاقات لكن لم يتم تعريفها
             for (Relationship rel : relationships) {
-                if (!concepts.containsKey(rel.object)) {
+                if (rel != null && rel.object != null && !concepts.containsKey(rel.object)) {
                     unknown.add(rel.object);
                 }
             }
@@ -664,8 +693,8 @@ public class LinguisticCortex {
         public List<Relationship> getIncompleteRelationships() {
             List<Relationship> incomplete = new ArrayList<>();
             for (Relationship rel : relationships) {
-                // العلاقات التي قد يكون لها مزيد من التفاصيل
-                if (rel.context.split("\\s+").length < 5) {
+                // ✅ إصلاح: التحقق من null قبل split
+                if (rel != null && rel.context != null && rel.context.split("\\s+").length < 5) {
                     incomplete.add(rel);
                 }
             }
@@ -674,8 +703,10 @@ public class LinguisticCortex {
         
         public List<String> getRelatedConcepts(String concept) {
             List<String> related = new ArrayList<>();
+            if (concept == null) return related;
+            
             for (Relationship rel : relationships) {
-                if (rel.subject.equals(concept)) {
+                if (rel != null && concept.equals(rel.subject)) {
                     related.add(rel.relationship + " " + rel.object);
                 }
             }
@@ -695,6 +726,8 @@ public class LinguisticCortex {
             
             JSONArray rels = new JSONArray();
             for (Relationship r : relationships) {
+                if (r == null) continue;
+                
                 JSONObject obj = new JSONObject();
                 obj.put("subject", r.subject);
                 obj.put("relationship", r.relationship);
@@ -709,17 +742,21 @@ public class LinguisticCortex {
         
         public void fromJSON(JSONObject json) throws JSONException {
             relationships.clear();
-            if (!json.has("relationships")) return;
+            if (json == null || !json.has("relationships")) return;
             
             JSONArray rels = json.getJSONArray("relationships");
             for (int i = 0; i < rels.length(); i++) {
-                JSONObject obj = rels.getJSONObject(i);
-                relationships.add(new Relationship(
-                    obj.getString("subject"),
-                    obj.getString("relationship"),
-                    obj.getString("object"),
-                    obj.getString("context")
-                ));
+                try {
+                    JSONObject obj = rels.getJSONObject(i);
+                    relationships.add(new Relationship(
+                        obj.optString("subject", ""),
+                        obj.optString("relationship", ""),
+                        obj.optString("object", ""),
+                        obj.optString("context", "")
+                    ));
+                } catch (Exception e) {
+                    Log.e(TAG, "Error loading relationship at index " + i, e);
+                }
             }
         }
     }
