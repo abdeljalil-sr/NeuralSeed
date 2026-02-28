@@ -364,17 +364,22 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         updateNarrative();
        }); 
     }
-    @Override public void onNewConceptLearned(String concept, String definition) {
+
+        
+@Override 
+public void onNewConceptLearned(String concept, String definition) {
     uiHandler.post(() -> {
         Log.d("LEARNING", "مفهوم جديد: " + concept + " = " + definition);
-       });
-    }
+    });
+}
 
-        @Override public void onRelationshipLearned(String subject, String relationship, String object) {
-                uiHandler.post(() -> {
-                addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
-                });
-        }    
+@Override 
+public void onRelationshipLearned(String subject, String relationship, String object) {
+    uiHandler.post(() -> {
+        addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
+    });
+}
+
     @Override public void onSentenceCorrected(String original, String corrected) {}
     @Override public void onEmotionDetected(String emotion, double intensity) {}
     @Override public void onNewConceptLearned(String concept) {}
