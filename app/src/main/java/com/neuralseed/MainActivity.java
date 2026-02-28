@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private ImageView visualExpressionView;
     private TextView phaseText, egoText, narrativeText;
     private TextView chaosText, fitnessText, conflictText;
-    private LinearLayout goalsContainer;
+    
     private RecyclerView chatRecyclerView;
     private ChatAdapter chatAdapter;
     private LinearLayoutManager layoutManager;
@@ -209,18 +209,44 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void processUserInput(String text) {
-        addChatMessage(text, true);
+    if (text == null || text.trim().isEmpty()) return;
+    
+    addChatMessage(text, true);
+    
+    // ✅ فحوصات Null
+    if (linguistic == null) {
+        Log.e("MainActivity", "LinguisticCortex not initialized");
+        addChatMessage("عذراً، نظام التعلم غير جاهز", false);
+        return;
+    }
+    
+    try {
         LinguisticCortex.ProcessedInput processed = linguistic.processInput(text);
-        seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
+        
+        if (seed != null) {
+            seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
+        }
         
         uiHandler.postDelayed(() -> {
-            LinguisticCortex.GeneratedResponse response = 
-                linguistic.generateResponse(text, seed.getCurrentState());
-            addChatMessage(response.text, false);
-            speak(response.text);
-            updateStats();
+            try {
+                NeuralSeed.InternalState state = seed != null ? seed.getCurrentState() : null;
+                LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, state);
+                
+                if (response != null && response.text != null) {
+                    addChatMessage(response.text, false);
+                    speak(response.text);
+                }
+                updateStats();
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error in response", e);
+                addChatMessage("فهمت ما قلت، شكراً!", false);
+            }
         }, 500);
+    } catch (Exception e) {
+        Log.e("MainActivity", "Error processing input", e);
+        addChatMessage("أحتاج لوقت لفهم ذلك", false);
     }
+}
 
     private void addChatMessage(String text, boolean isUser) {
         chatAdapter.addMessage(text, isUser);
@@ -313,12 +339,17 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void initializeLinguisticCortex() {
-        linguistic = new LinguisticCortex();
-        linguistic.initializeDatabase(this);
-        // linguistic.initializeFirebase(this); // فقط إذا كان google-services.json موجود
-        linguistic.setListener(this);
+    linguistic = new LinguisticCortex();
+    linguistic.initializeDatabase(this);
+    linguistic.setListener(this);
+    
+    // ✅ أضف هذا للتأكد من عدم وجود بيانات تالفة
+    try {
         updateNarrative();
+    } catch (Exception e) {
+        Log.e("MainActivity", "Error updating narrative", e);
     }
+}
 
     // ===== Listeners =====
     // ===== Listeners =====
@@ -393,11 +424,18 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void updateNarrative() {
-        if (narrativeText != null) {
-            narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية. أعرف " + 
-                linguistic.getLexicon().getWordCount() + " كلمة.");
-        }
+    if (narrativeText == null) return;
+    
+    // ✅ فحص linguistic و getLexicon()
+    if (linguistic == null || linguistic.getLexicon() == null) {
+        narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية");
+        return;
     }
+    
+    narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية. أعرف " + 
+        linguistic.getLexicon().getWordCount() + " كلمة.");
+}
+
 
     // ===== Dialogs =====
     private void showLearningDialog() {
@@ -582,15 +620,30 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (seed != null) seed.sleep();
-        if (speechRecognizer != null) speechRecognizer.destroy();
-        if (textToSpeech != null) { 
-            textToSpeech.stop(); 
-            textToSpeech.shutdown(); 
-        }
+protected void onDestroy() {
+    super.onDestroy();  // ✅ يجب أن يكون في النهاية
+    
+    if (speechRecognizer != null) {
+        speechRecognizer.stopListening();  // ✅ أضف هذا
+        speechRecognizer.destroy();
+        speechRecognizer = null;
     }
+    
+    if (textToSpeech != null) { 
+        textToSpeech.stop(); 
+        textToSpeech.shutdown(); 
+        textToSpeech = null;
+    }
+    
+    if (seed != null) {
+        seed.sleep();
+        seed = null;
+    }
+    
+    // ✅ أضف هذا لإلغاء جميع الـ Callbacks
+    uiHandler.removeCallbacksAndMessages(null);
+}
+
 
     // ===== ChatAdapter Class =====
     public static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
