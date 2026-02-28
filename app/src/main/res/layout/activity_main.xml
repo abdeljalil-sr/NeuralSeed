@@ -47,7 +47,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <com.neuralseed.MainActivity.PulseView
+        <com.neuralseed.PulseView
             android:id="@+id/pulse_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"/>
