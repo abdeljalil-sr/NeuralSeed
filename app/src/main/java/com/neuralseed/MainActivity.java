@@ -372,7 +372,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
 
         @Override public void onRelationshipLearned(String subject, String relationship, String object) {
                 uiHandler.post(() -> {
-                        addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
+                addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
                 });
         }    
     @Override public void onSentenceCorrected(String original, String corrected) {}
