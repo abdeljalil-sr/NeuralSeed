@@ -321,6 +321,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     // ===== Listeners =====
+    // ===== Listeners =====
     @Override 
     public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
         uiHandler.post(() -> {
@@ -358,31 +359,31 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     @Override public void onMemoryFormed(NeuralSeed.Memory memory) {}
     @Override public void onRuleRewritten(NeuralSeed.Rule oldRule, NeuralSeed.Rule newRule) {}
-    @Override public void onWordLearned(String word, String meaning, String context) { 
-    uiHandler.post(() -> {
-        addChatMessage("تعلمت: " + word + " هي " + meaning, false);
-        updateNarrative();
-       }); 
+    
+    @Override 
+    public void onWordLearned(String word, String meaning, String context) { 
+        uiHandler.post(() -> {
+            addChatMessage("تعلمت: " + word + " هي " + meaning, false);
+            updateNarrative();
+        }); 
     }
-
-        
-@Override 
-public void onNewConceptLearned(String concept, String definition) {
-    uiHandler.post(() -> {
-        Log.d("LEARNING", "مفهوم جديد: " + concept + " = " + definition);
-    });
-}
-
-@Override 
-public void onRelationshipLearned(String subject, String relationship, String object) {
-    uiHandler.post(() -> {
-        addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
-    });
-}
+    
+    @Override 
+    public void onNewConceptLearned(String concept, String definition) {
+        uiHandler.post(() -> {
+            Log.d("LEARNING", "مفهوم جديد: " + concept + " = " + definition);
+        });
+    }
+    
+    @Override 
+    public void onRelationshipLearned(String subject, String relationship, String object) {
+        uiHandler.post(() -> {
+            addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
+        });
+    }
 
     @Override public void onSentenceCorrected(String original, String corrected) {}
     @Override public void onEmotionDetected(String emotion, double intensity) {}
-    @Override public void onNewConceptLearned(String concept) {}
 
     private void updateStats() {
         NeuralSeed.InternalState state = seed.getCurrentState();
