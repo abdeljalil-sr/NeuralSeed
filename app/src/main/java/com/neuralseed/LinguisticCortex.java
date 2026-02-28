@@ -432,44 +432,57 @@ public class LinguisticCortex {
     }
     
     private void saveKnowledge() {
-        if (appContext == null) return;
-        
+    if (appContext == null) return;
+    
+    try {
         SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         
-        try {
-            JSONObject knowledge = new JSONObject();
-            knowledge.put("lexicon", lexicon.toJSON());
-            knowledge.put("knowledgeGraph", knowledgeGraph.toJSON());
-            
-            editor.putString("knowledge_base", knowledge.toString());
-            editor.apply();
-            
-            Log.d(TAG, "Knowledge saved successfully");
-        } catch (JSONException e) {
-            Log.e(TAG, "Error saving knowledge", e);
-        }
+        JSONObject knowledge = new JSONObject();
+        knowledge.put("lexicon", lexicon.toJSON());
+        knowledge.put("knowledgeGraph", knowledgeGraph.toJSON());
+        
+        editor.putString("knowledge_base", knowledge.toString());
+        editor.apply();
+        
+        Log.d(TAG, "Knowledge saved successfully");
+    } catch (Exception e) {
+        Log.e(TAG, "Error saving knowledge", e);
     }
+}
+
     
     private void loadKnowledge() {
-        if (appContext == null) return;
-        
+    if (appContext == null) return;
+    
+    try {
         SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String knowledgeJson = prefs.getString("knowledge_base", null);
         
-        if (knowledgeJson != null) {
+        if (knowledgeJson != null && !knowledgeJson.isEmpty()) {
             try {
                 JSONObject knowledge = new JSONObject(knowledgeJson);
-                lexicon.fromJSON(knowledge.getJSONObject("lexicon"));
-                knowledgeGraph.fromJSON(knowledge.getJSONObject("knowledgeGraph"));
+                
+                // ✅ تحقق من وجود المفاتيح قبل استخدامها
+                if (knowledge.has("lexicon")) {
+                    lexicon.fromJSON(knowledge.getJSONObject("lexicon"));
+                }
+                if (knowledge.has("knowledgeGraph")) {
+                    knowledgeGraph.fromJSON(knowledge.getJSONObject("knowledgeGraph"));
+                }
                 
                 Log.d(TAG, "Knowledge loaded: " + lexicon.getWordCount() + " words");
             } catch (JSONException e) {
-                Log.e(TAG, "Error loading knowledge", e);
+                Log.e(TAG, "Error parsing knowledge, clearing corrupted data", e);
+                // ✅ امسح البيانات التالفة
+                prefs.edit().remove("knowledge_base").apply();
             }
         }
+    } catch (Exception e) {
+        Log.e(TAG, "Error loading knowledge", e);
     }
-    
+}
+
     // ===== Classes =====
     
     public static class ProcessedInput {
@@ -587,26 +600,35 @@ public class LinguisticCortex {
         }
         
         public void fromJSON(JSONObject json) throws JSONException {
-            if (!json.has("words")) return;
+    if (json == null || !json.has("words")) {
+        words.clear();
+        return;
+    }
+    
+    words.clear();
+    JSONObject wordsJson = json.getJSONObject("words");
+    Iterator<String> keys = wordsJson.keys();
+    
+    while (keys.hasNext()) {
+        String word = keys.next();
+        try {
+            JSONObject def = wordsJson.getJSONObject(word);
             
-            JSONObject wordsJson = json.getJSONObject("words");
-            Iterator<String> keys = wordsJson.keys();
-            
-            while (keys.hasNext()) {
-                String word = keys.next();
-                JSONObject def = wordsJson.getJSONObject(word);
-                
-                Definition definition = new Definition(
-                    def.getString("meaning"),
-                    def.optString("category", "مفهوم عام"),
-                    def.optString("reason", null)
-                );
-                definition.source = def.optString("source", "unknown");
-                words.put(word, definition);
-            }
-            
-            conversationCount = json.optInt("conversationCount", 0);
+            Definition definition = new Definition(
+                def.optString("meaning", "غير معروف"),
+                def.optString("category", "مفهوم عام"),
+                def.optString("reason", null)
+            );
+            definition.source = def.optString("source", "unknown");
+            words.put(word, definition);
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading word: " + word, e);
         }
+    }
+    
+    conversationCount = json.optInt("conversationCount", 0);
+}
+
     }
     
     // ===== KnowledgeGraph =====
