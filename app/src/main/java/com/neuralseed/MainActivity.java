@@ -38,7 +38,9 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private TextView phaseText, egoText, narrativeText;
     private TextView chaosText, fitnessText, conflictText;
     private LinearLayout goalsContainer;
-    private ScrollableBubbleView bubbleView;
+    private RecyclerView chatRecyclerView;
+    private ChatAdapter chatAdapter;
+    private LinearLayoutManager layoutManager;
     private PulseView pulseView;
     private EditText inputEditText;
     private Button sendButton, micButton, fullscreenButton, learnButton;
@@ -96,7 +98,13 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         fitnessText = findViewById(R.id.fitness_text);
         conflictText = findViewById(R.id.conflict_text);
         goalsContainer = findViewById(R.id.goals_container);
-        bubbleView = findViewById(R.id.bubble_view);
+        chatRecyclerView = findViewById(R.id.chat_recycler_view);
+        chatAdapter = new ChatAdapter();
+        layoutManager = new LinearLayoutManager(this);
+        layoutManager.setStackFromEnd(true); // الفقاعات تبدأ من الأسفل
+        chatRecyclerView.setLayoutManager(layoutManager);
+        chatRecyclerView.setAdapter(chatAdapter);
+
         inputEditText = findViewById(R.id.input_edit_text);
         sendButton = findViewById(R.id.btn_send);
         micButton = findViewById(R.id.btn_mic);
@@ -195,7 +203,8 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void processUserInput(String text) {
-        bubbleView.addBubble(text, true);
+        chatAdapter.addMessage(text, true);
+        chatRecyclerView.scrollToPosition(chatAdapter.getItemCount() - 1);
         linguistic.processInput(text);
         seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
         
