@@ -1701,38 +1701,72 @@ public void learnWordEmotion(String word, String emotion, double intensity) {
         if (database != null) database.saveWord(w);
     }
 }
-// أضف في نهاية LinguisticCortex.java:
-public void learnSentence(String text, NeuralSeed.InternalState state) {
-    if (parser == null) {
-        Log.w(TAG, "Parser not initialized yet, skipping learnSentence");
-        return;
-    }
-    
-    if (text == null || text.isEmpty()) return;
 
-    
-    // تحليل وتعلم الجملة
-    List<ArabicParser.ParseResult> results = parser.parseText(text);
-    for (ArabicParser.ParseResult result : results) {
-        if (result.isComplete) {
-            // تعلم الكلمات
-            for (ArabicParser.SentenceElement elem : result.elements) {
-                ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
-                if (word != null) {
-                    word.use();
-                    if (database != null) database.updateWordUsage(elem.word);
+    // ✅ دالة learnSentence المُضافة
+    public void learnSentence(String text, NeuralSeed.InternalState state) {
+        // ✅ تحقق من التهيئة
+        if (parser == null) {
+            Log.w(TAG, "Parser not initialized, skipping learnSentence");
+            return;
+        }
+        
+        if (text == null || text.isEmpty()) return;
+        
+        // تحليل وتعلم الجملة
+        List<ArabicParser.ParseResult> results = parser.parseText(text);
+        for (ArabicParser.ParseResult result : results) {
+            if (result.isComplete) {
+                // تعلم الكلمات
+                for (ArabicParser.SentenceElement elem : result.elements) {
+                    ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
+                    if (word != null) {
+                        word.use();
+                        if (database != null) database.updateWordUsage(elem.word);
+                    }
                 }
-            }
-            // حفظ الجملة
-            if (database != null) {
-                database.saveSentence(text, result.sentenceType,
-                    result.elements.toString(),
-                    analyzeEmotionsDeep(text, results),
-                    true, result.confidence);
+                // حفظ الجملة
+                if (database != null) {
+                    database.saveSentence(text, result.sentenceType,
+                        result.elements.toString(),
+                        analyzeEmotionsDeep(text, results),
+                        true, result.confidence);
+                }
             }
         }
     }
+
+    public String generateQuestion(NeuralSeed.InternalState state) {
+        return sentenceGenerator.generateQuestion(state);
+    }
+    
+    public void learnWordEmotion(String word, String emotion, double intensity) {
+        if (learningSystem != null) {
+            learningSystem.learnWordEmotion(word, emotion, intensity, "user_dialog");
+        }
+        ArabicLexicon.Word w = lexicon.getWordByForm(word);
+        if (w != null) {
+            w.addEmotion(emotion, intensity);
+            if (database != null) database.saveWord(w);
+        }
+    }
+    
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("lexicon_size", lexicon != null ? lexicon.getWordCount() : 0);
+        stats.put("concept_count", conceptNetwork.size());
+        stats.put("thought_count", activeThoughts.size());
+        stats.put("memory_size", shortTermMemory.size());
+        stats.put("conversation_turns", currentConversation.turnCount);
+        
+        double avgFamiliarity = conceptNetwork.values().stream()
+            .mapToDouble(n -> n.familiarity)
+            .average().orElse(0.0);
+        stats.put("learning_level", String.format("%.0f%%", avgFamiliarity * 100));
+        
+        return stats;
+    }
 }
+
 
    // أضف في LinguisticCortex.java:
 public Map<String, Object> getStatistics() {
