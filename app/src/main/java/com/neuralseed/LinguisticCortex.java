@@ -1703,7 +1703,14 @@ public void learnWordEmotion(String word, String emotion, double intensity) {
 }
 // أضف في نهاية LinguisticCortex.java:
 public void learnSentence(String text, NeuralSeed.InternalState state) {
+    if (parser == null) {
+        Log.w(TAG, "Parser not initialized yet, skipping learnSentence");
+        return;
+    }
+    
     if (text == null || text.isEmpty()) return;
+
+    
     // تحليل وتعلم الجملة
     List<ArabicParser.ParseResult> results = parser.parseText(text);
     for (ArabicParser.ParseResult result : results) {
