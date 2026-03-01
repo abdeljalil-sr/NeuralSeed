@@ -3,8 +3,6 @@ package com.neuralseed;
 import android.util.Log;
 import android.Manifest;
 import android.animation.ValueAnimator;
-import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.os.Bundle;
@@ -14,7 +12,6 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
-import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -41,11 +38,11 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private ImageView visualExpressionView;
     private TextView phaseText, egoText, narrativeText;
     private TextView chaosText, fitnessText, conflictText;
+    private PulseView pulseView; // ✅ استخدام PulseView المعدل
     
     private RecyclerView chatRecyclerView;
     private ChatAdapter chatAdapter;
     private LinearLayoutManager layoutManager;
-    private EnhancedPulseView pulseView; // ✅ تغيير من PulseView إلى EnhancedPulseView
     private EditText inputEditText;
     private Button sendButton;
     private ImageButton micButton, fullscreenButton;
@@ -65,7 +62,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        // طلب إذن الميكروفون
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
@@ -95,7 +91,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     private void initializeViews() {
         visualExpressionView = findViewById(R.id.visual_expression);
-        pulseView = findViewById(R.id.pulse_view); // ✅ سيتم cast تلقائياً لأنه extends PulseView
+        pulseView = findViewById(R.id.pulse_view); // ✅ PulseView المعدل
         phaseText = findViewById(R.id.phase_text);
         egoText = findViewById(R.id.ego_text);
         narrativeText = findViewById(R.id.narrative_text);
@@ -103,7 +99,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         fitnessText = findViewById(R.id.fitness_text);
         conflictText = findViewById(R.id.conflict_text);
         
-        // إعداد RecyclerView للمحادثة
         chatRecyclerView = findViewById(R.id.chat_recycler_view);
         chatAdapter = new ChatAdapter();
         layoutManager = new LinearLayoutManager(this);
@@ -123,22 +118,23 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void setupTouchListener() {
-        // ✅ تحديث للتعامل مع EnhancedPulseView
         pulseView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 float x = event.getX();
                 float y = event.getY();
                 
-                // إرسال للـ EnhancedPulseView
+                // محاولة الحصول على المفهوم من التخيل
                 String touchedConcept = pulseView.onTouch(x, y);
                 
-                if (touchedConcept != null && linguistic != null) {
-                    // إعلام LinguisticCortex باللمس
-                    linguistic.onVisualTouch(x, y, null); // يمكن تمرير currentThought إذا كان متاحاً
-                    
+                if (touchedConcept != null) {
                     touchCoordsText.setText("لمست: " + touchedConcept);
                     touchCoordsText.setVisibility(View.VISIBLE);
                     uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
+                    
+                    // إعلام LinguisticCortex
+                    if (linguistic != null) {
+                        linguistic.onVisualTouch(x, y, null);
+                    }
                 } else {
                     // السلوك القديم للـ NeuralSeed
                     float imageX = x / pulseView.getWidth() * 500;
@@ -213,7 +209,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         });
     }
 
-    // ✅ نسخة واحدة فقط من processUserInput
     private void processUserInput(String text) {
         if (text == null || text.trim().isEmpty()) return;
         
@@ -226,20 +221,15 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         }
         
         try {
-            // معالجة المدخل (تحليل عميق)
             LinguisticCortex.ProcessedResult processed = linguistic.processInput(text);
             
-            // إرسال للوعي العصبي
             if (seed != null) {
                 seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
             }
             
-            // تأخير للمحاكاة "التفكير"
             uiHandler.postDelayed(() -> {
                 try {
                     NeuralSeed.InternalState state = seed != null ? seed.getCurrentState() : null;
-                    
-                    // توليد الرد (التفكير الحقيقي)
                     LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, state);
                     
                     if (response != null && response.text != null) {
@@ -266,25 +256,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         chatRecyclerView.scrollToPosition(chatAdapter.getItemCount() - 1);
     }
 
-    private void showInputEffect(NeuralSeed.InputType type) {
-        int color = Color.WHITE;
-        switch (type) {
-            case POSITIVE: color = emotionColors.get("joy"); break;
-            case NEGATIVE: color = emotionColors.get("sadness"); break;
-            case THREAT: color = emotionColors.get("fear"); break;
-            case OPPORTUNITY: color = emotionColors.get("curiosity"); break;
-        }
-        
-        final View background = findViewById(R.id.emotional_background);
-        if (background != null) {
-            ValueAnimator animator = ValueAnimator.ofArgb(Color.TRANSPARENT, color, Color.TRANSPARENT);
-            animator.setDuration(500);
-            animator.addUpdateListener(animation -> background.setBackgroundColor((int) animation.getAnimatedValue()));
-            animator.start();
-        }
-    }
-
-    // ✅ دوال جديدة للتأثيرات العاطفية
     private void showEmotionEffect(String emotion, double intensity) {
         int color = getEmotionColor(emotion);
         View background = findViewById(R.id.emotional_background);
@@ -314,55 +285,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private int adjustAlpha(int color, float factor) {
         int alpha = Math.round(Color.alpha(color) * factor);
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
-    }
-
-    // ✅ دالة رسم التخيل
-    private void drawImagination(LinguisticCortex.VisualThought thought) {
-        Bitmap bitmap = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        canvas.drawColor(Color.BLACK);
-        
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        
-        for (LinguisticCortex.ShapeElement shape : thought.shapes) {
-            paint.setColor(shape.color);
-            paint.setAlpha(200);
-            
-            float x = shape.x * 500;
-            float y = shape.y * 500;
-            
-            switch (shape.type) {
-                case "circle":
-                    canvas.drawCircle(x, y, shape.size, paint);
-                    break;
-                case "spiral":
-                    drawSpiral(canvas, x, y, shape.size, paint, shape.phase);
-                    break;
-                case "pulse":
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setStrokeWidth(3);
-                    canvas.drawCircle(x, y, shape.size * (1 + (float)Math.sin(shape.phase) * 0.3f), paint);
-                    break;
-                case "line":
-                    canvas.drawLine(x - shape.size/2, y, x + shape.size/2, y, paint);
-                    break;
-            }
-        }
-        
-        visualExpressionView.setImageBitmap(bitmap);
-    }
-
-    private void drawSpiral(Canvas canvas, float cx, float cy, float size, Paint paint, float phase) {
-        Path path = new Path();
-        for (float i = 0; i < 20; i += 0.5f) {
-            float angle = i * 0.5f + phase;
-            float r = i * size / 20;
-            float x = cx + (float)Math.cos(angle) * r;
-            float y = cy + (float)Math.sin(angle) * r;
-            if (i == 0) path.moveTo(x, y);
-            else path.lineTo(x, y);
-        }
-        canvas.drawPath(path, paint);
     }
 
     private void initializeSpeech() {
@@ -419,12 +341,10 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         addChatMessage("...أنا هنا", false);
     }
 
-    // ✅ نسخة واحدة فقط من initializeLinguisticCortex
     private void initializeLinguisticCortex() {
         linguistic = new LinguisticCortex();
         linguistic.initialize(this);
         
-        // إعداد المستمع اللغوي
         linguistic.setListener(new LinguisticCortex.LinguisticListener() {
             @Override
             public void onWordLearned(String word, String meaning, String context) {
@@ -470,9 +390,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
             }
             
             @Override
-            public void onImaginationCreated(String description, int[] colors) {
-                // handled by visual listener
-            }
+            public void onImaginationCreated(String description, int[] colors) {}
             
             @Override
             public void onContextAnalyzed(String context, double complexity) {
@@ -480,15 +398,14 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
             }
         });
         
-        // إعداد مستمع التخيل البصري
-        linguistic.setVisualListener(new LinguCortex.VisualImaginationListener() {
+        // ✅ استخدام PulseView.VisualThought مباشرة
+        linguistic.setVisualListener(new LinguisticCortex.VisualImaginationListener() {
             @Override
             public void onVisualThought(LinguisticCortex.VisualThought thought) {
                 uiHandler.post(() -> {
-                    // تحديث EnhancedPulseView
-                    pulseView.setVisualThought(thought);
-                    // رسم إضافي على ImageView
-                    drawImagination(thought);
+                    // تحويل إلى PulseView.VisualThought
+                    PulseView.VisualThought pvThought = convertToPulseViewThought(thought);
+                    pulseView.setVisualThought(pvThought);
                 });
             }
         });
@@ -496,8 +413,32 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         updateNarrative();
         Log.i("MainActivity", "🚀 LinguisticCortex جاهز");
     }
+    
+    // ✅ دالة تحويل بسيطة
+    private PulseView.VisualThought convertToPulseViewThought(LinguisticCortex.VisualThought thought) {
+        PulseView.VisualThought result = new PulseView.VisualThought(thought.description);
+        result.chaosLevel = thought.chaosLevel;
+        result.emotionalTheme = thought.emotionalTheme;
+        result.colorPalette = thought.colorPalette != null ? thought.colorPalette : new int[5];
+        
+        if (thought.shapes != null) {
+            for (LinguisticCortex.ShapeElement e : thought.shapes) {
+                PulseView.ShapeElement se = new PulseView.ShapeElement();
+                se.type = e.type != null ? e.type : "circle";
+                se.x = e.x;
+                se.y = e.y;
+                se.size = e.size;
+                se.color = e.color;
+                se.animationSpeed = e.animationSpeed;
+                se.phase = e.phase;
+                result.shapes.add(se);
+            }
+        }
+        
+        return result;
+    }
 
-    // ===== Listeners من NeuralSeed =====
+    // ===== NeuralSeed Listeners =====
     @Override 
     public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
         uiHandler.post(() -> {
@@ -530,61 +471,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     @Override 
     public void onVisualExpression(Bitmap expression) { 
-        // ✅ لا نستخدم هذا بعد الآن، نستخدم drawImagination بدلاً منه
-        // uiHandler.post(() -> visualExpressionView.setImageBitmap(expression)); 
-    }
-    
-    @OverrideisticCortex.VisualImaginationListener() {
-            @Override
-            public void onVisualThought(LinguisticCortex.VisualThought thought) {
-                uiHandler.post(() -> {
-                    // تحديث EnhancedPulseView
-                    pulseView.setVisualThought(thought);
-                    // رسم إضافي على ImageView
-                    drawImagination(thought);
-                });
-            }
-        });
-        
-        updateNarrative();
-        Log.i("MainActivity", "🚀 LinguisticCortex جاهز");
-    }
-
-    // ===== Listeners من NeuralSeed =====
-    @Override 
-    public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
-        uiHandler.post(() -> {
-            phaseText.setText("الطور: " + newPhase.arabic);
-            addChatMessage("أشعر بشيء يتغير... " + newPhase.arabic, false);
-        });
-    }
-    
-    @Override 
-    public void onEgoShift(NeuralSeed.EgoFragment oldDominant, NeuralSeed.EgoFragment newDominant) {
-        uiHandler.post(() -> {
-            egoText.setText("الأنا: " + newDominant.name);
-            pulseView.setEgoType(newDominant.type);
-            addChatMessage("أصبحت " + newDominant.name + " الآن", false);
-        });
-    }
-    
-    @Override 
-    public void onGoalAchieved(NeuralSeed.Goal goal) { 
-        uiHandler.post(() -> addChatMessage("حققت هدفي: " + goal.description, false)); 
-    }
-    
-    @Override 
-    public void onIdentityEvolution(NeuralSeed.IdentityCore oldIdentity, NeuralSeed.IdentityCore newIdentity) { 
-        uiHandler.post(() -> {
-            narrativeText.setText(newIdentity.selfNarrative);
-            addChatMessage("أشعر أنني أتغير... " + newIdentity.selfNarrative, false);
-        }); 
-    }
-    
-    @Override 
-    public void onVisualExpression(Bitmap expression) { 
-        // ✅ لا نستخدم هذا بعد الآن، نستخدم drawImagination بدلاً منه
-        // uiHandler.post(() -> visualExpressionView.setImageBitmap(expression)); 
+        // لم نعد نستخدم هذا
     }
     
     @Override public void onMemoryFormed(NeuralSeed.Memory memory) {}
@@ -770,9 +657,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         new AlertDialog.Builder(this)
             .setTitle("الإعدادات")
             .setItems(new String[]{"تفعيل/تعطيل التعلم", "تفعيل/تعطيل المزامنة", "مسح البيانات", "تصدير البيانات"}, 
-                (d, w) -> {
-                    // تنفيذ الإعدادات
-                })
+                (d, w) -> {})
             .show();
     }
 
@@ -780,9 +665,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         new AlertDialog.Builder(this)
             .setTitle("التدريب")
             .setMessage("وضع التدريب التفاعلي")
-            .setPositiveButton("بدء", (d, w) -> {
-                // بدء التدريب
-            })
+            .setPositiveButton("بدء", (d, w) -> {})
             .show();
     }
 
