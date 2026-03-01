@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.graphics.Color;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -1679,4 +1681,11 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         
         saveBrain();
     }
+
+    // أضف في LinguisticCortex.java:
+public String generateQuestion(NeuralSeed.InternalState state) {
+    return sentenceGenerator.generateQuestion(state);
+}
+
+    
 }
