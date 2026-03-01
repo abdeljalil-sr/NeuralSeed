@@ -638,6 +638,8 @@ public class NeuralSeed {
     
     // ===== الحالة الداخلية =====
     
+                // ===== الحالة الداخلية =====
+    
     public static class InternalState {
     NeuralSeed seed;
     double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
@@ -671,32 +673,8 @@ public class NeuralSeed {
         canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
         canvas.eraseColor(Color.BLACK);
         
-        // ✅ تهيئة LinguisticCortex بشكل صحيح
+        // ✅ تهيئة LinguisticCortex مع جميع المكونات داخل الـ constructor
         linguistic = new LinguisticCortex();
-        // تهيئة يدوية للمكونات الأساسية (لأن initialize() يحتاج Context)
-        linguistic.lexicon = new ArabicLexicon();
-        linguistic.emotionEngine = new SemanticEmotionalEngine();
-        linguistic.parser = new ArabicParser(linguistic.lexicon);
-        linguistic.sentenceGenerator = new SentenceGenerator(
-            linguistic.lexicon, 
-            linguistic.parser, 
-            linguistic.emotionEngine, 
-            null
-        );
-        linguistic.learningSystem = new LearningSystem(
-            linguistic.lexicon,
-            linguistic.parser,
-            linguistic.emotionEngine,
-            null
-        );
-        linguistic.shortTermMemory = new CopyOnWriteArrayList<>();
-        linguistic.conceptNetwork = new ConcurrentHashMap<>();
-        linguistic.activeThoughts = new CopyOnWriteArrayList<>();
-        linguistic.currentEmotionalState = new LinguisticCortex.EmotionalState();
-        linguistic.currentConversation = new LinguisticCortex.ConversationContext();
-        linguistic.mainHandler = new Handler(Looper.getMainLooper());
-        linguistic.reflectionExecutor = Executors.newScheduledThreadPool(2);
-        linguistic.isAwake = true;
         
         neural = new DynamicNeuralNetwork(this);
         memory = new AssociativeMemory(this);
@@ -778,6 +756,7 @@ public class NeuralSeed {
         return copy;
     }
 }
+
 
             
     
