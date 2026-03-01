@@ -90,41 +90,44 @@ public class LinguisticCortex {
      * رسالة في سياق المحادثة - تحتفظ بكل التحليلات
      */
     public static class ContextMessage {
-        public String id;
-        public String text;
-        public boolean isFromUser;
-        public long timestamp;
-        
-        // التحليلات اللغوية
-        public List<ArabicParser.ParseResult> parseResults;
-        public Map<String, Double> detectedEmotions;
-        public List<String> keywords;
-        public List<String> concepts;
-        public String mainTopic;
-        public double complexity; // تعقيد الرسالة 0-1
-        
-        // الروابط السياقية
-        public List<String> relatedMessageIds; // روابط لرسائل سابقة
-        public Map<String, Double> semanticSimilarities; // تشابه مع رسائل أخرى
-        
-        // الاستنتاجات
-        public String inferredIntent; // القصد المستنتج
-        public List<String> inferredNeeds; // الاحتياجات المستنتجة
-        
-        public ContextMessage(String text, boolean isFromUser) {
-            this.id = UUID.randomUUID().toString();
-            this.text = text != null ? text : "";
-            this.isFromUser = isFromUser;
-            this.timestamp = System.currentTimeMillis();
-            this.parseResults = new ArrayList<>();
-            this.detectedEmotions = new HashMap<>();
-            this.keywords = new ArrayList<>();
-            this.concepts = new ArrayList<>();
-            this.relatedMessageIds = new ArrayList<>();
-            this.semanticSimilarities = new HashMap<>();
-            this.inferredNeeds = new ArrayList<>();
-        }
+    public String id;
+    public String text;
+    public boolean isFromUser;
+    public long timestamp;
+    
+    // التحليلات اللغوية
+    public List<ArabicParser.ParseResult> parseResults;
+    public Map<String, Double> detectedEmotions;
+    public List<String> keywords;
+    public List<String> concepts;
+    public String mainTopic;
+    public double complexity;
+    
+    // الروابط السياقية
+    public List<String> relatedMessageIds;
+    public Map<String, Double> semanticSimilarities;
+    public List<String> relatedConcepts; // ✅ أضف هذا
+    
+    // الاستنتاجات
+    public String inferredIntent;
+    public List<String> inferredNeeds;
+    
+    public ContextMessage(String text, boolean isFromUser) {
+        this.id = UUID.randomUUID().toString();
+        this.text = text != null ? text : "";
+        this.isFromUser = isFromUser;
+        this.timestamp = System.currentTimeMillis();
+        this.parseResults = new ArrayList<>();
+        this.detectedEmotions = new HashMap<>();
+        this.keywords = new ArrayList<>();
+        this.concepts = new ArrayList<>();
+        this.relatedMessageIds = new ArrayList<>();
+        this.semanticSimilarities = new HashMap<>();
+        this.relatedConcepts = new ArrayList<>(); // ✅ وأضف هذا
+        this.inferredNeeds = new ArrayList<>();
     }
+}
+
     
     /**
      * عقدة مفهوم في شبكة المعرفة
@@ -1696,6 +1699,31 @@ public void learnWordEmotion(String word, String emotion, double intensity) {
     if (w != null) {
         w.addEmotion(emotion, intensity);
         if (database != null) database.saveWord(w);
+    }
+}
+// أضف في نهاية LinguisticCortex.java:
+public void learnSentence(String text, NeuralSeed.InternalState state) {
+    if (text == null || text.isEmpty()) return;
+    // تحليل وتعلم الجملة
+    List<ArabicParser.ParseResult> results = parser.parseText(text);
+    for (ArabicParser.ParseResult result : results) {
+        if (result.isComplete) {
+            // تعلم الكلمات
+            for (ArabicParser.SentenceElement elem : result.elements) {
+                ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
+                if (word != null) {
+                    word.use();
+                    if (database != null) database.updateWordUsage(elem.word);
+                }
+            }
+            // حفظ الجملة
+            if (database != null) {
+                database.saveSentence(text, result.sentenceType,
+                    result.elements.toString(),
+                    analyzeEmotionsDeep(text, results),
+                    true, result.confidence);
+            }
+        }
     }
 }
 
