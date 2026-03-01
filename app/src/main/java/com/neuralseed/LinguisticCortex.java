@@ -1717,9 +1717,18 @@ public Map<String, Object> getStatistics() {
     return stats;
 }
  
+    // ... الكود السابق ...
 
+    // ✅ هنا
+    public interface LLMBridge {
+        String enhanceResponse(String baseResponse, String context);
+    }
 
 
     
     
 }
+
+
+
+
