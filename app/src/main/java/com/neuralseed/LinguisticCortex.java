@@ -1077,54 +1077,85 @@ public class LinguisticCortex {
         return false;
     }
     
+    
     // ==================== التفاعل مع اللمس ====================
     
-    public void onVisualTouch(float x, float y, VisualThought currentVisual) {
-        // تحديد ما تم لمسه
-        ShapeElement touched = null;
-        float minDist = Float.MAX_VALUE;
+public void onVisualTouch(float x, float y, VisualThought currentVisual) {
+    // ✅ التحقق من null
+    if (currentVisual == null || currentVisual.shapes == null || currentVisual.shapes.isEmpty()) {
+        // لا يوجد تخيل حالياً، لكن يمكننا تسجيل اللمس
+        Log.d(TAG, "لمس بصري بدون تخيل نشط عند: (" + x + ", " + y + ")");
+        return;
+    }
+    
+    // تحديد ما تم لمسه
+    ShapeElement touched = null;
+    float minDist = Float.MAX_VALUE;
+    
+    // ✅ تطبيع الإحداثيات (0-500 إلى 0-1)
+    float normX = x / 500f;
+    float normY = y / 500f;
+    
+    for (ShapeElement shape : currentVisual.shapes) {
+        float dx = shape.x - normX;
+        float dy = shape.y - normY;
+        float dist = (float) Math.sqrt(dx*dx + dy*dy);
         
-        for (ShapeElement shape : currentVisual.shapes) {
-            float dx = shape.x - x;
-            float dy = shape.y - y;
-            float dist = (float) Math.sqrt(dx*dx + dy*dy);
-            if (dist < shape.size / 200f && dist < minDist) { // normalize
-                minDist = dist;
-                touched = shape;
-            }
+        // ✅ تحسين: استخدام حجم نسبي
+        float threshold = Math.max(0.05f, shape.size / 500f);
+        
+        if (dist < threshold && dist < minDist) {
+            minDist = dist;
+            touched = shape;
+        }
+    }
+    
+    if (touched != null) {
+        // توليد فكرة عن ما تم لمسه
+        String concept = mapShapeToConcept(touched, currentVisual);
+        
+        Thought touchThought = new Thought(
+            "لمسني المستخدم عند '" + concept + "'. هل يريد التحدث عن هذا؟",
+            "interaction"
+        );
+        touchThought.intensity = 0.8;
+        touchThought.relatedConcepts.add(concept);
+        activeThoughts.add(touchThought);
+        
+        // ✅ إشعار المستمع
+        if (listener != null) {
+            listener.onThoughtFormed(touchThought.content, "interaction");
         }
         
-        if (touched != null) {
-            // توليد فكرة عن ما تم لمسه
-            String concept = mapShapeToConcept(touched, currentVisual);
-            
-            Thought touchThought = new Thought(
-                "لمسني المستخدم عند '" + concept + "'. هل يريد التحدث عن هذا؟",
-                "interaction"
-            );
-            touchThought.intensity = 0.8;
-            activeThoughts.add(touchThought);
-            
-            // ربط بالمحادثة
-            if (!shortTermMemory.isEmpty()) {
-                ContextMessage last = shortTermMemory.get(shortTermMemory.size() - 1);
+        // ربط بالمحادثة
+        if (!shortTermMemory.isEmpty()) {
+            ContextMessage last = shortTermMemory.get(shortTermMemory.size() - 1);
+            if (!last.relatedConcepts.contains(concept)) {
                 last.relatedConcepts.add(concept);
             }
         }
+        
+        Log.d(TAG, "✋ لمس: " + concept);
+    }
+}
+
+private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
+    int index = visual.shapes.indexOf(shape);
+    List<String> concepts = new ArrayList<>(conceptNetwork.keySet());
+    
+    // ✅ ربط ذكي: إذا كان لدينا مفاهيم كافية
+    if (index < concepts.size()) {
+        return concepts.get(index);
     }
     
-    private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
-        // ربط الشكل بمفهوم من التخيل
-        int index = visual.shapes.indexOf(shape);
-        List<String> concepts = new ArrayList<>(conceptNetwork.keySet());
-        
-        if (index < concepts.size()) {
-            return concepts.get(index);
-        }
-        
-        return "شكل_" + shape.type;
+    // ✅ ربط بالوصف إذا كان متاحاً
+    if (visual.description != null && !visual.description.isEmpty()) {
+        return visual.description + "_" + index;
     }
     
+    return "شكل_" + shape.type + "_" + index;
+}
+
     // ==================== الحفظ والتحميل ====================
     
     private void saveBrain() {
