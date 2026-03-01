@@ -922,7 +922,16 @@ public class ArabicLexicon {
         }
         return result;
     }
-    
+   // إضافة في ArabicLexicon.java
+public void addWordFromUser(String word, String root, String meaning) {
+    // السماح للمستخدم بإضافة كلمات جديدة
+}
+
+// تحسين ArabicParser
+public List<String> suggestGrammarFixes(String sentence) {
+    // اقتراح تصحيحات نحوية
+}
+ 
     public List<Word> findWordsByMeaning(String meaning) {
         List<Word> result = new ArrayList<>();
         for (Word word : wordsByForm.values()) {
