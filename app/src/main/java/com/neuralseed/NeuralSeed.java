@@ -667,12 +667,13 @@ public class NeuralSeed {
     ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
     
     public InternalState() {
-        // ✅ أولاً: إنشاء canvas
+        initializeEgos();
         canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
         canvas.eraseColor(Color.BLACK);
         
-        // ✅ ثانياً: تهيئة LinguisticCortex يدوياً (الحل الأساسي)
+        // ✅ تهيئة LinguisticCortex بشكل صحيح
         linguistic = new LinguisticCortex();
+        // تهيئة يدوية للمكونات الأساسية (لأن initialize() يحتاج Context)
         linguistic.lexicon = new ArabicLexicon();
         linguistic.emotionEngine = new SemanticEmotionalEngine();
         linguistic.parser = new ArabicParser(linguistic.lexicon);
@@ -697,15 +698,11 @@ public class NeuralSeed {
         linguistic.reflectionExecutor = Executors.newScheduledThreadPool(2);
         linguistic.isAwake = true;
         
-        // ✅ ثالثاً: تهيئة باقي المكونات (بعد إنشاء الكائن)
         neural = new DynamicNeuralNetwork(this);
         memory = new AssociativeMemory(this);
         identity = new IdentityCore(this);
         visual = new VisualCortex(this);
         rules = new RuleSystem(this);
-        
-        // ✅ رابعاً: تهيئة egos
-        initializeEgos();
     }
     
     private void initializeEgos() {
@@ -721,68 +718,68 @@ public class NeuralSeed {
         dominantEgo = egos.get(0);
     }
     
-    
-        
-        public EmotionalVector getEmotionalVector() {
-            EmotionalVector vec = new EmotionalVector();
-            for (EgoFragment ego : egos) {
-                vec.joy += ego.emotion.joy * ego.strength;
-                vec.fear += ego.emotion.fear * ego.strength;
-                vec.curiosity += ego.emotion.curiosity * ego.strength;
-                vec.anger += ego.emotion.anger * ego.strength;
-                vec.sadness += ego.emotion.sadness * ego.strength;
-            }
-            
-            switch (currentPhase) {
-                case CHAOTIC:
-                    vec.curiosity *= 1.5;
-                    vec.fear *= 1.3;
-                    break;
-                case STABLE:
-                    vec.joy *= 1.2;
-                    vec.fear *= 0.5;
-                    break;
-                case COLLAPSING:
-                    vec.fear *= 2.0;
-                    vec.sadness *= 1.5;
-                    break;
-                case EMERGENT:
-                    vec.joy *= 1.5;
-                    vec.curiosity *= 1.3;
-                    break;
-            }
-            
-            vec.normalize();
-            return vec;
+    public EmotionalVector getEmotionalVector() {
+        EmotionalVector vec = new EmotionalVector();
+        for (EgoFragment ego : egos) {
+            vec.joy += ego.emotion.joy * ego.strength;
+            vec.fear += ego.emotion.fear * ego.strength;
+            vec.curiosity += ego.emotion.curiosity * ego.strength;
+            vec.anger += ego.emotion.anger * ego.strength;
+            vec.sadness += ego.emotion.sadness * ego.strength;
         }
         
-        public InternalState copy() {
-            InternalState copy = new InternalState();
-            copy.seed = this.seed;
-            copy.lorenzX = this.lorenzX;
-            copy.lorenzY = this.lorenzY;
-            copy.lorenzZ = this.lorenzZ;
-            copy.chaosIndex = this.chaosIndex;
-            copy.currentPhase = this.currentPhase;
-            copy.phaseTransitionTime = this.phaseTransitionTime;
-            copy.birthTime = this.birthTime;
-            copy.existentialFitness = this.existentialFitness;
-            copy.internalConflict = this.internalConflict;
-            copy.egos = new ArrayList<>(this.egos);
-            copy.dominantEgo = this.dominantEgo;
-            copy.neural = this.neural;
-            copy.memory = this.memory;
-            copy.identity = this.identity;
-            copy.visual = this.visual;
-            copy.rules = this.rules;
-            copy.goals = new ArrayList<>(this.goals);
-            copy.currentGoal = this.currentGoal;
-            copy.canvas = this.canvas.copy(Bitmap.Config.ARGB_8888, false);
-            copy.recentAudioLevels = new ArrayList<>(this.recentAudioLevels);
-            copy.linguistic = this.linguistic;
-            return copy;
+        switch (currentPhase) {
+            case CHAOTIC:
+                vec.curiosity *= 1.5;
+                vec.fear *= 1.3;
+                break;
+            case STABLE:
+                vec.joy *= 1.2;
+                vec.fear *= 0.5;
+                break;
+            case COLLAPSING:
+                vec.fear *= 2.0;
+                vec.sadness *= 1.5;
+                break;
+            case EMERGENT:
+                vec.joy *= 1.5;
+                vec.curiosity *= 1.3;
+                break;
         }
+        
+        vec.normalize();
+        return vec;
     }
+    
+    public InternalState copy() {
+        InternalState copy = new InternalState();
+        copy.seed = this.seed;
+        copy.lorenzX = this.lorenzX;
+        copy.lorenzY = this.lorenzY;
+        copy.lorenzZ = this.lorenzZ;
+        copy.chaosIndex = this.chaosIndex;
+        copy.currentPhase = this.currentPhase;
+        copy.phaseTransitionTime = this.phaseTransitionTime;
+        copy.birthTime = this.birthTime;
+        copy.existentialFitness = this.existentialFitness;
+        copy.internalConflict = this.internalConflict;
+        copy.egos = new ArrayList<>(this.egos);
+        copy.dominantEgo = this.dominantEgo;
+        copy.neural = this.neural;
+        copy.memory = this.memory;
+        copy.identity = this.identity;
+        copy.visual = this.visual;
+        copy.rules = this.rules;
+        copy.goals = new ArrayList<>(this.goals);
+        copy.currentGoal = this.currentGoal;
+        copy.canvas = this.canvas.copy(Bitmap.Config.ARGB_8888, false);
+        copy.recentAudioLevels = new ArrayList<>(this.recentAudioLevels);
+        copy.linguistic = this.linguistic;
+        return copy;
+    }
+}
+
+            
     
     // ===== الفئات المساعدة =====
     
