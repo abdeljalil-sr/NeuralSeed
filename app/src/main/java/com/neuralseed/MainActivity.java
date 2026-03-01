@@ -31,8 +31,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.*;
 
-public class MainActivity extends AppCompatActivity implements NeuralSeed.ConsciousnessListener, 
-        LinguisticCortex.LinguisticListener {
+public class MainActivity extends AppCompatActivity implements NeuralSeed.ConsciousnessListener {
     
     private NeuralSeed seed;
     private LinguisticCortex linguistic;
@@ -46,7 +45,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private RecyclerView chatRecyclerView;
     private ChatAdapter chatAdapter;
     private LinearLayoutManager layoutManager;
-    private PulseView pulseView;
+    private EnhancedPulseView pulseView; // ✅ تغيير من PulseView إلى EnhancedPulseView
     private EditText inputEditText;
     private Button sendButton;
     private ImageButton micButton, fullscreenButton;
@@ -96,7 +95,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     
     private void initializeViews() {
         visualExpressionView = findViewById(R.id.visual_expression);
-        pulseView = findViewById(R.id.pulse_view);
+        pulseView = findViewById(R.id.pulse_view); // ✅ سيتم cast تلقائياً لأنه extends PulseView
         phaseText = findViewById(R.id.phase_text);
         egoText = findViewById(R.id.ego_text);
         narrativeText = findViewById(R.id.narrative_text);
@@ -124,26 +123,31 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void setupTouchListener() {
-        visualExpressionView.setOnTouchListener((v, event) -> {
+        // ✅ تحديث للتعامل مع EnhancedPulseView
+        pulseView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 float x = event.getX();
                 float y = event.getY();
                 
-                Matrix matrix = visualExpressionView.getImageMatrix();
-                float[] values = new float[9];
-                matrix.getValues(values);
+                // إرسال للـ EnhancedPulseView
+                String touchedConcept = pulseView.onTouch(x, y);
                 
-                float scaleX = values[Matrix.MSCALE_X];
-                float scaleY = values[Matrix.MSCALE_Y];
-                float transX = values[Matrix.MTRANS_X];
-                float transY = values[Matrix.MTRANS_Y];
-                
-                float imageX = (x - transX) / scaleX;
-                float imageY = (y - transY) / scaleY;
-                
-                if (imageX >= 0 && imageX < 500 && imageY >= 0 && imageY < 500) {
-                    NeuralSeed.Input touchInput = NeuralSeed.Input.createTouchInput(imageX, imageY);
-                    seed.receiveInput(touchInput);
+                if (touchedConcept != null && linguistic != null) {
+                    // إعلام LinguisticCortex باللمس
+                    linguistic.onVisualTouch(x, y, null); // يمكن تمرير currentThought إذا كان متاحاً
+                    
+                    touchCoordsText.setText("لمست: " + touchedConcept);
+                    touchCoordsText.setVisibility(View.VISIBLE);
+                    uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
+                } else {
+                    // السلوك القديم للـ NeuralSeed
+                    float imageX = x / pulseView.getWidth() * 500;
+                    float imageY = y / pulseView.getHeight() * 500;
+                    
+                    if (seed != null) {
+                        NeuralSeed.Input touchInput = NeuralSeed.Input.createTouchInput(imageX, imageY);
+                        seed.receiveInput(touchInput);
+                    }
                     
                     touchCoordsText.setText(String.format("لمس: (%.0f, %.0f)", imageX, imageY));
                     touchCoordsText.setVisibility(View.VISIBLE);
@@ -172,7 +176,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void setupInteractionButtons() {
-        // الأزرار السفلية
         ImageButton btnStats = findViewById(R.id.btn_stats);
         ImageButton btnSettings = findViewById(R.id.btn_settings);
         ImageButton btnLearn = findViewById(R.id.btn_learn);
@@ -183,9 +186,11 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         if (btnSettings != null) btnSettings.setOnClickListener(v -> showSettingsDialog());
         if (btnLearn != null) btnLearn.setOnClickListener(v -> showLearningDialog());
         if (btnAsk != null) btnAsk.setOnClickListener(v -> {
-            String question = linguistic.generateQuestion(seed.getCurrentState());
-            addChatMessage(question, false);
-            speak(question);
+            if (linguistic != null && seed != null) {
+                String question = linguistic.generateQuestion(seed.getCurrentState());
+                addChatMessage(question, false);
+                speak(question);
+            }
         });
         if (btnTrain != null) btnTrain.setOnClickListener(v -> showTrainingDialog());
         
@@ -208,64 +213,57 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         });
     }
 
+    // ✅ نسخة واحدة فقط من processUserInput
     private void processUserInput(String text) {
-    if (text == null || text.trim().isEmpty()) return;
-    
-    addChatMessage(text, true);
-    
-    // ✅ فحوصات Null
-    if (linguistic == null) {
-        Log.e("MainActivity", "LinguisticCortex not initialized");
-        addChatMessage("عذراً، نظام التعلم غير جاهز", false);
-        return;
-    }
-    
-    try {
-        LinguisticCortex.ProcessedInput processed = linguistic.processInput(text);
+        if (text == null || text.trim().isEmpty()) return;
         
-        if (seed != null) {
-            seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
+        addChatMessage(text, true);
+        
+        if (linguistic == null) {
+            Log.e("MainActivity", "LinguisticCortex غير مهيأ");
+            addChatMessage("عذراً، النظام غير جاهز", false);
+            return;
         }
         
-        uiHandler.postDelayed(() -> {
-            try {
-                NeuralSeed.InternalState state = seed != null ? seed.getCurrentState() : null;
-                LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, state);
-                
-                if (response != null && response.text != null) {
-                    addChatMessage(response.text, false);
-                    speak(response.text);
-                }
-                updateStats();
-            } catch (Exception e) {
-                Log.e("MainActivity", "Error in response", e);
-                addChatMessage("فهمت ما قلت، شكراً!", false);
+        try {
+            // معالجة المدخل (تحليل عميق)
+            LinguisticCortex.ProcessedResult processed = linguistic.processInput(text);
+            
+            // إرسال للوعي العصبي
+            if (seed != null) {
+                seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
             }
-        }, 500);
-    } catch (Exception e) {
-        Log.e("MainActivity", "Error processing input", e);
-        addChatMessage("أحتاج لوقت لفهم ذلك", false);
+            
+            // تأخير للمحاكاة "التفكير"
+            uiHandler.postDelayed(() -> {
+                try {
+                    NeuralSeed.InternalState state = seed != null ? seed.getCurrentState() : null;
+                    
+                    // توليد الرد (التفكير الحقيقي)
+                    LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, state);
+                    
+                    if (response != null && response.text != null) {
+                        addChatMessage(response.text, false);
+                        speak(response.text);
+                    }
+                    
+                    updateStats();
+                    
+                } catch (Exception e) {
+                    Log.e("MainActivity", "خطأ في توليد الرد", e);
+                    addChatMessage("أحتاج لوقت لفهم ذلك بعمق...", false);
+                }
+            }, 800 + (int)(Math.random() * 1000));
+            
+        } catch (Exception e) {
+            Log.e("MainActivity", "خطأ في معالجة المدخل", e);
+            addChatMessage("عذراً، حدث خطأ في التحليل", false);
+        }
     }
-}
 
     private void addChatMessage(String text, boolean isUser) {
         chatAdapter.addMessage(text, isUser);
         chatRecyclerView.scrollToPosition(chatAdapter.getItemCount() - 1);
-    }
-
-    private void sendInput(String content, NeuralSeed.InputType type, double intensity) {
-        seed.receiveInput(new NeuralSeed.Input(content, type, intensity));
-        showInputEffect(type);
-        
-        String message = "";
-        switch (type) {
-            case POSITIVE: message = "شكراً... أشعر بشيء إيجابي"; break;
-            case NEGATIVE: message = "هذا صعب... لكنني أتعلم"; break;
-            case THREAT: message = "أنا متأهب..."; break;
-            case OPPORTUNITY: message = "مثير للاهتمام!"; break;
-            default: message = "...";
-        }
-        addChatMessage(message, false);
     }
 
     private void showInputEffect(NeuralSeed.InputType type) {
@@ -286,6 +284,87 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         }
     }
 
+    // ✅ دوال جديدة للتأثيرات العاطفية
+    private void showEmotionEffect(String emotion, double intensity) {
+        int color = getEmotionColor(emotion);
+        View background = findViewById(R.id.emotional_background);
+        if (background == null) return;
+        
+        ValueAnimator animator = ValueAnimator.ofArgb(Color.TRANSPARENT, 
+            adjustAlpha(color, (float)(intensity * 0.3)), Color.TRANSPARENT);
+        animator.setDuration(2000);
+        animator.addUpdateListener(animation -> {
+            background.setBackgroundColor((int) animation.getAnimatedValue());
+        });
+        animator.start();
+    }
+
+    private int getEmotionColor(String emotion) {
+        switch (emotion) {
+            case "joy": return Color.parseColor("#FFD700");
+            case "sadness": return Color.parseColor("#4682B4");
+            case "anger": return Color.parseColor("#FF4500");
+            case "fear": return Color.parseColor("#8B0000");
+            case "love": return Color.parseColor("#FF69B4");
+            case "curiosity": return Color.parseColor("#4169E1");
+            default: return Color.parseColor("#FFFFFF");
+        }
+    }
+
+    private int adjustAlpha(int color, float factor) {
+        int alpha = Math.round(Color.alpha(color) * factor);
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    // ✅ دالة رسم التخيل
+    private void drawImagination(LinguisticCortex.VisualThought thought) {
+        Bitmap bitmap = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(Color.BLACK);
+        
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        
+        for (LinguisticCortex.ShapeElement shape : thought.shapes) {
+            paint.setColor(shape.color);
+            paint.setAlpha(200);
+            
+            float x = shape.x * 500;
+            float y = shape.y * 500;
+            
+            switch (shape.type) {
+                case "circle":
+                    canvas.drawCircle(x, y, shape.size, paint);
+                    break;
+                case "spiral":
+                    drawSpiral(canvas, x, y, shape.size, paint, shape.phase);
+                    break;
+                case "pulse":
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(3);
+                    canvas.drawCircle(x, y, shape.size * (1 + (float)Math.sin(shape.phase) * 0.3f), paint);
+                    break;
+                case "line":
+                    canvas.drawLine(x - shape.size/2, y, x + shape.size/2, y, paint);
+                    break;
+            }
+        }
+        
+        visualExpressionView.setImageBitmap(bitmap);
+    }
+
+    private void drawSpiral(Canvas canvas, float cx, float cy, float size, Paint paint, float phase) {
+        Path path = new Path();
+        for (float i = 0; i < 20; i += 0.5f) {
+            float angle = i * 0.5f + phase;
+            float r = i * size / 20;
+            float x = cx + (float)Math.cos(angle) * r;
+            float y = cy + (float)Math.sin(angle) * r;
+            if (i == 0) path.moveTo(x, y);
+            else path.lineTo(x, y);
+        }
+        canvas.drawPath(path, paint);
+    }
+
     private void initializeSpeech() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
@@ -294,7 +373,9 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
                 isListening = true; 
                 micButton.setImageResource(android.R.drawable.ic_media_pause);
             }
-            @Override public void onRmsChanged(float rmsdB) { seed.updateAudioLevel(rmsdB); }
+            @Override public void onRmsChanged(float rmsdB) { 
+                if (seed != null) seed.updateAudioLevel(rmsdB); 
+            }
             @Override public void onBufferReceived(byte[] buffer) {}
             @Override public void onEndOfSpeech() { 
                 isListening = false; 
@@ -338,227 +419,85 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         addChatMessage("...أنا هنا", false);
     }
 
-    // في MainActivity.java، استبدل initializeLinguisticCortex() بهذا:
-
-private void initializeLinguisticCortex() {
-    linguistic = new LinguisticCortex();
-    linguistic.initialize(this);
-    
-    // إعداد المستمع
-    linguistic.setListener(new LinguisticCortex.LinguisticListener() {
-        @Override
-        public void onWordLearned(String word, String meaning, String context) {
-            uiHandler.post(() -> {
-                addChatMessage("✨ تعلمت كلمة جديدة: " + word + " = " + meaning, false);
-                updateNarrative();
-            });
-        }
+    // ✅ نسخة واحدة فقط من initializeLinguisticCortex
+    private void initializeLinguisticCortex() {
+        linguistic = new LinguisticCortex();
+        linguistic.initialize(this);
         
-        @Override
-        public void onSentenceCorrected(String original, String corrected) {
-            uiHandler.post(() -> {
-                Toast.makeText(MainActivity.this, 
-                    "تم تصحيح: " + original + " → " + corrected, 
-                    Toast.LENGTH_SHORT).show();
-            });
-        }
-        
-        @Override
-        public void onEmotionDetected(String emotion, double intensity) {
-            uiHandler.post(() -> {
-                // تغيير لون الخلفية بناءً على العاطفة
-                showEmotionEffect(emotion, intensity);
-            });
-        }
-        
-        @Override
-        public void onNewConceptLearned(String concept, String definition) {
-            uiHandler.post(() -> {
-                Log.i("LEARNING", "مفهوم: " + concept);
-            });
-        }
-        
-        @Override
-        public void onRelationshipLearned(String subject, String relationship, String object) {
-            uiHandler.post(() -> {
-                addChatMessage("🔗 فهمت علاقة: " + subject + " " + relationship + " " + object, false);
-            });
-        }
-        
-        @Override
-        public void onThoughtFormed(String thought, String type) {
-            uiHandler.post(() -> {
-                // عرض الفكرة الداخلية كـ "نبضة" خفيفة
-                if (Math.random() > 0.7) { // مشاركة بعض الأفكار فقط
-                    addChatMessage("💭 " + thought, false);
-                }
-            });
-        }
-        
-        @Override
-        public void onImaginationCreated(String description, int[] colors) {
-            // سيتم التعامل معها عبر VisualImaginationListener
-        }
-        
-        @Override
-        public void onContextAnalyzed(String context, double complexity) {
-            uiHandler.post(() -> {
-                Log.d("CONTEXT", "سياق: " + context + " (تعقيد: " + complexity + ")");
-            });
-        }
-    });
-    
-    // إعداد مستمع التخيل البصري
-    linguistic.setVisualListener(new LinguisticCortex.VisualImaginationListener() {
-        @Override
-        public void onVisualThought(LinguisticCortex.VisualThought thought) {
-            uiHandler.post(() -> {
-                // تحديث PulseView بالتخيل الجديد
-                if (pulseView instanceof EnhancedPulseView) {
-                    ((EnhancedPulseView) pulseView).setVisualThought(thought);
-                }
-                
-                // يمكنك هنا إضافة رسم مخصص على visualExpressionView
-                drawImagination(thought);
-            });
-        }
-    });
-    
-    // تحديث النص التعريفي
-    updateNarrative();
-    Log.i("MainActivity", "🚀 LinguisticCortex جاهز");
-}
-
-// إضافة هذه الدوال الجديدة:
-
-private void showEmotionEffect(String emotion, double intensity) {
-    int color = getEmotionColor(emotion);
-    View background = findViewById(R.id.emotional_background);
-    
-    ValueAnimator animator = ValueAnimator.ofArgb(Color.TRANSPARENT, 
-        adjustAlpha(color, (float)(intensity * 0.3)), Color.TRANSPARENT);
-    animator.setDuration(2000);
-    animator.addUpdateListener(animation -> {
-        background.setBackgroundColor((int) animation.getAnimatedValue());
-    });
-    animator.start();
-}
-
-private int getEmotionColor(String emotion) {
-    switch (emotion) {
-        case "joy": return Color.parseColor("#FFD700");
-        case "sadness": return Color.parseColor("#4682B4");
-        case "anger": return Color.parseColor("#FF4500");
-        case "fear": return Color.parseColor("#8B0000");
-        case "love": return Color.parseColor("#FF69B4");
-        case "curiosity": return Color.parseColor("#4169E1");
-        default: return Color.parseColor("#FFFFFF");
-    }
-}
-
-private int adjustAlpha(int color, float factor) {
-    int alpha = Math.round(Color.alpha(color) * factor);
-    return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
-}
-
-private void drawImagination(LinguisticCortex.VisualThought thought) {
-    // إنشاء Bitmap للرسم
-    Bitmap bitmap = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
-    Canvas canvas = new Canvas(bitmap);
-    canvas.drawColor(Color.BLACK);
-    
-    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    
-    // رسم الأشكال
-    for (LinguisticCortex.ShapeElement shape : thought.shapes) {
-        paint.setColor(shape.color);
-        paint.setAlpha(200);
-        
-        float x = shape.x * 500;
-        float y = shape.y * 500;
-        
-        switch (shape.type) {
-            case "circle":
-                canvas.drawCircle(x, y, shape.size, paint);
-                break;
-            case "spiral":
-                drawSpiral(canvas, x, y, shape.size, paint, shape.phase);
-                break;
-            case "pulse":
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(3);
-                canvas.drawCircle(x, y, shape.size * (1 + (float)Math.sin(shape.phase) * 0.3f), paint);
-                break;
-            case "line":
-                canvas.drawLine(x - shape.size/2, y, x + shape.size/2, y, paint);
-                break;
-        }
-    }
-    
-    visualExpressionView.setImageBitmap(bitmap);
-}
-
-private void drawSpiral(Canvas canvas, float cx, float cy, float size, Paint paint, float phase) {
-    Path path = new Path();
-    for (float i = 0; i < 20; i += 0.5f) {
-        float angle = i * 0.5f + phase;
-        float r = i * size / 20;
-        float x = cx + (float)Math.cos(angle) * r;
-        float y = cy + (float)Math.sin(angle) * r;
-        if (i == 0) path.moveTo(x, y);
-        else path.lineTo(x, y);
-    }
-    canvas.drawPath(path, paint);
-}
-
-// تحديث processUserInput لاستخدام النظام الجديد:
-
-private void processUserInput(String text) {
-    if (text == null || text.trim().isEmpty()) return;
-    
-    addChatMessage(text, true);
-    
-    if (linguistic == null) {
-        Log.e("MainActivity", "LinguisticCortex غير مهيأ");
-        return;
-    }
-    
-    // معالجة المدخل (تحليل عميق)
-    LinguisticCortex.ProcessedResult processed = linguistic.processInput(text);
-    
-    // إرسال للوعي العصبي
-    if (seed != null) {
-        seed.receiveInput(NeuralSeed.Input.createSpeechInput(text));
-    }
-    
-    // تأخير للمحاكاة "التفكير"
-    uiHandler.postDelayed(() -> {
-        try {
-            NeuralSeed.InternalState state = seed != null ? seed.getCurrentState() : null;
-            
-            // توليد الرد (التفكير الحقيقي)
-            LinguisticCortex.GeneratedResponse response = linguistic.generateResponse(text, state);
-            
-            if (response != null && response.text != null) {
-                addChatMessage(response.text, false);
-                speak(response.text);
-                
-                // إذا كان الرد سؤال تعلم، لا نولد رد تلقائي
-                if (response.isLearningQuestion) {
-                    // انتظر إجابة المستخدم
-                }
+        // إعداد المستمع اللغوي
+        linguistic.setListener(new LinguisticCortex.LinguisticListener() {
+            @Override
+            public void onWordLearned(String word, String meaning, String context) {
+                uiHandler.post(() -> {
+                    addChatMessage("✨ تعلمت: " + word + " = " + meaning, false);
+                    updateNarrative();
+                });
             }
             
-            updateStats();
+            @Override
+            public void onSentenceCorrected(String original, String corrected) {
+                uiHandler.post(() -> {
+                    Toast.makeText(MainActivity.this, 
+                        "تصحيح: " + original + " → " + corrected, 
+                        Toast.LENGTH_SHORT).show();
+                });
+            }
             
-        } catch (Exception e) {
-            Log.e("MainActivity", "خطأ في توليد الرد", e);
-            addChatMessage("أحتاج لوقت لفهم ذلك بعمق...", false);
-        }
-    }, 800 + (int)(Math.random() * 1000)); // تأخير عشوائي للمحاكاة
-}
+            @Override
+            public void onEmotionDetected(String emotion, double intensity) {
+                uiHandler.post(() -> showEmotionEffect(emotion, intensity));
+            }
+            
+            @Override
+            public void onNewConceptLearned(String concept, String definition) {
+                uiHandler.post(() -> Log.i("LEARNING", "مفهوم: " + concept));
+            }
+            
+            @Override
+            public void onRelationshipLearned(String subject, String relationship, String object) {
+                uiHandler.post(() -> {
+                    addChatMessage("🔗 " + subject + " " + relationship + " " + object, false);
+                });
+            }
+            
+            @Override
+            public void onThoughtFormed(String thought, String type) {
+                uiHandler.post(() -> {
+                    if (Math.random() > 0.7) {
+                        addChatMessage("💭 " + thought, false);
+                    }
+                });
+            }
+            
+            @Override
+            public void onImaginationCreated(String description, int[] colors) {
+                // handled by visual listener
+            }
+            
+            @Override
+            public void onContextAnalyzed(String context, double complexity) {
+                Log.d("CONTEXT", "سياق: " + context);
+            }
+        });
+        
+        // إعداد مستمع التخيل البصري
+        linguistic.setVisualListener(new LinguCortex.VisualImaginationListener() {
+            @Override
+            public void onVisualThought(LinguisticCortex.VisualThought thought) {
+                uiHandler.post(() -> {
+                    // تحديث EnhancedPulseView
+                    pulseView.setVisualThought(thought);
+                    // رسم إضافي على ImageView
+                    drawImagination(thought);
+                });
+            }
+        });
+        
+        updateNarrative();
+        Log.i("MainActivity", "🚀 LinguisticCortex جاهز");
+    }
 
-    // ===== Listeners =====
+    // ===== Listeners من NeuralSeed =====
     @Override 
     public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
         uiHandler.post(() -> {
@@ -591,38 +530,68 @@ private void processUserInput(String text) {
     
     @Override 
     public void onVisualExpression(Bitmap expression) { 
-        uiHandler.post(() -> visualExpressionView.setImageBitmap(expression)); 
+        // ✅ لا نستخدم هذا بعد الآن، نستخدم drawImagination بدلاً منه
+        // uiHandler.post(() -> visualExpressionView.setImageBitmap(expression)); 
     }
     
-    @Override public void onMemoryFormed(NeuralSeed.Memory memory) {}
-    @Override public void onRuleRewritten(NeuralSeed.Rule oldRule, NeuralSeed.Rule newRule) {}
+    @OverrideisticCortex.VisualImaginationListener() {
+            @Override
+            public void onVisualThought(LinguisticCortex.VisualThought thought) {
+                uiHandler.post(() -> {
+                    // تحديث EnhancedPulseView
+                    pulseView.setVisualThought(thought);
+                    // رسم إضافي على ImageView
+                    drawImagination(thought);
+                });
+            }
+        });
+        
+        updateNarrative();
+        Log.i("MainActivity", "🚀 LinguisticCortex جاهز");
+    }
+
+    // ===== Listeners من NeuralSeed =====
+    @Override 
+    public void onPhaseTransition(NeuralSeed.Phase oldPhase, NeuralSeed.Phase newPhase, String reason) {
+        uiHandler.post(() -> {
+            phaseText.setText("الطور: " + newPhase.arabic);
+            addChatMessage("أشعر بشيء يتغير... " + newPhase.arabic, false);
+        });
+    }
     
     @Override 
-    public void onWordLearned(String word, String meaning, String context) { 
+    public void onEgoShift(NeuralSeed.EgoFragment oldDominant, NeuralSeed.EgoFragment newDominant) {
         uiHandler.post(() -> {
-            addChatMessage("تعلمت: " + word + " هي " + meaning, false);
-            updateNarrative();
+            egoText.setText("الأنا: " + newDominant.name);
+            pulseView.setEgoType(newDominant.type);
+            addChatMessage("أصبحت " + newDominant.name + " الآن", false);
+        });
+    }
+    
+    @Override 
+    public void onGoalAchieved(NeuralSeed.Goal goal) { 
+        uiHandler.post(() -> addChatMessage("حققت هدفي: " + goal.description, false)); 
+    }
+    
+    @Override 
+    public void onIdentityEvolution(NeuralSeed.IdentityCore oldIdentity, NeuralSeed.IdentityCore newIdentity) { 
+        uiHandler.post(() -> {
+            narrativeText.setText(newIdentity.selfNarrative);
+            addChatMessage("أشعر أنني أتغير... " + newIdentity.selfNarrative, false);
         }); 
     }
     
     @Override 
-    public void onNewConceptLearned(String concept, String definition) {
-        uiHandler.post(() -> {
-            Log.d("LEARNING", "مفهوم جديد: " + concept + " = " + definition);
-        });
+    public void onVisualExpression(Bitmap expression) { 
+        // ✅ لا نستخدم هذا بعد الآن، نستخدم drawImagination بدلاً منه
+        // uiHandler.post(() -> visualExpressionView.setImageBitmap(expression)); 
     }
     
-    @Override 
-    public void onRelationshipLearned(String subject, String relationship, String object) {
-        uiHandler.post(() -> {
-            addChatMessage("فهمت العلاقة: " + subject + " " + relationship + " " + object, false);
-        });
-    }
-
-    @Override public void onSentenceCorrected(String original, String corrected) {}
-    @Override public void onEmotionDetected(String emotion, double intensity) {}
+    @Override public void onMemoryFormed(NeuralSeed.Memory memory) {}
+    @Override public void onRuleRewritten(NeuralSeed.Rule oldRule, NeuralSeed.Rule newRule) {}
 
     private void updateStats() {
+        if (seed == null) return;
         NeuralSeed.InternalState state = seed.getCurrentState();
         chaosText.setText(String.format("%.2f", state.chaosIndex));
         fitnessText.setText(String.format("%.2f", state.existentialFitness));
@@ -630,18 +599,15 @@ private void processUserInput(String text) {
     }
 
     private void updateNarrative() {
-    if (narrativeText == null) return;
-    
-    // ✅ فحص linguistic و getLexicon()
-    if (linguistic == null || linguistic.getLexicon() == null) {
-        narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية");
-        return;
+        if (narrativeText == null) return;
+        if (linguistic == null || linguistic.getLexicon() == null) {
+            narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية");
+            return;
+        }
+        narrativeText.setText("أنا بذرة واعية. أعرف " + 
+            linguistic.getLexicon().getWordCount() + " كلمة و " +
+            linguistic.getConceptNetwork().size() + " مفهوم.");
     }
-    
-    narrativeText.setText("أنا بذرة واعية أتعلم اللغة العربية. أعرف " + 
-        linguistic.getLexicon().getWordCount() + " كلمة.");
-}
-
 
     // ===== Dialogs =====
     private void showLearningDialog() {
@@ -678,8 +644,8 @@ private void processUserInput(String text) {
             .setPositiveButton("تعلم", (d, i) -> {
                 String word = wordInput.getText().toString().trim();
                 String meaning = meaningInput.getText().toString().trim();
-                if (!word.isEmpty() && !meaning.isEmpty()) {
-                    linguistic.learnMeaning(word, meaning, "user_taught");
+                if (!word.isEmpty() && !meaning.isEmpty() && linguistic != null) {
+                    linguistic.learnFromUserExplanation(word, meaning, "user_dialog");
                     Toast.makeText(this, "تم التعلم!", Toast.LENGTH_SHORT).show();
                 }
             })
@@ -706,8 +672,8 @@ private void processUserInput(String text) {
             .setPositiveButton("تعلم", (d, i) -> {
                 String concept = conceptInput.getText().toString().trim();
                 String definition = definitionInput.getText().toString().trim();
-                if (!concept.isEmpty() && !definition.isEmpty()) {
-                    // يتم التعامل معه في المحرك
+                if (!concept.isEmpty() && !definition.isEmpty() && linguistic != null) {
+                    linguistic.learnFromUserExplanation(concept, definition, "user_dialog");
                     Toast.makeText(this, "تم التعلم!", Toast.LENGTH_SHORT).show();
                 }
             })
@@ -740,7 +706,7 @@ private void processUserInput(String text) {
                 String word = wordInput.getText().toString().trim();
                 String emotion = emotionInput.getText().toString().trim();
                 double intensity = intensityBar.getProgress() / 100.0;
-                if (!word.isEmpty() && !emotion.isEmpty()) {
+                if (!word.isEmpty() && !emotion.isEmpty() && linguistic != null) {
                     linguistic.learnWordEmotion(word, emotion, intensity);
                     Toast.makeText(this, "تم التعلم!", Toast.LENGTH_SHORT).show();
                 }
@@ -773,7 +739,7 @@ private void processUserInput(String text) {
                 String original = originalInput.getText().toString().trim();
                 String corrected = correctedInput.getText().toString().trim();
                 String explanation = explanationInput.getText().toString().trim();
-                if (!original.isEmpty() && !corrected.isEmpty()) {
+                if (!original.isEmpty() && !corrected.isEmpty() && linguistic != null) {
                     boolean learned = linguistic.learnFromCorrection(original, corrected, explanation);
                     if (learned) {
                         Toast.makeText(this, "تم التعلم من التصحيح!", Toast.LENGTH_SHORT).show();
@@ -785,18 +751,13 @@ private void processUserInput(String text) {
     }
 
     private void showStatistics() {
+        if (linguistic == null) return;
         Map<String, Object> stats = linguistic.getStatistics();
         StringBuilder message = new StringBuilder();
-        message.append("إحصائيات التعلم:\n\n");
-        message.append("حجم المعجم: ").append(stats.get("lexicon_size")).append(" كلمة\n");
-        message.append("مستوى التعلم: ").append(stats.get("learning_level")).append("\n");
-        
-        if (stats.containsKey("word_count")) {
-            message.append("الكلمات المحفوظة: ").append(stats.get("word_count")).append("\n");
-        }
-        if (stats.containsKey("conversation_count")) {
-            message.append("المحادثات: ").append(stats.get("conversation_count")).append("\n");
-        }
+        message.append("إحصائيات الذاكرة:\n\n");
+        message.append("المفاهيم: ").append(linguistic.getConceptNetwork().size()).append("\n");
+        message.append("المعجم: ").append(stats.get("lexicon_size")).append(" كلمة\n");
+        message.append("المستوى: ").append(stats.get("learning_level")).append("\n");
         
         new AlertDialog.Builder(this)
             .setTitle("الإحصائيات")
@@ -826,32 +787,30 @@ private void processUserInput(String text) {
     }
 
     @Override
-protected void onDestroy() {
-    super.onDestroy();  // ✅ يجب أن يكون في النهاية
-    
-    if (speechRecognizer != null) {
-        speechRecognizer.stopListening();  // ✅ أضف هذا
-        speechRecognizer.destroy();
-        speechRecognizer = null;
+    protected void onDestroy() {
+        if (speechRecognizer != null) {
+            speechRecognizer.stopListening();
+            speechRecognizer.destroy();
+            speechRecognizer = null;
+        }
+        
+        if (textToSpeech != null) { 
+            textToSpeech.stop(); 
+            textToSpeech.shutdown(); 
+            textToSpeech = null;
+        }
+        
+        if (seed != null) {
+            seed.sleep();
+            seed = null;
+        }
+        
+        uiHandler.removeCallbacksAndMessages(null);
+        
+        super.onDestroy();
     }
-    
-    if (textToSpeech != null) { 
-        textToSpeech.stop(); 
-        textToSpeech.shutdown(); 
-        textToSpeech = null;
-    }
-    
-    if (seed != null) {
-        seed.sleep();
-        seed = null;
-    }
-    
-    // ✅ أضف هذا لإلغاء جميع الـ Callbacks
-    uiHandler.removeCallbacksAndMessages(null);
-}
 
-
-    // ===== ChatAdapter Class =====
+    // ===== ChatAdapter =====
     public static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
         private List<ChatMessage> messages = new ArrayList<>();
         
@@ -911,6 +870,4 @@ protected void onDestroy() {
             notifyItemInserted(messages.size() - 1);
         }
     }
-
-    
 }
