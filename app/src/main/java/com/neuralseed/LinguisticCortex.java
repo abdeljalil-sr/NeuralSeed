@@ -1388,7 +1388,10 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         return currentEmotionalState;
     }
     
-        // ==================== Methods needed for compilation ====================
+
+
+
+    // ==================== Methods needed for compilation ====================
     
     private void addToShortTermMemory(ContextMessage message) {
         shortTermMemory.add(message);
@@ -1755,5 +1758,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     }
 }
 
-    
+
+
 
