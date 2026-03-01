@@ -1686,6 +1686,40 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
 public String generateQuestion(NeuralSeed.InternalState state) {
     return sentenceGenerator.generateQuestion(state);
 }
+// أضف في LinguisticCortex.java:
+public void learnWordEmotion(String word, String emotion, double intensity) {
+    if (learningSystem != null) {
+        learningSystem.learnWordEmotion(word, emotion, intensity, "user_dialog");
+    }
+    // تحديث المعجم أيضاً
+    ArabicLexicon.Word w = lexicon.getWordByForm(word);
+    if (w != null) {
+        w.addEmotion(emotion, intensity);
+        if (database != null) database.saveWord(w);
+    }
+}
 
+   // أضف في LinguisticCortex.java:
+public Map<String, Object> getStatistics() {
+    Map<String, Object> stats = new HashMap<>();
+    stats.put("lexicon_size", lexicon.getWordCount());
+    stats.put("concept_count", conceptNetwork.size());
+    stats.put("thought_count", activeThoughts.size());
+    stats.put("memory_size", shortTermMemory.size());
+    stats.put("conversation_turns", currentConversation.turnCount);
+    
+    // مستوى التعلم
+    double avgFamiliarity = conceptNetwork.values().stream()
+        .mapToDouble(n -> n.familiarity)
+        .average().orElse(0.0);
+    stats.put("learning_level", String.format("%.0f%%", avgFamiliarity * 100));
+    
+    return stats;
+}
+ 
+
+
+
+    
     
 }
