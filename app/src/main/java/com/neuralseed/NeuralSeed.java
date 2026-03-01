@@ -639,51 +639,89 @@ public class NeuralSeed {
     // ===== الحالة الداخلية =====
     
     public static class InternalState {
-        NeuralSeed seed;
-        double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
-        double chaosIndex = 0.0;
-        Phase currentPhase = Phase.EMBRYONIC;
-        long phaseTransitionTime = 0;
-        long birthTime = 0;
-        double existentialFitness = 0.5;
-        double internalConflict = 0.0;
+    NeuralSeed seed;
+    double lorenzX = 1.0, lorenzY = 1.0, lorenzZ = 1.0;
+    double chaosIndex = 0.0;
+    Phase currentPhase = Phase.EMBRYONIC;
+    long phaseTransitionTime = 0;
+    long birthTime = 0;
+    double existentialFitness = 0.5;
+    double internalConflict = 0.0;
+    
+    List<EgoFragment> egos = new ArrayList<>();
+    EgoFragment dominantEgo = null;
+    
+    DynamicNeuralNetwork neural;
+    AssociativeMemory memory;
+    IdentityCore identity;
+    VisualCortex visual;
+    RuleSystem rules;
+    
+    List<Goal> goals = new ArrayList<>();
+    Goal currentGoal = null;
+    
+    public Bitmap canvas;
+    public List<Float> recentAudioLevels = new ArrayList<>();
+    public LinguisticCortex linguistic;
+    
+    ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
+    
+    public InternalState() {
+        // ✅ أولاً: إنشاء canvas
+        canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
+        canvas.eraseColor(Color.BLACK);
         
-        List<EgoFragment> egos = new ArrayList<>();
-        EgoFragment dominantEgo = null;
+        // ✅ ثانياً: تهيئة LinguisticCortex يدوياً (الحل الأساسي)
+        linguistic = new LinguisticCortex();
+        linguistic.lexicon = new ArabicLexicon();
+        linguistic.emotionEngine = new SemanticEmotionalEngine();
+        linguistic.parser = new ArabicParser(linguistic.lexicon);
+        linguistic.sentenceGenerator = new SentenceGenerator(
+            linguistic.lexicon, 
+            linguistic.parser, 
+            linguistic.emotionEngine, 
+            null
+        );
+        linguistic.learningSystem = new LearningSystem(
+            linguistic.lexicon,
+            linguistic.parser,
+            linguistic.emotionEngine,
+            null
+        );
+        linguistic.shortTermMemory = new CopyOnWriteArrayList<>();
+        linguistic.conceptNetwork = new ConcurrentHashMap<>();
+        linguistic.activeThoughts = new CopyOnWriteArrayList<>();
+        linguistic.currentEmotionalState = new LinguisticCortex.EmotionalState();
+        linguistic.currentConversation = new LinguisticCortex.ConversationContext();
+        linguistic.mainHandler = new Handler(Looper.getMainLooper());
+        linguistic.reflectionExecutor = Executors.newScheduledThreadPool(2);
+        linguistic.isAwake = true;
         
-        DynamicNeuralNetwork neural = new DynamicNeuralNetwork(this);
-        AssociativeMemory memory = new AssociativeMemory(this);
-        IdentityCore identity = new IdentityCore(this);
-        VisualCortex visual = new VisualCortex(this);
-        RuleSystem rules = new RuleSystem(this);
+        // ✅ ثالثاً: تهيئة باقي المكونات (بعد إنشاء الكائن)
+        neural = new DynamicNeuralNetwork(this);
+        memory = new AssociativeMemory(this);
+        identity = new IdentityCore(this);
+        visual = new VisualCortex(this);
+        rules = new RuleSystem(this);
         
-        List<Goal> goals = new ArrayList<>();
-        Goal currentGoal = null;
+        // ✅ رابعاً: تهيئة egos
+        initializeEgos();
+    }
+    
+    private void initializeEgos() {
+        egos.add(new EgoFragment("المنطقي", EgoType.STABLE,
+                Arrays.asList("logic", "order", "planning"), 0.8));
+        egos.add(new EgoFragment("العاطفي", EgoType.ADAPTIVE,
+                Arrays.asList("emotion", "empathy", "intuition"), 0.6));
+        egos.add(new EgoFragment("المغامر", EgoType.CHAOTIC,
+                Arrays.asList("risk", "exploration", "novelty"), 0.4));
+        egos.add(new EgoFragment("الباقي", EgoType.SURVIVAL,
+                Arrays.asList("safety", "protection", "preservation"), 0.5));
         
-        public Bitmap canvas;
-        public List<Float> recentAudioLevels = new ArrayList<>();
-        public LinguisticCortex linguistic = new LinguisticCortex();
-        
-        ConcurrentLinkedQueue<Input> pendingInputs = new ConcurrentLinkedQueue<>();
-        
-        public InternalState() {
-            initializeEgos();
-            canvas = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888);
-            canvas.eraseColor(Color.BLACK);
-        }
-        
-        private void initializeEgos() {
-            egos.add(new EgoFragment("المنطقي", EgoType.STABLE,
-                    Arrays.asList("logic", "order", "planning"), 0.8));
-            egos.add(new EgoFragment("العاطفي", EgoType.ADAPTIVE,
-                    Arrays.asList("emotion", "empathy", "intuition"), 0.6));
-            egos.add(new EgoFragment("المغامر", EgoType.CHAOTIC,
-                    Arrays.asList("risk", "exploration", "novelty"), 0.4));
-            egos.add(new EgoFragment("الباقي", EgoType.SURVIVAL,
-                    Arrays.asList("safety", "protection", "preservation"), 0.5));
-            
-            dominantEgo = egos.get(0);
-        }
+        dominantEgo = egos.get(0);
+    }
+    
+    
         
         public EmotionalVector getEmotionalVector() {
             EmotionalVector vec = new EmotionalVector();
