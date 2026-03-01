@@ -333,7 +333,11 @@ public class PulseView extends View {
             this.createdAt = System.currentTimeMillis();
         }
     }
-    
+   // في PulseView.java - إضافة تأثيرات جديدة
+public void setEmotionalBurst(String emotion, double intensity) {
+    // انفجار بصري للعواطف القوية
+}
+ 
     public static class ShapeElement {
         public String type; // "circle", "line", "spiral", "pulse"
         public float x, y;
