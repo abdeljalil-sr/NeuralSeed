@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private ImageButton micButton, fullscreenButton;
     private TextView touchCoordsText;
     private boolean isFullscreen = false;
-    
+    private LinguisticCortex.VisualThought currentVisualThought;
     // Speech
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -118,41 +118,47 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     }
 
     private void setupTouchListener() {
-        pulseView.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                float x = event.getX();
-                float y = event.getY();
+    pulseView.setOnTouchListener((v, event) -> {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            float x = event.getX();
+            float y = event.getY();
+            
+            // ✅ الحصول على التخيل الحالي من PulseView
+            // نحتاج لإضافة getter في PulseView
+            
+            // مؤقتاً: استخدام الإحداثيات فقط
+            String touchedConcept = pulseView.onTouch(x, y);
+            
+            if (touchedConcept != null) {
+                touchCoordsText.setText("لمست: " + touchedConcept);
+                touchCoordsText.setVisibility(View.VISIBLE);
+                uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
                 
-                // محاولة الحصول على المفهوم من التخيل
-                String touchedConcept = pulseView.onTouch(x, y);
-                
-                if (touchedConcept != null) {
-                    touchCoordsText.setText("لمست: " + touchedConcept);
-                    touchCoordsText.setVisibility(View.VISIBLE);
-                    uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
-                    
-                    // إعلام LinguisticCortex
-                    if (linguistic != null) {
-                        linguistic.onVisualTouch(x, y, null);
-                    }
-                } else {
-                    // السلوك القديم للـ NeuralSeed
-                    float imageX = x / pulseView.getWidth() * 500;
-                    float imageY = y / pulseView.getHeight() * 500;
-                    
-                    if (seed != null) {
-                        NeuralSeed.Input touchInput = NeuralSeed.Input.createTouchInput(imageX, imageY);
-                        seed.receiveInput(touchInput);
-                    }
-                    
-                    touchCoordsText.setText(String.format("لمس: (%.0f, %.0f)", imageX, imageY));
-                    touchCoordsText.setVisibility(View.VISIBLE);
-                    uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
+                // ✅ إعلام LinguisticCortex
+                if (linguistic != null) {
+                    // نحتاج للوصول للـ currentThought الحالي
+                    // يمكننا تخزينه كمتغير عند استلامه
+                    linguistic.onVisualTouch(x, y, currentVisualThought);
                 }
+            } else {
+                // السلوك القديم
+                float imageX = x / pulseView.getWidth() * 500;
+                float imageY = y / pulseView.getHeight() * 500;
+                
+                if (seed != null) {
+                    NeuralSeed.Input touchInput = NeuralSeed.Input.createTouchInput(imageX, imageY);
+                    seed.receiveInput(touchInput);
+                }
+                
+                touchCoordsText.setText(String.format("لمس: (%.0f, %.0f)", imageX, imageY));
+                touchCoordsText.setVisibility(View.VISIBLE);
+                uiHandler.postDelayed(() -> touchCoordsText.setVisibility(View.GONE), 2000);
             }
-            return true;
-        });
-    }
+        }
+        return true;
+    });
+}
+
 
     private void setupFullscreenButton() {
         fullscreenButton.setOnClickListener(v -> {
