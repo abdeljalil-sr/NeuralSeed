@@ -930,6 +930,7 @@ public void addWordFromUser(String word, String root, String meaning) {
 // تحسين ArabicParser
 public List<String> suggestGrammarFixes(String sentence) {
     // اقتراح تصحيحات نحوية
+    return new ArrayList<>();
 }
  
     public List<Word> findWordsByMeaning(String meaning) {
