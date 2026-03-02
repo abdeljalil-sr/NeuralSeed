@@ -1515,6 +1515,44 @@ public class LinguisticCortex {
         }
         return 0.1;
     }
+
+        // ===== دوال الدمج مع ConsciousnessCore =====
+    
+    public void learnWordFromConsciousness(String word, Map<String, Double> emotions) {
+        // تعلم كلمة من الوعي الحي
+        if (lexicon != null && !lexicon.hasWord(word)) {
+            ArabicLexicon.Word w = new ArabicLexicon.Word(word, word, ArabicLexicon.WordType.NOUN);
+            if (emotions != null) {
+                w.emotions.putAll(emotions);
+            }
+            // لا يمكن الإضافة المباشرة للمعجم، لكن يمكن حفظها في قاعدة البيانات
+            if (database != null) {
+                database.saveWord(w);
+            }
+        }
+    }
+    
+    public String analyzeTouchLocation(float x, float y) {
+        // تحليل موقع اللمس
+        return "موقع_" + (int)(x * 10) + "_" + (int)(y * 10);
+    }
+    
+    public String enhanceExpression(String text) {
+        // تحسين تعبير الوعي الحي
+        return text; // يمكن إضافة تحسينات لاحقاً
+    }
+    
+    public VisualThought getCurrentVisualThought() {
+        return currentVisualThought;
+    }
+    
+    public void shutdown() {
+        if (reflectionExecutor != null) {
+            reflectionExecutor.shutdown();
+        }
+        saveBrain();
+    }
+
     
     private String addEmotionalColor(String text) {
         String[] prefixes = {
@@ -1558,4 +1596,4 @@ public class LinguisticCortex {
             }
         }
     }
-} // ✅ نهاية الـ class
+} 
