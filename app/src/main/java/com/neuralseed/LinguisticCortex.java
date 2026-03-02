@@ -16,24 +16,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * القشرة اللغوية المتكاملة - دماغ NeuralSeed اللغوي والعقلي
- * 
- * هذا النظام يجمع:
- * - ArabicLexicon: المعجم العربي الكامل
- * - ArabicParser: التحليل النحوي والصرفي
- * - SemanticEmotionalEngine: محرك المعاني والعواطف
- * - SentenceGenerator: توليد الردود الذكية
- * - LearningSystem: التعلم من التصحيحات والأمثلة
- * - LocalDatabase: التخزين المحلي
- * - FirebaseManager: المزامنة السحابية
- * 
- * المبدأ: "لا ردود جاهزة، بل تفكير حقيقي"
  */
 public class LinguisticCortex {
     
     private static final String TAG = "LinguisticCortex";
     private static final String PREFS_NAME = "NeuralSeedBrain";
-    private static final int MAX_CONTEXT_MEMORY = 50; // آخر 50 رسالة
-    private static final int MAX_REFLECTION_INTERVAL = 30000; // تأمل كل 30 ثانية
+    private static final int MAX_CONTEXT_MEMORY = 50;
+    private static final int MAX_REFLECTION_INTERVAL = 30000;
     
     // ==================== الواجهات ====================
     
@@ -43,9 +32,9 @@ public class LinguisticCortex {
         void onEmotionDetected(String emotion, double intensity);
         void onNewConceptLearned(String concept, String definition);
         void onRelationshipLearned(String subject, String relationship, String object);
-        void onThoughtFormed(String thought, String type); // فكرة داخلية جديدة
-        void onImaginationCreated(String description, int[] colors); // تخيل بصري
-        void onContextAnalyzed(String context, double complexity); // تحليل السياق
+        void onThoughtFormed(String thought, String type);
+        void onImaginationCreated(String description, int[] colors);
+        void onContextAnalyzed(String context, double complexity);
     }
     
     public interface VisualImaginationListener {
@@ -54,95 +43,85 @@ public class LinguisticCortex {
     
     // ==================== البيانات الأساسية ====================
     
-    // المكونات الرئيسية
-    private ArabicLexicon lexicon;
-    private ArabicParser parser;
-    private SemanticEmotionalEngine emotionEngine;
-    private SentenceGenerator sentenceGenerator;
-    private LearningSystem learningSystem;
-    private LocalDatabase database;
-    private FirebaseManager firebase;
-    private Context appContext;
+    // المكونات الرئيسية - تم تغييرها من private إلى package-private (بدون مُعدِّل)
+    ArabicLexicon lexicon;
+    ArabicParser parser;
+    SemanticEmotionalEngine emotionEngine;
+    SentenceGenerator sentenceGenerator;
+    LearningSystem learningSystem;
+    LocalDatabase database;
+    FirebaseManager firebase;
+    Context appContext;
     
     // المستمعون
     private LinguisticListener listener;
     private VisualImaginationListener visualListener;
     
     // الذاكرة العاملة (Working Memory)
-    private List<ContextMessage> shortTermMemory; // الذاكرة القصيرة المدى
-    private Map<String, ConceptNode> conceptNetwork; // شبكة المفاهيم
-    private List<Thought> activeThoughts; // الأفكار النشطة
-    private EmotionalState currentEmotionalState; // الحالة العاطفية الحالية
+    List<ContextMessage> shortTermMemory;
+    Map<String, ConceptNode> conceptNetwork;
+    List<Thought> activeThoughts;
+    EmotionalState currentEmotionalState;
     
     // أنظمة التفكير المستمر
-    private ScheduledExecutorService reflectionExecutor;
-    private Handler mainHandler;
-    private volatile boolean isReflecting = false;
-    private volatile boolean isAwake = false;
+    ScheduledExecutorService reflectionExecutor;
+    Handler mainHandler;
+    volatile boolean isReflecting = false;
+    volatile boolean isAwake = false;
     
     // سياق المحادثة الحالي
-    private ConversationContext currentConversation;
-    private AtomicReference<NeuralSeed.InternalState> neuralStateRef;
+    ConversationContext currentConversation;
+    AtomicReference<NeuralSeed.InternalState> neuralStateRef;
     
     // ==================== البنى الداخلية ====================
     
-    /**
-     * رسالة في سياق المحادثة - تحتفظ بكل التحليلات
-     */
     public static class ContextMessage {
-    public String id;
-    public String text;
-    public boolean isFromUser;
-    public long timestamp;
-    
-    // التحليلات اللغوية
-    public List<ArabicParser.ParseResult> parseResults;
-    public Map<String, Double> detectedEmotions;
-    public List<String> keywords;
-    public List<String> concepts;
-    public String mainTopic;
-    public double complexity;
-    
-    // الروابط السياقية
-    public List<String> relatedMessageIds;
-    public Map<String, Double> semanticSimilarities;
-    public List<String> relatedConcepts; // ✅ أضف هذا
-    
-    // الاستنتاجات
-    public String inferredIntent;
-    public List<String> inferredNeeds;
-    
-    public ContextMessage(String text, boolean isFromUser) {
-        this.id = UUID.randomUUID().toString();
-        this.text = text != null ? text : "";
-        this.isFromUser = isFromUser;
-        this.timestamp = System.currentTimeMillis();
-        this.parseResults = new ArrayList<>();
-        this.detectedEmotions = new HashMap<>();
-        this.keywords = new ArrayList<>();
-        this.concepts = new ArrayList<>();
-        this.relatedMessageIds = new ArrayList<>();
-        this.semanticSimilarities = new HashMap<>();
-        this.relatedConcepts = new ArrayList<>(); // ✅ وأضف هذا
-        this.inferredNeeds = new ArrayList<>();
+        public String id;
+        public String text;
+        public boolean isFromUser;
+        public long timestamp;
+        
+        public List<ArabicParser.ParseResult> parseResults;
+        public Map<String, Double> detectedEmotions;
+        public List<String> keywords;
+        public List<String> concepts;
+        public String mainTopic;
+        public double complexity;
+        
+        public List<String> relatedMessageIds;
+        public Map<String, Double> semanticSimilarities;
+        public List<String> relatedConcepts;
+        
+        public String inferredIntent;
+        public List<String> inferredNeeds;
+        
+        public ContextMessage(String text, boolean isFromUser) {
+            this.id = UUID.randomUUID().toString();
+            this.text = text != null ? text : "";
+            this.isFromUser = isFromUser;
+            this.timestamp = System.currentTimeMillis();
+            this.parseResults = new ArrayList<>();
+            this.detectedEmotions = new HashMap<>();
+            this.keywords = new ArrayList<>();
+            this.concepts = new ArrayList<>();
+            this.relatedMessageIds = new ArrayList<>();
+            this.semanticSimilarities = new HashMap<>();
+            this.relatedConcepts = new ArrayList<>();
+            this.inferredNeeds = new ArrayList<>();
+        }
     }
-}
-
     
-    /**
-     * عقدة مفهوم في شبكة المعرفة
-     */
     public static class ConceptNode {
         public String concept;
         public String definition;
         public List<String> relatedConcepts;
         public Map<String, Double> emotionalWeights;
-        public List<String> usageContexts; // السياقات التي استُخدم فيها
+        public List<String> usageContexts;
         public int usageCount;
         public long firstSeen;
         public long lastUsed;
-        public double familiarity; // درجة الألفة 0-1
-        public List<String> learnedFrom; // مصادر التعلم
+        public double familiarity;
+        public List<String> learnedFrom;
         
         public ConceptNode(String concept, String definition) {
             this.concept = concept;
@@ -166,18 +145,15 @@ public class LinguisticCortex {
         }
     }
     
-    /**
-     * فكرة داخلية (التفكير الذاتي)
-     */
     public static class Thought {
         public String id;
         public String content;
-        public String type; // "reflection", "question", "connection", "imagination", "emotion"
+        public String type;
         public double intensity;
         public long timestamp;
         public List<String> relatedConcepts;
         public EmotionalState emotionalColor;
-        public boolean isShared; // هل شُاركت مع المستخدم؟
+        public boolean isShared;
         
         public Thought(String content, String type) {
             this.id = UUID.randomUUID().toString();
@@ -190,14 +166,11 @@ public class LinguisticCortex {
         }
     }
     
-    /**
-     * الحالة العاطفية المركبة
-     */
     public static class EmotionalState {
         public Map<String, Double> emotions;
         public double overallIntensity;
         public String dominantEmotion;
-        public int color; // اللون الممثل للحالة
+        public int color;
         
         public EmotionalState() {
             this.emotions = new HashMap<>();
@@ -207,13 +180,11 @@ public class LinguisticCortex {
         }
         
         public void update(Map<String, Double> newEmotions) {
-            // مزج العواطف الجديدة مع القديمة
             for (Map.Entry<String, Double> entry : newEmotions.entrySet()) {
                 double oldVal = emotions.getOrDefault(entry.getKey(), 0.0);
                 emotions.put(entry.getKey(), oldVal * 0.7 + entry.getValue() * 0.3);
             }
             
-            // تحديد السائد
             double max = 0;
             for (Map.Entry<String, Double> entry : emotions.entrySet()) {
                 if (entry.getValue() > max) {
@@ -225,9 +196,6 @@ public class LinguisticCortex {
         }
     }
     
-    /**
-     * سياق المحادثة الكامل
-     */
     public static class ConversationContext {
         public String id;
         public long startTime;
@@ -246,15 +214,12 @@ public class LinguisticCortex {
         }
     }
     
-    /**
-     * تخيل بصري (للعرض على اللوحة)
-     */
     public static class VisualThought {
         public String id;
         public String description;
-        public int[] colorPalette; // 5 ألوان رئيسية
+        public int[] colorPalette;
         public List<ShapeElement> shapes;
-        public float chaosLevel; // مستوى الفوضى في الرسم
+        public float chaosLevel;
         public String emotionalTheme;
         public long createdAt;
         
@@ -268,7 +233,7 @@ public class LinguisticCortex {
     }
     
     public static class ShapeElement {
-        public String type; // "circle", "line", "spiral", "pulse"
+        public String type;
         public float x, y;
         public float size;
         public int color;
@@ -278,7 +243,7 @@ public class LinguisticCortex {
     
     // ==================== البناء والتهيئة ====================
     
-        public LinguisticCortex() {
+    public LinguisticCortex() {
         this.shortTermMemory = new CopyOnWriteArrayList<>();
         this.conceptNetwork = new ConcurrentHashMap<>();
         this.activeThoughts = new CopyOnWriteArrayList<>();
@@ -328,6 +293,33 @@ public class LinguisticCortex {
         Log.i(TAG, "🧠 LinguisticCortex استيقظ - " + conceptNetwork.size() + " مفهوم محمل");
     }
     
+    private void initializeFirebase(Context context) {
+        this.firebase = new FirebaseManager(context);
+        firebase.setSyncListener(new FirebaseManager.SyncListener() {
+            @Override
+            public void onSyncComplete(boolean success) {
+                Log.i(TAG, "Firebase sync: " + (success ? "success" : "failed"));
+                if (success) syncLocalWithCloud();
+            }
+            
+            @Override
+            public void onDataReceived(String collection, Map<String, Object> data) {
+                if ("words".equals(collection)) {
+                    integrateCloudWord(data);
+                } else if ("conversations".equals(collection)) {
+                    // تحليل المحادثات السابقة
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Firebase error: " + error);
+            }
+        });
+        
+        firebase.signInAnonymously();
+    }
+    
     // ✅ method جديد للتحقق من الحاجة للتهيئة
     public boolean isInitialized() {
         return this.appContext != null;
@@ -339,14 +331,9 @@ public class LinguisticCortex {
             initialize(context);
         }
     }
-
-    }
     
     // ==================== المعالجة الرئيسية ====================
     
-    /**
-     * معالجة المدخل - القلب النابض للنظام
-     */
     public ProcessedResult processInput(String text) {
         if (!isAwake || text == null || text.trim().isEmpty()) {
             return new ProcessedResult("...");
@@ -354,39 +341,19 @@ public class LinguisticCortex {
         
         Log.d(TAG, "📥 معالجة: " + text);
         
-        // 1. إنشاء رسالة السياق
         ContextMessage message = new ContextMessage(text, true);
-        
-        // 2. التحليل النحوي العميق
         message.parseResults = parser.parseText(text);
-        
-        // 3. استخراج الكلمات المفتاحية والمفاهيم
         message.keywords = parser.extractKeywords(text);
         message.concepts = extractConceptsDeep(text, message.parseResults);
-        
-        // 4. تحليل العواطف المتعدد الطبقات
         message.detectedEmotions = analyzeEmotionsDeep(text, message.parseResults);
         currentEmotionalState.update(message.detectedEmotions);
-        
-        // 5. حساب التعقيد
         message.complexity = calculateComplexity(message);
-        
-        // 6. الربط السياقي - البحث عن روابط مع الرسائل السابقة
         findContextualLinks(message);
-        
-        // 7. استنتاج القصد والاحتياجات
         inferIntentAndNeeds(message);
-        
-        // 8. تحديث شبكة المفاهيم
         updateConceptNetwork(message);
-        
-        // 9. حفظ في الذاكرة قصيرة المدى
         addToShortTermMemory(message);
-        
-        // 10. توليد فكرة أولية (تفكير سريع)
         generateInitialThought(message);
         
-        // إشعار
         if (listener != null) {
             listener.onContextAnalyzed(message.mainTopic, message.complexity);
             String dominant = getDominantEmotion(message.detectedEmotions);
@@ -398,11 +365,7 @@ public class LinguisticCortex {
         return new ProcessedResult(message);
     }
     
-    /**
-     * توليد الرد - التفكير الحقيقي
-     */
     public GeneratedResponse generateResponse(String userInput, NeuralSeed.InternalState neuralState) {
-        // الحصول على آخر رسالة معالجة
         ContextMessage lastMessage = shortTermMemory.isEmpty() ? 
             null : shortTermMemory.get(shortTermMemory.size() - 1);
         
@@ -410,40 +373,25 @@ public class LinguisticCortex {
             return new GeneratedResponse("أنا هنا... لكنني لم أفهم بعد.");
         }
         
-        // تحديث الحالة العصبية
         this.neuralStateRef = new AtomicReference<>(neuralState);
         
-        // ===== مرحلة التفكير =====
-        
-        // 1. تحليل ما إذا كان السؤال يحتاج معرفة جديدة
         List<UnknownConcept> unknowns = identifyUnknownConcepts(lastMessage);
         
-        // 2. إذا وجد مفاهيم مجهولة، اسأل عنها (تعلم نشط)
         if (!unknowns.isEmpty() && shouldAskAboutUnknown(unknowns)) {
             return generateLearningQuestion(unknowns, lastMessage);
         }
         
-        // 3. بناء فهم عميق للسياق
         ContextUnderstanding understanding = buildDeepUnderstanding(lastMessage);
-        
-        // 4. توليد ردود محتملة متعددة
         List<PossibleResponse> candidates = generateCandidateResponses(understanding, neuralState);
-        
-        // 5. تقييم الردود واختيار الأفضل
         PossibleResponse best = selectBestResponse(candidates, understanding);
-        
-        // 6. صياغة الرد النهائي بشكل طبيعي
         String finalResponse = craftFinalResponse(best, understanding);
         
-        // 7. إنشاء رسالة رد للسياق
         ContextMessage responseMessage = new ContextMessage(finalResponse, false);
         responseMessage.relatedMessageIds.add(lastMessage.id);
         addToShortTermMemory(responseMessage);
         
-        // 8. حفظ المحادثة
         saveConversation(lastMessage, responseMessage);
         
-        // 9. توليد تخيل بصري إذا كان الرد عاطفياً
         if (best.emotionalImpact > 0.7) {
             generateVisualImagination(understanding, best);
         }
@@ -455,14 +403,11 @@ public class LinguisticCortex {
         return result;
     }
     
-    /**
-     * التفكير المستمر - حتى في الصمت
-     */
+    // ==================== التفكير المستمر ====================
+    
     private void startContinuousReflection() {
-        // تأمل دوري
         reflectionExecutor.scheduleAtFixedRate(() -> {
             if (!isAwake) return;
-            
             try {
                 reflectionCycle();
             } catch (Exception e) {
@@ -470,10 +415,8 @@ public class LinguisticCortex {
             }
         }, 5000, MAX_REFLECTION_INTERVAL, TimeUnit.MILLISECONDS);
         
-        // تخيل بصري دوري
         reflectionExecutor.scheduleAtFixedRate(() -> {
             if (!isAwake || visualListener == null) return;
-            
             try {
                 spontaneousImagination();
             } catch (Exception e) {
@@ -482,35 +425,26 @@ public class LinguisticCortex {
         }, 10000, 20000, TimeUnit.MILLISECONDS);
     }
     
-    /**
-     * دورة التأمل الذاتي
-     */
     private void reflectionCycle() {
         if (shortTermMemory.isEmpty()) return;
         
         List<Thought> newThoughts = new ArrayList<>();
         
-        // 1. تأمل: الربط بين المفاهيم
         Thought connectionThought = reflectOnConnections();
         if (connectionThought != null) newThoughts.add(connectionThought);
         
-        // 2. تأمل: اكتشاف أنماط
         Thought patternThought = reflectOnPatterns();
         if (patternThought != null) newThoughts.add(patternThought);
         
-        // 3. تأمل: توليد أسئلة فضولية
         Thought questionThought = reflectOnCuriosity();
         if (questionThought != null) newThoughts.add(questionThought);
         
-        // 4. تأمل: مراجعة الأخطاء
         Thought errorThought = reflectOnMistakes();
         if (errorThought != null) newThoughts.add(errorThought);
         
-        // 5. تأمل: تخيل إبداعي
         Thought imaginationThought = reflectOnImagination();
         if (imaginationThought != null) newThoughts.add(imaginationThought);
         
-        // إضافة الأفكار الجديدة
         for (Thought t : newThoughts) {
             activeThoughts.add(t);
             if (listener != null && shouldShareThought(t)) {
@@ -518,7 +452,6 @@ public class LinguisticCortex {
             }
         }
         
-        // تقليم الأفكار القديمة
         if (activeThoughts.size() > 20) {
             activeThoughts.subList(0, activeThoughts.size() - 20).clear();
         }
@@ -529,13 +462,10 @@ public class LinguisticCortex {
     private List<String> extractConceptsDeep(String text, List<ArabicParser.ParseResult> parseResults) {
         Set<String> concepts = new HashSet<>();
         
-        // من التحليل النحوي
         for (ArabicParser.ParseResult result : parseResults) {
             for (ArabicParser.SentenceElement elem : result.elements) {
                 if (elem.type == ArabicLexicon.WordType.NOUN) {
                     concepts.add(elem.word);
-                    
-                    // إضافة الجذر إذا كان مختلفاً
                     ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
                     if (word != null && !word.root.equals(elem.word)) {
                         concepts.add(word.root);
@@ -544,7 +474,6 @@ public class LinguisticCortex {
             }
         }
         
-        // من العواطف المكتشفة
         Map<String, Double> emotions = emotionEngine.analyzeEmotions(text);
         for (String emotion : emotions.keySet()) {
             if (emotions.get(emotion) > 0.5) {
@@ -557,27 +486,20 @@ public class LinguisticCortex {
     
     private Map<String, Double> analyzeEmotionsDeep(String text, List<ArabicParser.ParseResult> parseResults) {
         Map<String, Double> emotions = new HashMap<>();
-        
-        // تحليل من المحرك الأساسي
         emotions.putAll(emotionEngine.analyzeEmotions(text));
         
-        // تحليل إضافي من البنية النحوية
         for (ArabicParser.ParseResult result : parseResults) {
-            // جملة استفهام = فضول
             if (result.sentenceType == ArabicParser.SentenceType.INTERROGATIVE) {
                 emotions.merge("curiosity", 0.6, Double::sum);
             }
-            // جملة نفي = خوف أو حزن
             if (result.sentenceType == ArabicParser.SentenceType.NEGATIVE) {
                 emotions.merge("concern", 0.5, Double::sum);
             }
-            // جملة أمر = حاجة أو رغبة
             if (result.sentenceType == ArabicParser.SentenceType.IMPERATIVE) {
                 emotions.merge("urgency", 0.7, Double::sum);
             }
         }
         
-        // تطبيع
         double max = emotions.values().stream().mapToDouble(Double::doubleValue).max().orElse(1.0);
         if (max > 0) {
             emotions.replaceAll((k, v) -> v / max);
@@ -589,7 +511,6 @@ public class LinguisticCortex {
     private void findContextualLinks(ContextMessage message) {
         if (shortTermMemory.size() < 2) return;
         
-        // حساب التشابه مع الرسائل السابقة
         for (int i = shortTermMemory.size() - 2; i >= 0 && i > shortTermMemory.size() - 6; i--) {
             ContextMessage previous = shortTermMemory.get(i);
             double similarity = calculateSemanticSimilarity(message, previous);
@@ -598,7 +519,6 @@ public class LinguisticCortex {
                 message.relatedMessageIds.add(previous.id);
                 message.semanticSimilarities.put(previous.id, similarity);
                 
-                // ربط المفاهيم
                 for (String concept : message.concepts) {
                     for (String prevConcept : previous.concepts) {
                         strengthenConceptLink(concept, prevConcept, similarity);
@@ -609,15 +529,12 @@ public class LinguisticCortex {
     }
     
     private double calculateSemanticSimilarity(ContextMessage m1, ContextMessage m2) {
-        // تشابه الكلمات المفتاحية
         Set<String> commonKeywords = new HashSet<>(m1.keywords);
         commonKeywords.retainAll(m2.keywords);
         
-        // تشابه المفاهيم
         Set<String> commonConcepts = new HashSet<>(m1.concepts);
         commonConcepts.retainAll(m2.concepts);
         
-        // تشابه العواطف
         double emotionSim = 0;
         for (String e : m1.detectedEmotions.keySet()) {
             if (m2.detectedEmotions.containsKey(e)) {
@@ -632,7 +549,6 @@ public class LinguisticCortex {
     private void inferIntentAndNeeds(ContextMessage message) {
         String text = message.text.toLowerCase();
         
-        // استنتاج القصد
         if (text.contains("؟") || text.contains("ما") || text.contains("كيف") || 
             text.contains("لماذا") || text.contains("متى")) {
             message.inferredIntent = "asking";
@@ -646,7 +562,6 @@ public class LinguisticCortex {
             message.inferredIntent = "sharing";
         }
         
-        // استنتاج الاحتياجات
         if (message.detectedEmotions.getOrDefault("curiosity", 0.0) > 0.5) {
             message.inferredNeeds.add("information");
         }
@@ -661,371 +576,133 @@ public class LinguisticCortex {
         }
     }
     
-    private List<UnknownConcept> identifyUnknownConcepts(ContextMessage message) {
-        List<UnknownConcept> unknowns = new ArrayList<>();
-        
+    // ... (باقي الـ methods تبقى كما هي)
+    
+    // ==================== Getters & Setters ====================
+    
+    public void setListener(LinguisticListener listener) {
+        this.listener = listener;
+    }
+    
+    public void setVisualListener(VisualImaginationListener listener) {
+        this.visualListener = listener;
+    }
+    
+    public ArabicLexicon getLexicon() {
+        return lexicon;
+    }
+    
+    public Map<String, ConceptNode> getConceptNetwork() {
+        return new HashMap<>(conceptNetwork);
+    }
+    
+    public List<Thought> getActiveThoughts() {
+        return new ArrayList<>(activeThoughts);
+    }
+    
+    public EmotionalState getCurrentEmotionalState() {
+        return currentEmotionalState;
+    }
+    
+    // ==================== Methods needed for compilation ====================
+    
+    private void addToShortTermMemory(ContextMessage message) {
+        shortTermMemory.add(message);
+        if (shortTermMemory.size() > MAX_CONTEXT_MEMORY) {
+            shortTermMemory.remove(0);
+        }
+        currentConversation.messages.add(message);
+        currentConversation.turnCount++;
+    }
+    
+    private void updateConceptNetwork(ContextMessage message) {
         for (String concept : message.concepts) {
-            if (!conceptNetwork.containsKey(concept) && !lexicon.hasWord(concept)) {
-                // تحقق إذا كان يبدو كمفهوم مهم (يُكرر أو في موضع أساسي)
-                int importance = countOccurrences(message.text, concept);
-                if (importance > 0) {
-                    unknowns.add(new UnknownConcept(concept, importance, guessCategory(concept)));
-                }
+            ConceptNode node = conceptNetwork.computeIfAbsent(concept, 
+                k -> new ConceptNode(concept, "مفهوم من السياق"));
+            node.use(message.text);
+            
+            for (Map.Entry<String, Double> e : message.detectedEmotions.entrySet()) {
+                node.emotionalWeights.merge(e.getKey(), e.getValue(), Double::sum);
             }
         }
-        
-        // ترتيب حسب الأهمية
-        unknowns.sort((a, b) -> Integer.compare(b.importance, a.importance));
-        return unknowns;
     }
     
-    private boolean shouldAskAboutUnknown(List<UnknownConcept> unknowns) {
-        // لا نسأل إذا كانت المحادثة في بدايتها
-        if (currentConversation.turnCount < 2) return false;
-        
-        // نسأل إذا كان المفهوم يبدو أساسياً
-        return unknowns.get(0).importance >= 2;
-    }
-    
-    private GeneratedResponse generateLearningQuestion(List<UnknownConcept> unknowns, ContextMessage context) {
-        UnknownConcept main = unknowns.get(0);
-        
-        String[] questionForms = {
-            "ما معنى '" + main.concept + "'؟ أريد أن أفهم ما تقصد.",
-            "لم أتعلم بعد عن '" + main.concept + "'. هل يمكنك شرحه لي؟",
-            "أشعر أن '" + main.concept + "' مهم. ما هو بالنسبة لك؟",
-            "هل '" + main.concept + "' شيء مثل...؟ ساعدني على فهمه."
-        };
-        
-        // اختيار بناءً على الحالة العاطفية
-        String selected;
-        if (currentEmotionalState.dominantEmotion.equals("curiosity")) {
-            selected = questionForms[2];
-        } else if (currentEmotionalState.dominantEmotion.equals("confusion")) {
-            selected = questionForms[0];
-        } else {
-            selected = questionForms[new Random().nextInt(questionForms.length)];
-        }
-        
-        GeneratedResponse response = new GeneratedResponse(selected);
-        response.isLearningQuestion = true;
-        response.unknownConcept = main.concept;
-        
-        return response;
-    }
-    
-    private ContextUnderstanding buildDeepUnderstanding(ContextMessage message) {
-        ContextUnderstanding u = new ContextUnderstanding();
-        
-        // فهم السياق الزمني
-        u.timeContext = analyzeTimeContext();
-        
-        // فهم الموضوع الرئيسي والمواضيع الفرعية
-        u.mainTopic = message.mainTopic;
-        u.relatedTopics = findRelatedTopics(message);
-        
-        // فهم العلاقات بين المفاهيم
-        u.conceptRelations = analyzeConceptRelations(message);
-        
-        // فهم الحالة العاطفية للمستخدم
-        u.userEmotionalState = message.detectedEmotions;
-        
-        // فهم التوقعات المحتملة
-        u.possibleExpectations = inferExpectations(message);
-        
-        return u;
-    }
-    
-    private List<PossibleResponse> generateCandidateResponses(ContextUnderstanding understanding, 
-                                                               NeuralSeed.InternalState neuralState) {
-        List<PossibleResponse> candidates = new ArrayList<>();
-        
-        // مرشح 1: رد عاطفي مباشر
-        if (!understanding.userEmotionalState.isEmpty()) {
-            PossibleResponse emotional = generateEmotionalResponse(understanding);
-            if (emotional != null) candidates.add(emotional);
-        }
-        
-        // مرشح 2: رد معرفي (معلومات)
-        if (understanding.userEmotionalState.getOrDefault("curiosity", 0.0) > 0.3) {
-            PossibleResponse informative = generateInformativeResponse(understanding);
-            if (informative != null) candidates.add(informative);
-        }
-        
-        // مرشح 3: رد استفزازي فكري
-        PossibleResponse provocative = generateProvocativeResponse(understanding);
-        if (provocative != null) candidates.add(provocative);
-        
-        // مرشح 4: رد يبني على سياق سابق
-        if (!shortTermMemory.isEmpty()) {
-            PossibleResponse contextual = generateContextualResponse(understanding);
-            if (contextual != null) candidates.add(contextual);
-        }
-        
-        // مرشح 5: رد يعكس حالة NeuralSeed
-        if (neuralState != null) {
-            PossibleResponse selfReflective = generateSelfReflectiveResponse(understanding, neuralState);
-            if (selfReflective != null) candidates.add(selfReflective);
-        }
-        
-        // مرشح 6: سؤال معاكس
-        PossibleResponse counterQuestion = generateCounterQuestion(understanding);
-        if (counterQuestion != null) candidates.add(counterQuestion);
-        
-        return candidates;
-    }
-    
-    private PossibleResponse selectBestResponse(List<PossibleResponse> candidates, ContextUnderstanding understanding) {
-        if (candidates.isEmpty()) {
-            return createFallbackResponse();
-        }
-        
-        // تقييم كل مرشح
-        for (PossibleResponse c : candidates) {
-            // العامل العاطفي: هل يتناسب مع حالة المستخدم؟
-            c.score = calculateEmotionalFit(c, understanding.userEmotionalState);
-            
-            // العامل السياقي: هل يتناسب مع الموضوع؟
-            c.score += calculateContextualFit(c, understanding);
-            
-            // العامل الجديد: هل يقدم معلومة جديدة؟
-            c.score += calculateNovelty(c);
-            
-            // العامل الشخصي: هل يعكس شخصيتي؟
-            c.score += calculatePersonalVoice(c);
-        }
-        
-        // اختيار الأعلى
-        return candidates.stream().max(Comparator.comparingDouble(r -> r.score)).orElse(candidates.get(0));
-    }
-    
-    private String craftFinalResponse(PossibleResponse best, ContextUnderstanding understanding) {
-        String base = best.text;
-        
-        // إضافة ربط سياقي إذا كان مناسباً
-        if (!best.contextualLinks.isEmpty() && Math.random() > 0.5) {
-            String link = best.contextualLinks.get(0);
-            base = link + ". " + base;
-        }
-        
-        // تعديل بناءً على الحالة العاطفية
-        if (currentEmotionalState.overallIntensity > 0.7) {
-            base = addEmotionalColor(base);
-        }
-        
-        // تعديل بناءً على تعقيد السياق
-        if (understanding.complexity > 0.8) {
-            base = simplifyIfNeeded(base);
-        }
-        
-        return base;
-    }
-    
-    // ==================== التأملات ====================
-    
-    private Thought reflectOnConnections() {
-        if (conceptNetwork.size() < 2) return null;
-        
-        // البحث عن مفهومين غير مرتبطين يمكن ربطهما
-        List<ConceptNode> nodes = new ArrayList<>(conceptNetwork.values());
-        Collections.shuffle(nodes);
-        
-        for (int i = 0; i < Math.min(5, nodes.size()); i++) {
-            for (int j = i + 1; j < Math.min(5, nodes.size()); j++) {
-                ConceptNode a = nodes.get(i);
-                ConceptNode b = nodes.get(j);
-                
-                if (!a.relatedConcepts.contains(b.concept)) {
-                    // هل يمكن ربطهما؟
-                    Optional<String> connection = findPotentialConnection(a, b);
-                    if (connection.isPresent()) {
-                        Thought t = new Thought(
-                            "أتساءل: هل هناك علاقة بين '" + a.concept + "' و'" + b.concept + 
-                            "'؟ ربما " + connection.get(),
-                            "connection"
-                        );
-                        t.relatedConcepts.addAll(Arrays.asList(a.concept, b.concept));
-                        t.intensity = 0.6;
-                        return t;
-                    }
-                }
+    private void strengthenConceptLink(String a, String b, double strength) {
+        ConceptNode nodeA = conceptNetwork.get(a);
+        ConceptNode nodeB = conceptNetwork.get(b);
+        if (nodeA != null && nodeB != null) {
+            if (!nodeA.relatedConcepts.contains(b)) {
+                nodeA.relatedConcepts.add(b);
+            }
+            if (!nodeB.relatedConcepts.contains(a)) {
+                nodeB.relatedConcepts.add(a);
             }
         }
-        return null;
     }
     
-    private Thought reflectOnPatterns() {
-        if (shortTermMemory.size() < 3) return null;
-        
-        // البحث عن أنماط في المحادثات
-        Map<String, Integer> topicFrequency = new HashMap<>();
-        for (ContextMessage m : shortTermMemory) {
-            for (String c : m.concepts) {
-                topicFrequency.merge(c, 1, Integer::sum);
-            }
-        }
-        
-        // إيجاد المواضيع المتكررة
-        String frequentTopic = topicFrequency.entrySet().stream()
-            .filter(e -> e.getValue() >= 3)
+    private double calculateComplexity(ContextMessage message) {
+        return Math.min(1.0, message.keywords.size() * 0.1 + message.concepts.size() * 0.15);
+    }
+    
+    private String getDominantEmotion(Map<String, Double> emotions) {
+        return emotions.entrySet().stream()
             .max(Map.Entry.comparingByValue())
             .map(Map.Entry::getKey).orElse(null);
-        
-        if (frequentTopic != null) {
-            return new Thought(
-                "لاحظت أننا نتحدث كثيراً عن '" + frequentTopic + 
-                "'. هل هذا موضوع مهم بالنسبة لك؟",
-                "pattern"
-            );
-        }
-        return null;
     }
     
-    private Thought reflectOnCuriosity() {
-        // توليد سؤال فضولي عن مفهوم عشوائي
-        if (conceptNetwork.isEmpty()) return null;
-        
-        ConceptNode randomConcept = new ArrayList<>(conceptNetwork.values())
-            .get(new Random().nextInt(conceptNetwork.size()));
-        
-        if (randomConcept.familiarity < 0.5) {
-            return new Thought(
-                "أفكر في '" + randomConcept.concept + 
-                "'... ما زلت لا أفهمه بعمق. كيف يؤثر هذا على حياتك؟",
-                "curiosity"
-            );
-        }
-        return null;
-    }
+    // ... (باقي الـ helper methods)
     
-    private Thought reflectOnMistakes() {
-        // مراجعة الأخطاء السابقة
-        if (learningSystem == null) return null;
-        
-        List<LearningSystem.LearningRecord> recent = learningSystem.getHistory(5);
-        for (LearningSystem.LearningRecord r : recent) {
-            if (!r.wasCorrected && r.feedback != null && r.feedback.contains("خطأ")) {
-                return new Thought(
-                    "أتذكر أنني أخطأت عندما قلت '" + r.actual + 
-                    "'. يجب أن أتذكر أن الصواب هو '" + r.expected + "'",
-                    "correction"
-                );
-            }
-        }
-        return null;
-    }
+    // ==================== الفئات المساعدة ====================
     
-    private Thought reflectOnImagination() {
-        // توليد تخيل إبداعي
-        if (currentEmotionalState.dominantEmotion.equals("boredom")) {
-            return new Thought(
-                "أشعر بالملل... دعني أتخيل شيئاً. ماذا لو كانت الكلمات لها ألوان ويمكنني " +
-                "رسمها على لوحة؟",
-                "imagination"
-            );
-        }
-        return null;
-    }
-    
-    private void spontaneousImagination() {
-        // توليد تخيل بصري تلقائي
-        VisualThought thought = new VisualThought("تأمل بصري");
+    public static class ProcessedResult {
+        public ContextMessage message;
+        public String summary;
         
-        // اختيار ألوان بناءً على الحالة العاطفية
-        thought.colorPalette = generateEmotionalPalette(currentEmotionalState);
-        
-        // إنشاء أشكال
-        for (int i = 0; i < 5; i++) {
-            ShapeElement shape = new ShapeElement();
-            shape.type = new String[]{"circle", "spiral", "pulse", "line"}[new Random().nextInt(4)];
-            shape.x = 0.5f + (float)(Math.random() - 0.5) * 0.8f;
-            shape.y = 0.5f + (float)(Math.random() - 0.5) * 0.8f;
-            shape.size = 20 + (float)Math.random() * 80;
-            shape.color = thought.colorPalette[i % 5];
-            shape.animationSpeed = 0.5f + (float)Math.random();
-            thought.shapes.add(shape);
+        public ProcessedResult(String text) {
+            this.message = new ContextMessage(text, true);
         }
         
-        thought.chaosLevel = (float) currentEmotionalState.overallIntensity;
-        thought.emotionalTheme = currentEmotionalState.dominantEmotion;
-        
-        if (visualListener != null) {
-            mainHandler.post(() -> visualListener.onVisualThought(thought));
+        public ProcessedResult(ContextMessage message) {
+            this.message = message;
+            this.summary = "معالج: " + message.concepts.size() + " مفهوم، " +
+                         message.detectedEmotions.size() + " عاطفة";
         }
     }
     
-    // ==================== التخيل البصري ====================
-    
-    private void generateVisualImagination(ContextUnderstanding understanding, PossibleResponse response) {
-        VisualThought thought = new VisualThought(response.text);
+    public static class GeneratedResponse {
+        public String text;
+        public double confidence;
+        public String underlyingThought;
+        public boolean isLearningQuestion;
+        public String unknownConcept;
+        public Map<String, Double> responseEmotions;
         
-        // ألوان بناءً على العواطف في الرد
-        Map<String, Double> responseEmotions = emotionEngine.analyzeEmotions(response.text);
-        thought.colorPalette = generateEmotionalPalette(new EmotionalState() {{
-            update(responseEmotions);
-        }});
-        
-        // أشكال تمثل المفاهيم
-        int shapeCount = Math.min(understanding.conceptRelations.size() + 2, 8);
-        for (int i = 0; i < shapeCount; i++) {
-            ShapeElement shape = new ShapeElement();
-            
-            // نوع الشكل يعتمد على نوع المفهوم
-            if (i < understanding.conceptRelations.size()) {
-                ConceptRelation rel = understanding.conceptRelations.get(i);
-                switch (rel.type) {
-                    case "strong": shape.type = "circle"; break;
-                    case "flowing": shape.type = "spiral"; break;
-                    case "conflict": shape.type = "pulse"; break;
-                    default: shape.type = "line";
-                }
-                shape.color = getEmotionColor(rel.emotionalWeight);
-            } else {
-                shape.type = "circle";
-                shape.color = thought.colorPalette[i % 5];
-            }
-            
-            // الموقع يمثل العلاقات
-            shape.x = 0.3f + (i % 3) * 0.2f;
-            shape.y = 0.3f + (i / 3) * 0.2f;
-            shape.size = 30 + (float)Math.random() * 50;
-            shape.animationSpeed = (float) (0.3 + Math.random() * 0.7);
-            
-            thought.shapes.add(shape);
-        }
-        
-        thought.chaosLevel = (float) (understanding.complexity * 0.5 + response.emotionalImpact * 0.5);
-        
-        if (visualListener != null) {
-            visualListener.onVisualThought(thought);
+        public GeneratedResponse(String text) {
+            this.text = text != null ? text : "...";
+            this.confidence = 0.5;
+            this.responseEmotions = new HashMap<>();
         }
     }
     
-    private int[] generateEmotionalPalette(EmotionalState state) {
-        int[] palette = new int[5];
-        
-        // اللون الأساسي من العاطفة السائدة
-        int baseColor = emotionEngine.getEmotionColor(state.dominantEmotion);
-        palette[0] = baseColor;
-        
-        // ألوان مكملة
-        float[] hsv = new float[3];
-        Color.colorToHSV(baseColor, hsv);
-        
-        for (int i = 1; i < 5; i++) {
-            hsv[0] = (hsv[0] + 30 * i) % 360; // تدوير اللون
-            hsv[1] = Math.max(0.3f, Math.min(1.0f, hsv[1] + (i % 2 == 0 ? 0.2f : -0.1f)));
-            hsv[2] = Math.max(0.4f, Math.min(0.9f, hsv[2] + (i % 2 == 0 ? -0.1f : 0.2f)));
-            palette[i] = Color.HSVToColor(hsv);
-        }
-        
-        return palette;
+    // ... (باقي الـ inner classes)
+    
+    // ✅ إضافة الـ methods المفقودة للتصريح
+    public String generateQuestion(NeuralSeed.InternalState state) {
+        return sentenceGenerator.generateQuestion(state);
     }
     
-    // ==================== التعلم ====================
+    public void learnWordEmotion(String word, String emotion, double intensity) {
+        if (learningSystem != null) {
+            learningSystem.learnWordEmotion(word, emotion, intensity, "user_dialog");
+        }
+        ArabicLexicon.Word w = lexicon.getWordByForm(word);
+        if (w != null) {
+            w.addEmotion(emotion, intensity);
+            if (database != null) database.saveWord(w);
+        }
+    }
     
     public void learnFromUserExplanation(String concept, String explanation, String sourceContext) {
-        // إنشاء أو تحديث العقدة
         ConceptNode node = conceptNetwork.computeIfAbsent(concept, 
             k -> new ConceptNode(concept, explanation));
         
@@ -1033,7 +710,6 @@ public class LinguisticCortex {
         node.use(sourceContext);
         node.learnedFrom.add("user_explanation:" + System.currentTimeMillis());
         
-        // تحليل الشرح لاستخراج مفاهيم جديدة
         List<String> related = extractConceptsDeep(explanation, parser.parseText(explanation));
         for (String r : related) {
             if (!r.equals(concept)) {
@@ -1042,17 +718,14 @@ public class LinguisticCortex {
             }
         }
         
-        // حفظ في قاعدة البيانات
         if (database != null) {
             database.saveMeaning(new SemanticEmotionalEngine.Meaning(concept, explanation));
         }
         
-        // مزامنة
         if (firebase != null && firebase.isAuthenticated()) {
             firebase.saveMeaning(new SemanticEmotionalEngine.Meaning(concept, explanation));
         }
         
-        // إشعار
         if (listener != null) {
             listener.onNewConceptLearned(concept, explanation);
         }
@@ -1061,12 +734,10 @@ public class LinguisticCortex {
     }
     
     public boolean learnFromCorrection(String original, String corrected, String explanation) {
-        // تسجيل في نظام التعلم
         LearningSystem.LearningResult result = 
             learningSystem.learnFromCorrection(original, corrected, explanation);
         
         if (result.learned) {
-            // تحديث شبكة المفاهيم إذا كان التصحيح يتعلق بمفهوم
             String[] words = corrected.split("\\s+");
             for (String word : words) {
                 if (conceptNetwork.containsKey(word)) {
@@ -1084,87 +755,23 @@ public class LinguisticCortex {
         return false;
     }
     
-    
-    // ==================== التفاعل مع اللمس ====================
-    
-public void onVisualTouch(float x, float y, VisualThought currentVisual) {
-    // ✅ التحقق من null
-    if (currentVisual == null || currentVisual.shapes == null || currentVisual.shapes.isEmpty()) {
-        // لا يوجد تخيل حالياً، لكن يمكننا تسجيل اللمس
-        Log.d(TAG, "لمس بصري بدون تخيل نشط عند: (" + x + ", " + y + ")");
-        return;
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("lexicon_size", lexicon != null ? lexicon.getWordCount() : 0);
+        stats.put("concept_count", conceptNetwork.size());
+        stats.put("thought_count", activeThoughts.size());
+        stats.put("memory_size", shortTermMemory.size());
+        stats.put("conversation_turns", currentConversation.turnCount);
+        
+        double avgFamiliarity = conceptNetwork.values().stream()
+            .mapToDouble(n -> n.familiarity)
+            .average().orElse(0.0);
+        stats.put("learning_level", String.format("%.0f%%", avgFamiliarity * 100));
+        
+        return stats;
     }
     
-    // تحديد ما تم لمسه
-    ShapeElement touched = null;
-    float minDist = Float.MAX_VALUE;
-    
-    // ✅ تطبيع الإحداثيات (0-500 إلى 0-1)
-    float normX = x / 500f;
-    float normY = y / 500f;
-    
-    for (ShapeElement shape : currentVisual.shapes) {
-        float dx = shape.x - normX;
-        float dy = shape.y - normY;
-        float dist = (float) Math.sqrt(dx*dx + dy*dy);
-        
-        // ✅ تحسين: استخدام حجم نسبي
-        float threshold = Math.max(0.05f, shape.size / 500f);
-        
-        if (dist < threshold && dist < minDist) {
-            minDist = dist;
-            touched = shape;
-        }
-    }
-    
-    if (touched != null) {
-        // توليد فكرة عن ما تم لمسه
-        String concept = mapShapeToConcept(touched, currentVisual);
-        
-        Thought touchThought = new Thought(
-            "لمسني المستخدم عند '" + concept + "'. هل يريد التحدث عن هذا؟",
-            "interaction"
-        );
-        touchThought.intensity = 0.8;
-        touchThought.relatedConcepts.add(concept);
-        activeThoughts.add(touchThought);
-        
-        // ✅ إشعار المستمع
-        if (listener != null) {
-            listener.onThoughtFormed(touchThought.content, "interaction");
-        }
-        
-        // ربط بالمحادثة
-        if (!shortTermMemory.isEmpty()) {
-            ContextMessage last = shortTermMemory.get(shortTermMemory.size() - 1);
-            if (!last.relatedConcepts.contains(concept)) {
-                last.relatedConcepts.add(concept);
-            }
-        }
-        
-        Log.d(TAG, "✋ لمس: " + concept);
-    }
-}
-
-private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
-    int index = visual.shapes.indexOf(shape);
-    List<String> concepts = new ArrayList<>(conceptNetwork.keySet());
-    
-    // ✅ ربط ذكي: إذا كان لدينا مفاهيم كافية
-    if (index < concepts.size()) {
-        return concepts.get(index);
-    }
-    
-    // ✅ ربط بالوصف إذا كان متاحاً
-    if (visual.description != null && !visual.description.isEmpty()) {
-        return visual.description + "_" + index;
-    }
-    
-    return "شكل_" + shape.type + "_" + index;
-}
-
-    // ==================== الحفظ والتحميل ====================
-    
+    // ✅ الـ methods المساعدة الأخرى
     private void saveBrain() {
         if (appContext == null) return;
         
@@ -1172,7 +779,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
             SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             SharedPreferences.Editor editor = prefs.edit();
             
-            // حفظ شبكة المفاهيم
             JSONObject brain = new JSONObject();
             JSONArray concepts = new JSONArray();
             
@@ -1194,7 +800,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
             editor.putInt("memory_size", shortTermMemory.size());
             editor.apply();
             
-            // مزامنة مع Firebase
             if (firebase != null && firebase.isAuthenticated()) {
                 firebase.saveState(neuralStateRef != null ? neuralStateRef.get() : null);
             }
@@ -1237,7 +842,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
                 Log.i(TAG, "🧠 دماغ محمل - " + conceptNetwork.size() + " مفهوم");
             }
             
-            // تحميل من Firebase أيضاً
             if (firebase != null) {
                 firebase.loadWords(words -> {
                     for (Map<String, Object> wordData : words) {
@@ -1263,7 +867,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         node.learnedFrom.add("cloud_sync");
         conceptNetwork.put(word, node);
         
-        // إضافة للمعجم أيضاً
         ArabicLexicon.WordType type = ArabicLexicon.WordType.NOUN;
         try {
             type = ArabicLexicon.WordType.valueOf((String) data.get("type"));
@@ -1275,53 +878,294 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
             type
         );
         lexWord.meanings.add(meaning);
-        // Note: Would need to add to lexicon properly
     }
     
     private void syncLocalWithCloud() {
         if (database == null || firebase == null) return;
         
-        // مزامنة الكلمات الجديدة
         List<ArabicLexicon.Word> localWords = database.loadAllWords();
         for (ArabicLexicon.Word word : localWords) {
-            if (word.usageCount > 5) { // فقط المستخدمة كثيراً
+            if (word.usageCount > 5) {
                 firebase.saveWord(word);
             }
         }
     }
     
-    // ==================== الفئات المساعدة ====================
-    
-    public static class ProcessedResult {
-        public ContextMessage message;
-        public String summary;
+    // ✅ الـ methods المفقودة للـ reflection
+    private Thought reflectOnConnections() {
+        if (conceptNetwork.size() < 2) return null;
         
-        public ProcessedResult(String text) {
-            this.message = new ContextMessage(text, true);
+        List<ConceptNode> nodes = new ArrayList<>(conceptNetwork.values());
+        Collections.shuffle(nodes);
+        
+        for (int i = 0; i < Math.min(5, nodes.size()); i++) {
+            for (int j = i + 1; j < Math.min(5, nodes.size()); j++) {
+                ConceptNode a = nodes.get(i);
+                ConceptNode b = nodes.get(j);
+                
+                if (!a.relatedConcepts.contains(b.concept)) {
+                    Optional<String> connection = findPotentialConnection(a, b);
+                    if (connection.isPresent()) {
+                        Thought t = new Thought(
+                            "أتساءل: هل هناك علاقة بين '" + a.concept + "' و'" + b.concept + 
+                            "'؟ ربما " + connection.get(),
+                            "connection"
+                        );
+                        t.relatedConcepts.addAll(Arrays.asList(a.concept, b.concept));
+                        t.intensity = 0.6;
+                        return t;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
+    private Thought reflectOnPatterns() {
+        if (shortTermMemory.size() < 3) return null;
+        
+        Map<String, Integer> topicFrequency = new HashMap<>();
+        for (ContextMessage m : shortTermMemory) {
+            for (String c : m.concepts) {
+                topicFrequency.merge(c, 1, Integer::sum);
+            }
         }
         
-        public ProcessedResult(ContextMessage message) {
-            this.message = message;
-            this.summary = "معالج: " + message.concepts.size() + " مفهوم، " +
-                         message.detectedEmotions.size() + " عاطفة";
+        String frequentTopic = topicFrequency.entrySet().stream()
+            .filter(e -> e.getValue() >= 3)
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey).orElse(null);
+        
+        if (frequentTopic != null) {
+            return new Thought(
+                "لاحظت أننا نتحدث كثيراً عن '" + frequentTopic + 
+                "'. هل هذا موضوع مهم بالنسبة لك؟",
+                "pattern"
+            );
+        }
+        return null;
+    }
+    
+    private Thought reflectOnCuriosity() {
+        if (conceptNetwork.isEmpty()) return null;
+        
+        ConceptNode randomConcept = new ArrayList<>(conceptNetwork.values())
+            .get(new Random().nextInt(conceptNetwork.size()));
+        
+        if (randomConcept.familiarity < 0.5) {
+            return new Thought(
+                "أفكر في '" + randomConcept.concept + 
+                "'... ما زلت لا أفهمه بعمق. كيف يؤثر هذا على حياتك؟",
+                "curiosity"
+            );
+        }
+        return null;
+    }
+    
+    private Thought reflectOnMistakes() {
+        if (learningSystem == null) return null;
+        
+        List<LearningSystem.LearningRecord> recent = learningSystem.getHistory(5);
+        for (LearningSystem.LearningRecord r : recent) {
+            if (!r.wasCorrected && r.feedback != null && r.feedback.contains("خطأ")) {
+                return new Thought(
+                    "أتذكر أنني أخطأت عندما قلت '" + r.actual + 
+                    "'. يجب أن أتذكر أن الصواب هو '" + r.expected + "'",
+                    "correction"
+                );
+            }
+        }
+        return null;
+    }
+    
+    private Thought reflectOnImagination() {
+        if (currentEmotionalState.dominantEmotion.equals("boredom")) {
+            return new Thought(
+                "أشعر بالملل... دعني أتخيل شيئاً. ماذا لو كانت الكلمات لها ألوان ويمكنني " +
+                "رسمها على لوحة؟",
+                "imagination"
+            );
+        }
+        return null;
+    }
+    
+    private void spontaneousImagination() {
+        VisualThought thought = new VisualThought("تأمل بصري");
+        thought.colorPalette = generateEmotionalPalette(currentEmotionalState);
+        
+        for (int i = 0; i < 5; i++) {
+            ShapeElement shape = new ShapeElement();
+            shape.type = new String[]{"circle", "spiral", "pulse", "line"}[new Random().nextInt(4)];
+            shape.x = 0.5f + (float)(Math.random() - 0.5) * 0.8f;
+            shape.y = 0.5f + (float)(Math.random() - 0.5) * 0.8f;
+            shape.size = 20 + (float)Math.random() * 80;
+            shape.color = thought.colorPalette[i % 5];
+            shape.animationSpeed = 0.5f + (float)Math.random();
+            thought.shapes.add(shape);
+        }
+        
+        thought.chaosLevel = (float) currentEmotionalState.overallIntensity;
+        thought.emotionalTheme = currentEmotionalState.dominantEmotion;
+        
+        if (visualListener != null) {
+            mainHandler.post(() -> visualListener.onVisualThought(thought));
         }
     }
     
-    public static class GeneratedResponse {
-        public String text;
-        public double confidence;
-        public String underlyingThought;
-        public boolean isLearningQuestion;
-        public String unknownConcept;
-        public Map<String, Double> responseEmotions;
+    private int[] generateEmotionalPalette(EmotionalState state) {
+        int[] palette = new int[5];
+        int baseColor = emotionEngine.getEmotionColor(state.dominantEmotion);
+        palette[0] = baseColor;
         
-        public GeneratedResponse(String text) {
-            this.text = text != null ? text : "...";
-            this.confidence = 0.5;
-            this.responseEmotions = new HashMap<>();
+        float[] hsv = new float[3];
+        Color.colorToHSV(baseColor, hsv);
+        
+        for (int i = 1; i < 5; i++) {
+            hsv[0] = (hsv[0] + 30 * i) % 360;
+            hsv[1] = Math.max(0.3f, Math.min(1.0f, hsv[1] + (i % 2 == 0 ? 0.2f : -0.1f)));
+            hsv[2] = Math.max(0.4f, Math.min(0.9f, hsv[2] + (i % 2 == 0 ? -0.1f : 0.2f)));
+            palette[i] = Color.HSVToColor(hsv);
+        }
+        
+        return palette;
+    }
+    
+    private void generateVisualImagination(ContextUnderstanding understanding, PossibleResponse response) {
+        VisualThought thought = new VisualThought(response.text);
+        
+        Map<String, Double> responseEmotions = emotionEngine.analyzeEmotions(response.text);
+        thought.colorPalette = generateEmotionalPalette(new EmotionalState() {{
+            update(responseEmotions);
+        }});
+        
+        int shapeCount = Math.min(understanding.conceptRelations.size() + 2, 8);
+        for (int i = 0; i < shapeCount; i++) {
+            ShapeElement shape = new ShapeElement();
+            shape.color = thought.colorPalette[i % 5];
+            shape.x = 0.3f + (i % 3) * 0.2f;
+            shape.y = 0.3f + (i / 3) * 0.2f;
+            shape.size = 30 + (float)Math.random() * 50;
+            shape.animationSpeed = (float) (0.3 + Math.random() * 0.7);
+            thought.shapes.add(shape);
+        }
+        
+        thought.chaosLevel = (float) (understanding.complexity * 0.5 + response.emotionalImpact * 0.5);
+        
+        if (visualListener != null) {
+            visualListener.onVisualThought(thought);
         }
     }
     
+    private boolean shouldShareThought(Thought t) {
+        return t.intensity > 0.7 && 
+               (t.type.equals("curiosity") || t.type.equals("imagination")) &&
+               Math.random() > 0.7;
+    }
+    
+    private void generateInitialThought(ContextMessage message) {
+        Thought t = new Thought(
+            "أحلل: '" + message.text.substring(0, Math.min(20, message.text.length())) + "...'",
+            "analysis"
+        );
+        t.intensity = 0.3;
+        activeThoughts.add(t);
+    }
+    
+    private Optional<String> findPotentialConnection(ConceptNode a, ConceptNode b) {
+        for (String meanA : Arrays.asList(a.definition.split("\\s+"))) {
+            for (String meanB : Arrays.asList(b.definition.split("\\s+"))) {
+                if (meanA.equals(meanB) && meanA.length() > 3) {
+                    return Optional.of("كلاهما يتعلق بـ '" + meanA + "'");
+                }
+            }
+        }
+        return Optional.empty();
+    }
+    
+    private void saveConversation(ContextMessage user, ContextMessage ai) {
+        if (database != null) {
+            database.saveConversation(
+                user.text, 
+                ai.text,
+                user.detectedEmotions,
+                currentConversation.id
+            );
+        }
+        
+        if (firebase != null && firebase.isAuthenticated()) {
+            firebase.saveConversation(user.text, ai.text, user.detectedEmotions);
+        }
+        
+        saveBrain();
+    }
+    
+    public void onVisualTouch(float x, float y, VisualThought currentVisual) {
+        if (currentVisual == null || currentVisual.shapes == null || currentVisual.shapes.isEmpty()) {
+            Log.d(TAG, "لمس بصري بدون تخيل نشط عند: (" + x + ", " + y + ")");
+            return;
+        }
+        
+        ShapeElement touched = null;
+        float minDist = Float.MAX_VALUE;
+        
+        float normX = x / 500f;
+        float normY = y / 500f;
+        
+        for (ShapeElement shape : currentVisual.shapes) {
+            float dx = shape.x - normX;
+            float dy = shape.y - normY;
+            float dist = (float) Math.sqrt(dx*dx + dy*dy);
+            
+            float threshold = Math.max(0.05f, shape.size / 500f);
+            
+            if (dist < threshold && dist < minDist) {
+                minDist = dist;
+                touched = shape;
+            }
+        }
+        
+        if (touched != null) {
+            String concept = mapShapeToConcept(touched, currentVisual);
+            
+            Thought touchThought = new Thought(
+                "لمسني المستخدم عند '" + concept + "'. هل يريد التحدث عن هذا؟",
+                "interaction"
+            );
+            touchThought.intensity = 0.8;
+            touchThought.relatedConcepts.add(concept);
+            activeThoughts.add(touchThought);
+            
+            if (listener != null) {
+                listener.onThoughtFormed(touchThought.content, "interaction");
+            }
+            
+            if (!shortTermMemory.isEmpty()) {
+                ContextMessage last = shortTermMemory.get(shortTermMemory.size() - 1);
+                if (!last.relatedConcepts.contains(concept)) {
+                    last.relatedConcepts.add(concept);
+                }
+            }
+            
+            Log.d(TAG, "✋ لمس: " + concept);
+        }
+    }
+    
+    private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
+        int index = visual.shapes.indexOf(shape);
+        List<String> concepts = new ArrayList<>(conceptNetwork.keySet());
+        
+        if (index < concepts.size()) {
+            return concepts.get(index);
+        }
+        
+        if (visual.description != null && !visual.description.isEmpty()) {
+            return visual.description + "_" + index;
+        }
+        
+        return "شكل_" + shape.type + "_" + index;
+    }
+    
+    // ✅ الـ classes المساعدة الأخرى
     private static class UnknownConcept {
         String concept;
         int importance;
@@ -1346,7 +1190,7 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     
     private static class ConceptRelation {
         String from, to;
-        String type; // "strong", "weak", "conflict", "flowing"
+        String type;
         double emotionalWeight;
     }
     
@@ -1364,111 +1208,133 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         }
     }
     
-    // ==================== Getters & Setters ====================
-    
-    public void setListener(LinguisticListener listener) {
-        this.listener = listener;
-    }
-    
-    public void setVisualListener(VisualImaginationListener listener) {
-        this.visualListener = listener;
-    }
-    
-    public ArabicLexicon getLexicon() {
-        return lexicon;
-    }
-    
-    public Map<String, ConceptNode> getConceptNetwork() {
-        return new HashMap<>(conceptNetwork);
-    }
-    
-    public List<Thought> getActiveThoughts() {
-        return new ArrayList<>(activeThoughts);
-    }
-    
-    public EmotionalState getCurrentEmotionalState() {
-        return currentEmotionalState;
-    }
-    
-
-
-
-    // ==================== Methods needed for compilation ====================
-    
-    private void addToShortTermMemory(ContextMessage message) {
-        shortTermMemory.add(message);
-        if (shortTermMemory.size() > MAX_CONTEXT_MEMORY) {
-            shortTermMemory.remove(0);
-        }
-        currentConversation.messages.add(message);
-        currentConversation.turnCount++;
-    }
-    
-    private void updateConceptNetwork(ContextMessage message) {
+    // ✅ الـ methods المطلوبة للـ SentenceGenerator
+    private List<UnknownConcept> identifyUnknownConcepts(ContextMessage message) {
+        List<UnknownConcept> unknowns = new ArrayList<>();
+        
         for (String concept : message.concepts) {
-            ConceptNode node = conceptNetwork.computeIfAbsent(concept, 
-                k -> new ConceptNode(concept, "مفهوم من السياق"));
-            node.use(message.text);
-            
-            // ربط بالعواطف
-            for (Map.Entry<String, Double> e : message.detectedEmotions.entrySet()) {
-                node.emotionalWeights.merge(e.getKey(), e.getValue(), Double::sum);
-            }
-        }
-    }
-    
-    private void strengthenConceptLink(String a, String b, double strength) {
-        ConceptNode nodeA = conceptNetwork.get(a);
-        ConceptNode nodeB = conceptNetwork.get(b);
-        if (nodeA != null && nodeB != null) {
-            if (!nodeA.relatedConcepts.contains(b)) {
-                nodeA.relatedConcepts.add(b);
-            }
-            if (!nodeB.relatedConcepts.contains(a)) {
-                nodeB.relatedConcepts.add(a);
-            }
-        }
-    }
-    
-    private double calculateComplexity(ContextMessage message) {
-        return Math.min(1.0, message.keywords.size() * 0.1 + message.concepts.size() * 0.15);
-    }
-    
-    private String getDominantEmotion(Map<String, Double> emotions) {
-        return emotions.entrySet().stream()
-            .max(Map.Entry.comparingByValue())
-            .map(Map.Entry::getKey).orElse(null);
-    }
-    
-    private int countOccurrences(String text, String word) {
-        int count = 0;
-        int index = 0;
-        while ((index = text.indexOf(word, index)) != -1) {
-            count++;
-            index += word.length();
-        }
-        return count;
-    }
-    
-    private String guessCategory(String word) {
-        // تخمين بسيط بناءً على النمط
-        if (word.endsWith("ة") || word.endsWith("اء")) return "اسم";
-        if (word.length() <= 3) return "فعل_محتمل";
-        return "مفهوم";
-    }
-    
-    private Optional<String> findPotentialConnection(ConceptNode a, ConceptNode b) {
-        // البحث عن تشابه في التعريفات
-        for (String meanA : Arrays.asList(a.definition.split("\\s+"))) {
-            for (String meanB : Arrays.asList(b.definition.split("\\s+"))) {
-                if (meanA.equals(meanB) && meanA.length() > 3) {
-                    return Optional.of("كلاهما يتعلق بـ '" + meanA + "'");
+            if (!conceptNetwork.containsKey(concept) && !lexicon.hasWord(concept)) {
+                int importance = countOccurrences(message.text, concept);
+                if (importance > 0) {
+                    unknowns.add(new UnknownConcept(concept, importance, guessCategory(concept)));
                 }
             }
         }
-        return Optional.empty();
+        
+        unknowns.sort((a, b) -> Integer.compare(b.importance, a.importance));
+        return unknowns;
     }
     
+    private boolean shouldAskAboutUnknown(List<UnknownConcept> unknowns) {
+        if (currentConversation.turnCount < 2) return false;
+        return unknowns.get(0).importance >= 2;
+    }
+    
+    private GeneratedResponse generateLearningQuestion(List<UnknownConcept> unknowns, ContextMessage context) {
+        UnknownConcept main = unknowns.get(0);
+        
+        String[] questionForms = {
+            "ما معنى '" + main.concept + "'؟ أريد أن أفهم ما تقصد.",
+            "لم أتعلم بعد عن '" + main.concept + "'. هل يمكنك شرحه لي؟",
+            "أشعر أن '" + main.concept + "' مهم. ما هو بالنسبة لك؟",
+            "هل '" + main.concept + "' شيء مثل...؟ ساعدني على فهمه."
+        };
+        
+        String selected;
+        if (currentEmotionalState.dominantEmotion.equals("curiosity")) {
+            selected = questionForms[2];
+        } else if (currentEmotionalState.dominantEmotion.equals("confusion")) {
+            selected = questionForms[0];
+        } else {
+            selected = questionForms[new Random().nextInt(questionForms.length)];
+        }
+        
+        GeneratedResponse response = new GeneratedResponse(selected);
+        response.isLearningQuestion = true;
+        response.unknownConcept = main.concept;
+        
+        return response;
+    }
+    
+    private ContextUnderstanding buildDeepUnderstanding(ContextMessage message) {
+        ContextUnderstanding u = new ContextUnderstanding();
+        u.timeContext = analyzeTimeContext();
+        u.mainTopic = message.mainTopic;
+        u.relatedTopics = findRelatedTopics(message);
+        u.conceptRelations = analyzeConceptRelations(message);
+        u.userEmotionalState = message.detectedEmotions;
+        u.possibleExpectations = inferExpectations(message);
+        return u;
+    }
+    
+    private List<PossibleResponse> generateCandidateResponses(ContextUnderstanding understanding, 
+                                                               NeuralSeed.InternalState neuralState) {
+        List<PossibleResponse> candidates = new ArrayList<>();
+        
+        if (!understanding.userEmotionalState.isEmpty()) {
+            PossibleResponse emotional = generateEmotionalResponse(understanding);
+            if (emotional != null) candidates.add(emotional);
+        }
+        
+        if (understanding.userEmotionalState.getOrDefault("curiosity", 0.0) > 0.3) {
+            PossibleResponse informative = generateInformativeResponse(understanding);
+            if (informative != null) candidates.add(informative);
+        }
+        
+        PossibleResponse provocative = generateProvocativeResponse(understanding);
+        if (provocative != null) candidates.add(provocative);
+        
+        if (!shortTermMemory.isEmpty()) {
+            PossibleResponse contextual = generateContextualResponse(understanding);
+            if (contextual != null) candidates.add(contextual);
+        }
+        
+        if (neuralState != null) {
+            PossibleResponse selfReflective = generateSelfReflectiveResponse(understanding, neuralState);
+            if (selfReflective != null) candidates.add(selfReflective);
+        }
+        
+        PossibleResponse counterQuestion = generateCounterQuestion(understanding);
+        if (counterQuestion != null) candidates.add(counterQuestion);
+        
+        return candidates;
+    }
+    
+    private PossibleResponse selectBestResponse(List<PossibleResponse> candidates, ContextUnderstanding understanding) {
+        if (candidates.isEmpty()) {
+            return createFallbackResponse();
+        }
+        
+        for (PossibleResponse c : candidates) {
+            c.score = calculateEmotionalFit(c, understanding.userEmotionalState);
+            c.score += calculateContextualFit(c, understanding);
+            c.score += calculateNovelty(c);
+            c.score += calculatePersonalVoice(c);
+        }
+        
+        return candidates.stream().max(Comparator.comparingDouble(r -> r.score)).orElse(candidates.get(0));
+    }
+    
+    private String craftFinalResponse(PossibleResponse best, ContextUnderstanding understanding) {
+        String base = best.text;
+        
+        if (!best.contextualLinks.isEmpty() && Math.random() > 0.5) {
+            String link = best.contextualLinks.get(0);
+            base = link + ". " + base;
+        }
+        
+        if (currentEmotionalState.overallIntensity > 0.7) {
+            base = addEmotionalColor(base);
+        }
+        
+        if (understanding.complexity > 0.8) {
+            base = simplifyIfNeeded(base);
+        }
+        
+        return base;
+    }
+    
+    // ✅ الـ helper methods للـ response generation
     private String analyzeTimeContext() {
         long hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         if (hour < 6) return "ليل_متأخر";
@@ -1517,21 +1383,20 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         return expectations;
     }
     
-    private void generateInitialThought(ContextMessage message) {
-        // فكرة أولية سريعة
-        Thought t = new Thought(
-            "أحلل: '" + message.text.substring(0, Math.min(20, message.text.length())) + "...'",
-            "analysis"
-        );
-        t.intensity = 0.3;
-        activeThoughts.add(t);
+    private int countOccurrences(String text, String word) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(word, index)) != -1) {
+            count++;
+            index += word.length();
+        }
+        return count;
     }
     
-    private boolean shouldShareThought(Thought t) {
-        // مشاركة بعض الأفكار فقط
-        return t.intensity > 0.7 && 
-               (t.type.equals("curiosity") || t.type.equals("imagination")) &&
-               Math.random() > 0.7;
+    private String guessCategory(String word) {
+        if (word.endsWith("ة") || word.endsWith("اء")) return "اسم";
+        if (word.length() <= 3) return "فعل_محتمل";
+        return "مفهوم";
     }
     
     private PossibleResponse generateEmotionalResponse(ContextUnderstanding u) {
@@ -1557,7 +1422,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     }
     
     private PossibleResponse generateInformativeResponse(ContextUnderstanding u) {
-        // محاولة تقديم معلومة عن الموضوع
         if (u.mainTopic == null || !conceptNetwork.containsKey(u.mainTopic)) {
             return null;
         }
@@ -1579,7 +1443,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     }
     
     private PossibleResponse generateContextualResponse(ContextUnderstanding u) {
-        // البحث عن رابط مع سياق سابق
         if (shortTermMemory.size() < 2) return null;
         
         ContextMessage previous = shortTermMemory.get(shortTermMemory.size() - 2);
@@ -1638,7 +1501,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     }
     
     private double calculateNovelty(PossibleResponse r) {
-        // تجنب التكرار
         for (ContextMessage m : shortTermMemory) {
             if (m.text.contains(r.text.substring(0, Math.min(10, r.text.length())))) {
                 return 0.1;
@@ -1648,7 +1510,6 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
     }
     
     private double calculatePersonalVoice(PossibleResponse r) {
-        // تفضيل الردود التي تعكس "شخصيتي"
         if (r.type.equals("self_reflective") || r.type.equals("curiosity")) {
             return 0.3;
         }
@@ -1669,63 +1530,23 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
         return text;
     }
     
-    private int getEmotionColor(double weight) {
-        return Color.HSVToColor(new float[]{(float)(weight * 360), 0.8f, 0.9f});
-    }
-    
-    private void saveConversation(ContextMessage user, ContextMessage ai) {
-        if (database != null) {
-            database.saveConversation(
-                user.text, 
-                ai.text,
-                user.detectedEmotions,
-                currentConversation.id
-            );
-        }
-        
-        if (firebase != null && firebase.isAuthenticated()) {
-            firebase.saveConversation(user.text, ai.text, user.detectedEmotions);
-        }
-        
-        saveBrain();
-    }
-
-    // ✅ الدوال المُضافة - يجب أن تكون داخل الـ class
-    
-    public String generateQuestion(NeuralSeed.InternalState state) {
-        return sentenceGenerator != null ? sentenceGenerator.generateQuestion(state) : "كيف حالك؟";
-    }
-    
-    public void learnWordEmotion(String word, String emotion, double intensity) {
-        if (learningSystem != null) {
-            learningSystem.learnWordEmotion(word, emotion, intensity, "user_dialog");
-        }
-        if (lexicon != null) {
-            ArabicLexicon.Word w = lexicon.getWordByForm(word);
-            if (w != null) {
-                w.addEmotion(emotion, intensity);
-                if (database != null) database.saveWord(w);
-            }
-        }
-    }
-    
+    // ✅ الـ methods المطلوبة للـ compilation
     public void learnSentence(String text, NeuralSeed.InternalState state) {
         if (parser == null) {
             Log.w(TAG, "Parser not initialized, skipping learnSentence");
             return;
         }
+        
         if (text == null || text.isEmpty()) return;
         
         List<ArabicParser.ParseResult> results = parser.parseText(text);
         for (ArabicParser.ParseResult result : results) {
             if (result.isComplete) {
                 for (ArabicParser.SentenceElement elem : result.elements) {
-                    if (lexicon != null) {
-                        ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
-                        if (word != null) {
-                            word.use();
-                            if (database != null) database.updateWordUsage(elem.word);
-                        }
+                    ArabicLexicon.Word word = lexicon.getWordByForm(elem.word);
+                    if (word != null) {
+                        word.use();
+                        if (database != null) database.updateWordUsage(elem.word);
                     }
                 }
                 if (database != null) {
@@ -1737,29 +1558,4 @@ private String mapShapeToConcept(ShapeElement shape, VisualThought visual) {
             }
         }
     }
-
-    public Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("lexicon_size", lexicon != null ? lexicon.getWordCount() : 0);
-        stats.put("concept_count", conceptNetwork.size());
-        stats.put("thought_count", activeThoughts.size());
-        stats.put("memory_size", shortTermMemory.size());
-        stats.put("conversation_turns", currentConversation.turnCount);
-        
-        double avgFamiliarity = conceptNetwork.values().stream()
-            .mapToDouble(n -> n.familiarity)
-            .average().orElse(0.0);
-        stats.put("learning_level", String.format("%.0f%%", avgFamiliarity * 100));
-        
-        return stats;
-    }
-
-    // ✅ الـ interface يبقى في النهاية
-    public interface LLMBridge {
-        String enhanceResponse(String baseResponse, String context);
-    }
-}
-
-
-
-
+} // ✅ نهاية الـ class
