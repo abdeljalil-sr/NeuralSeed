@@ -5,6 +5,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import android.content.Context;
+import android.content.SharedPreferences;
 
 /**
  * نواة الوعي الحية - يتحكم في كل شيء
