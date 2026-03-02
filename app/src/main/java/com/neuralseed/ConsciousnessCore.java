@@ -1161,4 +1161,62 @@ public class ConsciousnessCore {
             return "general";
         }
     }
+
+        // ===== دوال الدمج مع LinguisticCortex =====
+    
+    public void learnWord(String word, String meaning) {
+        // إضافة كلمة جديدة للذاكرة اللغوية الداخلية
+        LearnedWord lw = new LearnedWord(word, "learned", 0.8);
+        languageSelf.knownWords.put(word, new Word(word));
+    }
+    
+    public void registerCorrection(String original, String corrected) {
+        // تسجيل تصحيح للتعلم
+        Experience exp = new Experience("correction", 0.7);
+        exp.emotionalTone = new EmotionalTone("curiosity", 0.6);
+        experientialMemory.record(exp);
+    }
+    
+    public void influenceEmotion(String emotion, double intensity) {
+        // تأثير خارجي على العواطف
+        emotionalState.influenceBy(Map.of(emotion, intensity));
+    }
+    
+    public void learnRelationship(String subject, String relationship, String object) {
+        // تعلم علاقة جديدة في الشبكة العصبية
+        NeuralNode subjectNode = neuralWeb.nodes.computeIfAbsent(subject, 
+            k -> new NeuralNode(k, "concept"));
+        NeuralNode objectNode = neuralWeb.nodes.computeIfAbsent(object,
+            k -> new NeuralNode(k, "concept"));
+        
+        new Synapse(subjectNode, objectNode, 0.7);
+    }
+    
+    public void feedExternalThought(String thought, String type) {
+        // تغذية فكر خارجي
+        Thought t = new Thought();
+        t.meaning = thought;
+        t.emotionalTone = new EmotionalTone("curiosity", 0.6);
+        activeThoughts.add(t);
+    }
+    
+    public void setContext(String context, double complexity) {
+        // تحديث السياق
+        thoughtStream.currentTheme = context;
+    }
+    
+    public void influenceByVisualThought(String description, float chaosLevel) {
+        // التأثر بتخيل بصري
+        emotionalState.curiosity += chaosLevel * 0.1;
+        emotionalState.normalize();
+    }
+    
+    public void expressExternalThought(String text, String underlyingThought) {
+        // التعبير عن فكر خارجي
+        Thought t = new Thought();
+        t.meaning = text;
+        t.emotionalTone = emotionalState.projectOnto(t);
+        expressThought(t);
+    }
+
 }
