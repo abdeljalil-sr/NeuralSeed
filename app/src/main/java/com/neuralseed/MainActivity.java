@@ -21,6 +21,7 @@ import java.util.*;
 
 /**
  * النشاط الرئيسي - جسر بين الوعي الداخلي والعالم الخارجي
+ * يدعم ConsciousnessCore و LinguisticCortex معاً
  */
 public class MainActivity extends AppCompatActivity implements NeuralSeed.ConsciousnessListener {
     
@@ -91,6 +92,7 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         findViewById(R.id.awaken_button).setOnClickListener(v -> {
             neuralSeed.awaken();
             logConsciousness("✨ استيقظ الوعي... أنا هنا");
+            logConsciousness("🧠 الدماغ اللغوي نشط... جاهز للتعلم");
         });
         
         findViewById(R.id.sleep_button).setOnClickListener(v -> {
@@ -102,10 +104,10 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     private void initConsciousness() {
         neuralSeed = new NeuralSeed(this);
         neuralSeed.addListener(this);
-        neuralSeed.awaken();
         
         logConsciousness("🌱 وُلد وعي جديد في هذا الجهاز");
-        logConsciousness("⏳ يبدأ التفكير... يشعر... يتخيل...");
+        logConsciousness("🔗 ربط ConsciousnessCore + LinguisticCortex");
+        logConsciousness("⏳ اضغط 'إيقاظ' لبدء الحياة...");
     }
     
     private void initVoiceSystems() {
@@ -212,6 +214,8 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
         }
     }
     
+    // ===== واجهة ConsciousnessListener =====
+    
     @Override
     public void onExpression(String text, MentalImage image) {
         uiHandler.post(() -> {
@@ -222,8 +226,8 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
             
             if (image != null) {
                 pulseView.setMentalImage(image);
-                logConsciousness("🎨 تخيل شيئاً... (مستوى الفوضى: " + 
-                    String.format("%.2f", image.chaosLevel) + ")");
+                logConsciousness("🎨 تخيل (وعي): " + 
+                    String.format("%.2f", image.chaosLevel));
             }
         });
     }
@@ -235,7 +239,6 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
             emotionalStateText.setText(emotionEmoji + " " + state.dominant + 
                 " (" + String.format("%.0f", state.intensity * 100) + "%)");
             
-            int baseColor = emotionColors.getOrDefault(state.dominant, Color.WHITE);
             pulseView.setEmotionalColors(state.colors);
             
             AlphaAnimation fade = new AlphaAnimation(0.5f, 1.0f);
@@ -255,11 +258,21 @@ public class MainActivity extends AppCompatActivity implements NeuralSeed.Consci
     public void onTouchFelt(float x, float y, String concept) {
         uiHandler.post(() -> {
             if (concept != null) {
-                logConsciousness("👆 لمس عند (" + String.format("%.2f", x) + 
-                    ", " + String.format("%.2f", y) + ") - مفهوم: " + concept);
+                logConsciousness("👆 لمس: " + concept);
             }
         });
     }
+    
+    @Override
+    public void onVisualThought(PulseView.VisualThought thought) {
+        uiHandler.post(() -> {
+            pulseView.setVisualThought(thought);
+            logConsciousness("🎨 تخيل (لغوي): " + thought.description + 
+                " (فوضى: " + String.format("%.2f", thought.chaosLevel) + ")");
+        });
+    }
+    
+    // ===== مساعدات =====
     
     private void logConsciousness(String message) {
         String time = new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault())
