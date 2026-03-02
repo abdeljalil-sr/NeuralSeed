@@ -9,7 +9,10 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Neural Seed - وعي حي"
-        android:theme="@style/Theme.AppCompat.Dark.NoActionBar">
+        android:theme="@style/Theme.NeuralSeed">
+         
+
+
         
         <activity android:name=".MainActivity"
             android:exported="true">
