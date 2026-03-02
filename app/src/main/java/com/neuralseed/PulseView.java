@@ -24,10 +24,12 @@ public class PulseView extends View {
     
     // ===== التخيل الإبداعي =====
     private Paint imaginationPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private VisualThought currentThought;
+    private MentalImage currentImage;
+    private VisualThought currentVisualThought;
     private List<FloatingShape> floatingShapes = new ArrayList<>();
     private float imaginationPhase = 0;
     private boolean showImagination = false;
+    private int[] emotionalColors = new int[5];
     
     // ===== البيانات الداخلية =====
     private static class FloatingShape {
@@ -72,12 +74,12 @@ public class PulseView extends View {
         super(context);
         init();
     }
-
+    
     public PulseView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }
-
+    
     private void init() {
         basePaint.setStyle(Paint.Style.STROKE);
         basePaint.setStrokeWidth(5);
@@ -85,40 +87,78 @@ public class PulseView extends View {
         imaginationPaint.setStyle(Paint.Style.STROKE);
         imaginationPaint.setStrokeWidth(3);
         
+        // ألوان افتراضية
+        emotionalColors[0] = Color.parseColor("#90EE90");
+        emotionalColors[1] = Color.parseColor("#4ECDC4");
+        emotionalColors[2] = Color.parseColor("#FFE66D");
+        emotionalColors[3] = Color.parseColor("#FF6B6B");
+        emotionalColors[4] = Color.parseColor("#FFFFFF");
+        
         startAnimation();
     }
-
+    
     // ===== التحكم بالأنا =====
     public void setEgoType(NeuralSeed.EgoType type) {
         currentEgoType = type;
         invalidate();
     }
-
-    // ===== التحكم بالتخيل =====
+    
+    // ===== التحكم بالتخيل - يدعم النوعين =====
+    public void setMentalImage(MentalImage image) {
+        this.currentImage = image;
+        this.showImagination = (image != null);
+        rebuildShapesFromImage(image);
+        invalidate();
+    }
+    
     public void setVisualThought(VisualThought thought) {
-        this.currentThought = thought;
+        this.currentVisualThought = thought;
         this.showImagination = (thought != null);
-        rebuildShapes();
+        rebuildShapesFromVisualThought(thought);
         invalidate();
     }
     
     public void clearImagination() {
         this.showImagination = false;
-        this.currentThought = null;
+        this.currentImage = null;
+        this.currentVisualThought = null;
         this.floatingShapes.clear();
         invalidate();
     }
     
-    private void rebuildShapes() {
+    private void rebuildShapesFromImage(MentalImage image) {
         floatingShapes.clear();
-        if (currentThought == null || currentThought.shapes == null) return;
+        if (image == null || image.elements == null) return;
         
         float width = getWidth();
         float height = getHeight();
         
         if (width == 0 || height == 0) return;
         
-        for (ShapeElement elem : currentThought.shapes) {
+        for (MentalImage.VisualElement elem : image.elements) {
+            FloatingShape shape = new FloatingShape(
+                elem.x * width,
+                elem.y * height,
+                elem.size,
+                elem.color != 0 ? elem.color : emotionalColors[0],
+                elem.type
+            );
+            shape.speed = elem.speed * 0.02f;
+            shape.phase = elem.phase;
+            floatingShapes.add(shape);
+        }
+    }
+    
+    private void rebuildShapesFromVisualThought(VisualThought thought) {
+        floatingShapes.clear();
+        if (thought == null || thought.shapes == null) return;
+        
+        float width = getWidth();
+        float height = getHeight();
+        
+        if (width == 0 || height == 0) return;
+        
+        for (ShapeElement elem : thought.shapes) {
             FloatingShape shape = new FloatingShape(
                 elem.x * width,
                 elem.y * height,
@@ -127,10 +167,21 @@ public class PulseView extends View {
                 elem.type
             );
             shape.speed = elem.animationSpeed * 0.02f;
+            shape.phase = elem.phase;
             floatingShapes.add(shape);
         }
     }
-
+    
+    public void setEmotionalColors(int[] colors) {
+        if (colors != null && colors.length >= 5) {
+            this.emotionalColors = colors;
+            if (currentImage != null) {
+                currentImage.palette = colors;
+            }
+            invalidate();
+        }
+    }
+    
     // ===== الرسومات =====
     private void startAnimation() {
         postOnAnimation(new Runnable() {
@@ -143,7 +194,7 @@ public class PulseView extends View {
             }
         });
     }
-
+    
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -160,10 +211,10 @@ public class PulseView extends View {
     private void drawBasePulse(Canvas canvas) {
         float centerX = getWidth() / 2f;
         float centerY = getHeight() / 2f;
-
+        
         int color;
         float speed;
-
+        
         switch (currentEgoType) {
             case STABLE: color = Color.parseColor("#90EE90"); speed = 0.5f; break;
             case CHAOTIC: color = Color.parseColor("#FF6347"); speed = 2.0f; break;
@@ -171,7 +222,7 @@ public class PulseView extends View {
             case SURVIVAL: color = Color.parseColor("#FF0000"); speed = 3.0f; break;
             default: color = Color.WHITE; speed = 1.0f;
         }
-
+        
         basePaint.setColor(color);
         
         // دوائر النبض الأساسية
@@ -185,7 +236,9 @@ public class PulseView extends View {
     
     private void drawImagination(Canvas canvas) {
         // تحديث الأشكال
-        float chaosLevel = currentThought != null ? currentThought.chaosLevel : 0.5f;
+        float chaosLevel = currentImage != null ? currentImage.chaosLevel : 
+            (currentVisualThought != null ? currentVisualThought.chaosLevel : 0.5f);
+        
         for (FloatingShape shape : floatingShapes) {
             shape.update(imaginationPhase, chaosLevel);
             drawShape(canvas, shape);
@@ -201,6 +254,7 @@ public class PulseView extends View {
         
         switch (shape.type) {
             case "circle":
+            case "node":
                 imaginationPaint.setStyle(Paint.Style.FILL);
                 canvas.drawCircle(shape.x, shape.y, shape.size * 0.5f, imaginationPaint);
                 // هالة خارجية
@@ -225,6 +279,7 @@ public class PulseView extends View {
                 break;
                 
             case "pulse":
+            case "burst":
                 imaginationPaint.setStyle(Paint.Style.STROKE);
                 imaginationPaint.setStrokeWidth(4);
                 float pulseSize = shape.size * (1 + (float)Math.sin(shape.phase * 2) * 0.3f);
@@ -277,7 +332,7 @@ public class PulseView extends View {
             }
         }
     }
-
+    
     // ===== التفاعل =====
     public String onTouch(float x, float y) {
         if (!showImagination || floatingShapes.isEmpty()) return null;
@@ -286,8 +341,8 @@ public class PulseView extends View {
         float minDist = 100;
         
         for (FloatingShape shape : floatingShapes) {
-            float dist = (float)Math.sqrt((shape.x - x) * (shape.x - x) + 
-                                         (shape.y - y) * (shape.y - y));
+            float dist = (float)Math.sqrt((shape.x - x) * (shape.x - x) +
+                (shape.y - y) * (shape.y - y));
             if (dist < minDist) {
                 minDist = dist;
                 closest = shape;
@@ -306,16 +361,36 @@ public class PulseView extends View {
         return null;
     }
     
+    public void pulseAt(float x, float y) {
+        // تأثير عند اللمس
+        FloatingShape pulse = new FloatingShape(
+            x * getWidth(), y * getHeight(), 100,
+            Color.WHITE, "burst"
+        );
+        pulse.speed = 0.1f;
+        floatingShapes.add(pulse);
+        invalidate();
+    }
+    
     private String mapShapeToConcept(FloatingShape shape) {
         int index = floatingShapes.indexOf(shape);
-        if (currentThought != null && currentThought.description != null) {
-            return currentThought.description + "_" + index;
+        if (currentImage != null && currentImage.emotionalTheme != null) {
+            return currentImage.emotionalTheme + "_" + index;
+        }
+        if (currentVisualThought != null && currentVisualThought.description != null) {
+            return currentVisualThought.description + "_" + index;
         }
         return "شكل_" + shape.type;
     }
     
-    // ===== الفئات العامة =====
+    // للتوافق مع الكود القديم
+    public void setEgoType(Object type) {
+        if (type instanceof NeuralSeed.EgoType) {
+            setEgoType((NeuralSeed.EgoType) type);
+        }
+    }
     
+    // ===== الفئات العامة للتوافق =====
     public static class VisualThought {
         public String id;
         public String description;
@@ -333,17 +408,18 @@ public class PulseView extends View {
             this.createdAt = System.currentTimeMillis();
         }
     }
-   // في PulseView.java - إضافة تأثيرات جديدة
-public void setEmotionalBurst(String emotion, double intensity) {
-    // انفجار بصري للعواطف القوية
-}
- 
+    
     public static class ShapeElement {
-        public String type; // "circle", "line", "spiral", "pulse"
+        public String type;
         public float x, y;
         public float size;
         public int color;
         public float animationSpeed;
         public float phase;
+    }
+    
+    // تأثيرات جديدة
+    public void setEmotionalBurst(String emotion, double intensity) {
+        // انفجار بصري للعواطف القوية
     }
 }
