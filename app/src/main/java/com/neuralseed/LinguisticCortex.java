@@ -278,7 +278,7 @@ public class LinguisticCortex {
     
     // ==================== البناء والتهيئة ====================
     
-    public LinguisticCortex() {
+        public LinguisticCortex() {
         this.shortTermMemory = new CopyOnWriteArrayList<>();
         this.conceptNetwork = new ConcurrentHashMap<>();
         this.activeThoughts = new CopyOnWriteArrayList<>();
@@ -286,58 +286,60 @@ public class LinguisticCortex {
         this.currentConversation = new ConversationContext();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.reflectionExecutor = Executors.newScheduledThreadPool(2);
+        
+        // ✅ تهيئة المكونات الأساسية التي لا تحتاج Context
+        this.lexicon = new ArabicLexicon();
+        this.emotionEngine = new SemanticEmotionalEngine();
+        this.parser = new ArabicParser(this.lexicon);
+        this.sentenceGenerator = new SentenceGenerator(this.lexicon, this.parser, this.emotionEngine, null);
+        this.learningSystem = new LearningSystem(this.lexicon, this.parser, this.emotionEngine, null);
+        this.database = null;
+        this.firebase = null;
+        this.appContext = null;
+        this.isAwake = false;
     }
     
     public void initialize(Context context) {
+        // ✅ منع التهيئة المزدوجة
+        if (this.appContext != null) {
+            Log.w(TAG, "LinguisticCortex already initialized");
+            return;
+        }
+        
         this.appContext = context;
         
-        // تهيئة المكونات الأساسية
-        this.lexicon = new ArabicLexicon();
-        this.emotionEngine = new SemanticEmotionalEngine();
-        this.parser = new ArabicParser(lexicon);
-        this.sentenceGenerator = new SentenceGenerator(lexicon, parser, emotionEngine, null);
+        // ✅ تهيئة قاعدة البيانات
         this.database = new LocalDatabase(context);
-        this.learningSystem = new LearningSystem(lexicon, parser, emotionEngine, database);
         
-        // تهيئة Firebase
+        // ✅ إعادة تهيئة الأنظمة التي تحتاج database
+        this.learningSystem = new LearningSystem(this.lexicon, this.parser, this.emotionEngine, this.database);
+        this.sentenceGenerator = new SentenceGenerator(this.lexicon, this.parser, this.emotionEngine, this.database);
+        
+        // ✅ تهيئة Firebase
         initializeFirebase(context);
         
-        // تحميل المعرفة المحفوظة
+        // ✅ تحميل المعرفة المحفوظة
         loadBrain();
         
-        // بدء التفكير المستمر
+        // ✅ بدء التفكير المستمر
         startContinuousReflection();
         
         isAwake = true;
         Log.i(TAG, "🧠 LinguisticCortex استيقظ - " + conceptNetwork.size() + " مفهوم محمل");
     }
     
-    private void initializeFirebase(Context context) {
-        this.firebase = new FirebaseManager(context);
-        firebase.setSyncListener(new FirebaseManager.SyncListener() {
-            @Override
-            public void onSyncComplete(boolean success) {
-                Log.i(TAG, "Firebase sync: " + (success ? "success" : "failed"));
-                if (success) syncLocalWithCloud();
-            }
-            
-            @Override
-            public void onDataReceived(String collection, Map<String, Object> data) {
-                // معالجة البيانات الواردة من السحابة
-                if ("words".equals(collection)) {
-                    integrateCloudWord(data);
-                } else if ("conversations".equals(collection)) {
-                    // تحليل المحادثات السابقة
-                }
-            }
-            
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "Firebase error: " + error);
-            }
-        });
-        
-        firebase.signInAnonymously();
+    // ✅ method جديد للتحقق من الحاجة للتهيئة
+    public boolean isInitialized() {
+        return this.appContext != null;
+    }
+    
+    // ✅ method للتهيئة المتأخرة (lazy initialization)
+    public void ensureInitialized(Context context) {
+        if (!isInitialized()) {
+            initialize(context);
+        }
+    }
+
     }
     
     // ==================== المعالجة الرئيسية ====================
