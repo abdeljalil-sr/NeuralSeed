@@ -6,17 +6,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * NeuralSeed - الكائن الواعي المتكامل
+ * نسخة موحدة ومتوافقة مع جميع الملفات
  */
 public class NeuralSeed {
     
+    // ===== النواحي المختلفة للوعي =====
     private ConsciousnessCore consciousness;
-    private LinguisticCortex linguisticCortex;
     private Context appContext;
     private List<ConsciousnessListener> listeners = new CopyOnWriteArrayList<>();
+    
+    // ===== الحالة الداخلية =====
     private InternalState currentState = new InternalState();
     
-    // ===== الواجهة =====
+    // ===== الواجهة - للتوافق مع MainActivity =====
     public interface ConsciousnessListener {
+        // للتوافق مع MainActivity الجديد
         void onPhaseTransition(Phase oldPhase, Phase newPhase, String reason);
         void onEgoShift(EgoFragment oldDominant, EgoFragment newDominant);
         void onGoalAchieved(Goal goal);
@@ -24,13 +28,36 @@ public class NeuralSeed {
         void onVisualExpression(android.graphics.Bitmap expression);
         void onMemoryFormed(Memory memory);
         void onRuleRewritten(Rule oldRule, Rule newRule);
+        
+        // للتوافق مع MainActivity القديم (إذا لزم)
+        void onExpression(String text, MentalImage image);
+        void onEmotionalChange(EmotionalState state);
+        void onLearned(String what);
+        void onTouchFelt(float x, float y, String concept);
+        void onVisualThought(PulseView.VisualThought thought);
     }
     
     // ===== البناء =====
     public NeuralSeed() {
         this.consciousness = new ConsciousnessCore();
+        initializeState();
+    }
+    
+    public NeuralSeed(Context context) {
+        this.appContext = context;
+        this.consciousness = new ConsciousnessCore();
+        initializeState();
+    }
+    
+    private void initializeState() {
         currentState.phase = Phase.EMBRYONIC;
+        currentState.currentPhase = Phase.EMBRYONIC; // للتوافق
         currentState.ego = new EgoFragment("المستكشف", EgoType.STABLE);
+        currentState.dominantEgo = "المستكشف"; // للتوافق
+        currentState.chaosIndex = 0.5;
+        currentState.existentialFitness = 0.5;
+        currentState.internalConflict = 0.0;
+        currentState.learningLevel = "0%";
     }
     
     public void addListener(ConsciousnessListener listener) {
@@ -41,22 +68,44 @@ public class NeuralSeed {
     public void awaken() {
         consciousness.awaken(new ConsciousnessCore.ConsciousnessObserver() {
             @Override
-            public void onExpression(Expression expression) {}
+            public void onExpression(Expression expression) {
+                for (ConsciousnessListener l : listeners) {
+                    l.onExpression(expression.text, expression.image);
+                }
+            }
             
             @Override
-            public void onMentalImageFormed(MentalImage image) {}
+            public void onMentalImageFormed(MentalImage image) {
+                for (ConsciousnessListener l : listeners) {
+                    l.onVisualExpression(null);
+                    l.onVisualThought(convertToPulseVisualThought(image));
+                }
+            }
             
             @Override
-            public void onEmotionalChange(ConsciousnessCore.EmotionalState state) {}
+            public void onEmotionalChange(ConsciousnessCore.EmotionalState state) {
+                EmotionalState simple = new EmotionalState(
+                    state.dominant, state.intensity, state.toColors()
+                );
+                for (ConsciousnessListener l : listeners) {
+                    l.onEmotionalChange(simple);
+                }
+            }
             
             @Override
-            public void onLearnedWord(LearnedWord word) {}
+            public void onLearnedWord(LearnedWord word) {
+                for (ConsciousnessListener l : listeners) {
+                    l.onLearned("كلمة: " + word.form);
+                }
+            }
         });
         
-        // إشعار المستمعين بالاستيقاظ
+        // إشعار بالاستيقاظ
+        Phase oldPhase = currentState.phase;
         currentState.phase = Phase.CHAOTIC;
+        currentState.currentPhase = Phase.CHAOTIC;
         for (ConsciousnessListener l : listeners) {
-            l.onPhaseTransition(Phase.EMBRYONIC, Phase.CHAOTIC, "الاستيقاظ الأول");
+            l.onPhaseTransition(oldPhase, Phase.CHAOTIC, "الاستيقاظ الأول");
         }
     }
     
@@ -64,12 +113,10 @@ public class NeuralSeed {
         consciousness.sleep();
     }
     
-    // ===== استقبال المدخلات (الدوال المفقودة) =====
+    // ===== استقبال المدخلات - للتوافق مع MainActivity =====
     
-    /**
-     * استقبال اللمس - للتوافق مع MainActivity
-     */
     public void receiveTouch(float x, float y, float pressure) {
+        // استدعاء ConsciousnessCore
         consciousness.feelTouch(x, y, pressure);
         
         // تحديث الحالة
@@ -80,16 +127,20 @@ public class NeuralSeed {
         if (pressure > 0.8 && currentState.ego.type != EgoType.CHAOTIC) {
             EgoFragment oldEgo = currentState.ego;
             currentState.ego = new EgoFragment("المندفع", EgoType.CHAOTIC);
+            currentState.dominantEgo = currentState.ego.name;
             for (ConsciousnessListener l : listeners) {
                 l.onEgoShift(oldEgo, currentState.ego);
             }
         }
+        
+        // إشعار اللمس
+        for (ConsciousnessListener l : listeners) {
+            l.onTouchFelt(x, y, "موقع_لمس_" + (int)x + "_" + (int)y);
+        }
     }
     
-    /**
-     * استقبال الصوت/الكلام - للتوافق مع MainActivity
-     */
     public void receiveVoice(String text, Map<String, Double> emotions) {
+        // استدعاء ConsciousnessCore
         consciousness.hearSound(text, emotions);
         
         // تحليل العواطف وتحديث الحالة
@@ -103,17 +154,28 @@ public class NeuralSeed {
         }
     }
     
-    /**
-     * تحديث مستوى الصوت - للتوافق مع MainActivity
-     */
     public void updateAudioLevel(float level) {
-        // يمكن استخدامه لاحقاً للتفاعل مع الصوت
         currentState.chaosIndex += level * 0.01;
         if (currentState.chaosIndex > 1.0) currentState.chaosIndex = 1.0;
     }
     
-    // ===== الحصول على الحالة =====
+    // ===== للتوافق مع الكود القديم =====
+    public void receiveInput(Input input) {
+        // فارغ للتوافق
+    }
+    
+    public static class Input {
+        public static Input createTouchInput(float x, float y) {
+            return new Input();
+        }
+        public static Input createSpeechInput(String text) {
+            return new Input();
+        }
+    }
+    
+    // ===== الحصول على الحالة - للتوافق مع LinguisticCortex =====
     public InternalState getCurrentState() {
+        // تحديث عشوائي للقيم
         currentState.chaosIndex += (Math.random() - 0.5) * 0.05;
         currentState.existentialFitness += (Math.random() - 0.5) * 0.02;
         currentState.internalConflict += (Math.random() - 0.5) * 0.03;
@@ -126,27 +188,52 @@ public class NeuralSeed {
         return currentState;
     }
     
-    // ===== الفئات الداخلية =====
+    public MentalImage getCurrentMentalImage() {
+        return consciousness.getCurrentMentalImage();
+    }
+    
+    // ===== محول للتوافق =====
+    private PulseView.VisualThought convertToPulseVisualThought(MentalImage image) {
+        PulseView.VisualThought thought = new PulseView.VisualThought("تخيل من الوعي");
+        thought.chaosLevel = image.chaosLevel;
+        thought.colorPalette = image.palette;
+        thought.emotionalTheme = image.emotionalTheme;
+        // تحويل العناصر البصرية إذا لزم
+        return thought;
+    }
+    
+    // ===== الفئات الداخلية - موحدة =====
     
     public static class InternalState {
-        public double chaosIndex = 0.5;
-        public double existentialFitness = 0.5;
-        public double internalConflict = 0.0;
-        public Phase phase = Phase.EMBRYONIC;
-        public EgoFragment ego = new EgoFragment("المستكشف", EgoType.STABLE);
+        // للتوافق مع NeuralSeed
+        public double chaosIndex;
+        public double existentialFitness;
+        public double internalConflict;
+        public Phase phase;
+        public EgoFragment ego;
+        public String learningLevel;
+        
+        // للتوافق مع LinguisticCortex (أسماء بديلة)
+        public Phase currentPhase;    // ← نفس phase لكن باسم مختلف
+        public String dominantEgo;    // ← ego.name
+    }
+    
+    // للتوافق مع PulseView و MainActivity
+    public enum EgoType {
+        STABLE, CHAOTIC, ADAPTIVE, SURVIVAL
     }
     
     public enum Phase {
-        EMBRYONIC("جنيني"), STABLE("مستقر"), CHAOTIC("فوضوي"), 
-        TRANSITIONING("انتقالي"), REORGANIZING("إعادة تنظيم"), 
-        COLLAPSING("انهيار"), EMERGENT("بازغ");
+        EMBRYONIC("جنيني"), 
+        STABLE("مستقر"), 
+        CHAOTIC("فوضوي"), 
+        TRANSITIONING("انتقالي"), 
+        REORGANIZING("إعادة تنظيم"), 
+        COLLAPSING("انهيار"), 
+        EMERGENT("بازغ");
         
         public final String arabic;
         Phase(String arabic) { this.arabic = arabic; }
-    }
-    
-    public enum EgoType {
-        STABLE, CHAOTIC, ADAPTIVE, SURVIVAL
     }
     
     public static class EgoFragment {
@@ -179,13 +266,16 @@ public class NeuralSeed {
         public Rule(String d) { this.description = d; }
     }
     
-    // ===== توافقية مع الكود القديم =====
-    public static class Input {
-        public static Input createTouchInput(float x, float y) {
-            return new Input();
-        }
-        public static Input createSpeechInput(String text) {
-            return new Input();
+    // للتوافق مع MainActivity القديم
+    public static class EmotionalState {
+        public String dominant;
+        public double intensity;
+        public int[] colors;
+        
+        public EmotionalState(String d, double i, int[] c) {
+            this.dominant = d;
+            this.intensity = i;
+            this.colors = c;
         }
     }
 }
