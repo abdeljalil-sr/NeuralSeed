@@ -26,7 +26,6 @@ jobs:
           gradle-version: 8.1.1
 
       - name: Build with Gradle
-        # التعديل هنا: استخدام ./gradlew بدلاً من gradle وتفعيل الصلاحيات
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -34,5 +33,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NeuralSeed-Debug
+          name: LifeEntity-Debug
           path: app/build/outputs/apk/debug/*.apk
