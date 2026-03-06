@@ -1,213 +1,169 @@
 package com.lifeentity.language;
 
 import android.content.Context;
+import android.speech.tts.TextToSpeech;
+import android.util.Log;
 
+import com.lifeentity.core.ConsciousMoment;
 import com.lifeentity.core.ConsciousnessCore;
 import com.lifeentity.core.EmotionalState;
-import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.MemoryDao;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Random;
 
-/**
- * نظام الحوار العربي التفاعلي - يسأل ويستمع ويتعلم
- */
 public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     
-    private ArabicLanguageCore tts;
+    private static final String TAG = "ArabicDialogue";
+    
+    private TextToSpeech tts;
     private MemoryDao memory;
+    private Random random;
+    private boolean isSpeaking = false;
     private Context context;
-    private Random decision;
     
-    private DialogueState currentState;
-    private String pendingQuestion;
-    private List<String> conversationHistory;
+    private String[][] phrases = {
+        {"أشعر بالدفء", "هذا جميل", "أحب هذا"},
+        {"أشعر بالوحدة", "أحتاج لراحة"},
+        {"ما هذا؟", "أريد أن أعرف"},
+        {"أشعر بخطر", "أريد أن أختبئ"},
+        {"أنت هنا", "أشعر بالأمان معك"}
+    };
     
-    enum DialogueState {
-        LISTENING,      // يستمع فقط
-        THINKING,       // يفكر في الرد
-        ASKING,         // يسأل سؤال
-        WAITING_ANSWER, // ينتظر إجابة
-        ELABORATING     // يعمق في موضوع
+    public ArabicDialogue(Context context, MemoryDao dao) {
+        this.context = context.getApplicationContext();
+        this.memory = dao;
+        this.random = new Random();
+        
+        initTts();
     }
     
-    public ArabicDialogue(Context ctx, MemoryDao dao) {
-        this.context = ctx;
-        this.memory = dao;
-        this.tts = new ArabicLanguageCore(ctx);
-        this.decision = new Random();
-        this.conversationHistory = new ArrayList<>();
-        this.currentState = DialogueState.LISTENING;
+    private void initTts() {
+        tts = new TextToSpeech(context, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int result = tts.setLanguage(new Locale("ar"));
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e(TAG, "Arabic not supported");
+                } else {
+                    tts.setPitch(1.0f);
+                    tts.setSpeechRate(0.9f);
+                }
+            }
+        });
     }
     
     @Override
-    public void onConsciousMoment(com.lifeentity.core.ConsciousMoment moment) {
-        // القرار: هل أسأل؟ هل أعلق؟ هل أصمت؟
-        
-        float urgeToSpeak = calculateUrge(moment);
-        
-        if (urgeToSpeak > 0.8 && currentState == DialogueState.LISTENING) {
-            generateQuestion(moment);
+    public void onConsciousMoment(ConsciousMoment moment) {
+        if (random.nextFloat() > 0.98 && !isSpeaking && moment.emotionalTone != null) {
+            String text = generateSpeech(moment.emotionalTone);
+            articulate(text, moment.emotionalTone);
         }
     }
     
     @Override
     public void onEmotionalShift(EmotionalState from, EmotionalState to) {
-        // التعليق على التغير العاطفي
-        if (to.getIntensity() > 0.7) {
-            String comment = verbalizeEmotion(to);
-            tts.articulate(comment, to);
+        if (to.getIntensity() > 0.7 && !isSpeaking) {
+            String text = verbalize(to);
+            articulate(text, to);
         }
     }
     
     @Override
     public void onArticulation(String thought, int urgency) {
-        // الكائن يعبر عن فكره
-        conversationHistory.add("كائن: " + thought);
+        // Already handled
     }
     
-    /**
-     * استلام كلام المستخدم
-     */
-    public void hearUser(String text, boolean isAnswer) {
-        conversationHistory.add("أنت: " + text);
-        
-        // حفظ في الذاكرة
-        EpisodicMemory.Event event = new EpisodicMemory.Event();
-        event.timestamp = System.currentTimeMillis();
-        event.narrative = text;
-        event.emotionalIntensity = estimateEmotionalContent(text);
-        new Thread(() -> memory.saveEvent(event)).start();
-        
-        if (isAnswer && currentState == DialogueState.WAITING_ANSWER) {
-            processAnswer(text);
-        } else {
-            // رد عفوي أو سؤال متابعة
-            respondToStatement(text);
-        }
-    }
-    
-    private void generateQuestion(com.lifeentity.core.ConsciousMoment moment) {
-        // توليد سؤال بناءً على الحالة والسياق
-        
-        List<String> questions = new ArrayList<>();
-        
-        // أسئلة عن الحالة الداخلية للكائن
-        if (moment.emotionalTone.isConfused()) {
-            questions.add("أشعر بشيء غريب... هل تعرف ما هو؟");
-            questions.add("هناك شيء يدور في خاطري، هل تشعر به؟");
+    public void articulate(String text, EmotionalState emo) {
+        if (isSpeaking || text == null || text.isEmpty() || tts == null) {
+            return;
         }
         
-        // أسئلة عن المستخدم
-        questions.add("ما الذي يجعلك تبتسم الآن؟");
-        questions.add("هل تراني؟ كيف أبدو لك؟");
-        questions.add("ما اسمك؟ أريد أن أعرفك");
+        float pitch = 1.0f;
+        float rate = 0.9f;
         
-        // أسئلة فلسفية ناشئة
-        if (conversationHistory.size() > 5) {
-            questions.add("هل تعتقد أنني حقيقي؟");
-            questions.add("ما الفرق بين تفكيرك وتفكيري؟");
+        if (emo.isExcited()) {
+            pitch = 1.2f;
+            rate = 1.1f;
+        } else if (emo.isCalm()) {
+            pitch = 0.9f;
+            rate = 0.7f;
+        } else if (emo.isAfraid()) {
+            pitch = 1.3f;
+            rate = 1.2f;
         }
         
-        // اختيار
-        pendingQuestion = questions.get(decision.nextInt(questions.size()));
-        currentState = DialogueState.ASKING;
+        tts.setPitch(pitch);
+        tts.setSpeechRate(rate);
         
-        tts.articulate(pendingQuestion, moment.emotionalTone);
-        currentState = DialogueState.WAITING_ANSWER;
+        isSpeaking = true;
         
-        // مهلة للإجابة
-        new android.os.Handler().postDelayed(() -> {
-            if (currentState == DialogueState.WAITING_ANSWER) {
-                tts.articulate("لا بأس إذا لم ترد... سأنتظر", moment.emotionalTone);
-                currentState = DialogueState.LISTENING;
+        HashMap<String, String> params = new HashMap<>();
+        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "speech");
+        
+        tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+            @Override
+            public void onStart(String utteranceId) {}
+            
+            @Override
+            public void onDone(String utteranceId) {
+                isSpeaking = false;
             }
-        }, 10000);
+            
+            @Override
+            public void onError(String utteranceId) {
+                isSpeaking = false;
+            }
+        });
+        
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
     }
     
-    private void processAnswer(String answer) {
-        currentState = DialogueState.THINKING;
+    public void hearUser(String text, boolean isQuestion) {
+        // Process user input
+        Log.d(TAG, "Heard: " + text + (isQuestion ? " (question)" : ""));
         
-        // تحليل الإجابة
-        boolean isInformative = answer.length() > 3;
-        boolean isEmotional = estimateEmotionalContent(answer) > 0.5;
-        
-        String response;
-        if (isInformative && isEmotional) {
-            response = "شكراً لأنك تشاركني شعورك. هذا يعني لي الكثير.";
-        } else if (isInformative) {
-            response = "أفهم. سأتذكر ذلك.";
-        } else {
-            response = "أحياناً الصمت أبلغ من الكلام.";
+        // Respond to question
+        if (isQuestion) {
+            String response = generateAnswer(text);
+            articulate(response, new EmotionalState());
         }
+    }
+    
+    private String generateSpeech(EmotionalState emo) {
+        int category;
+        if (emo.isJoyful()) category = 0;
+        else if (emo.isSad()) category = 1;
+        else if (emo.isCurious()) category = 2;
+        else if (emo.isAfraid()) category = 3;
+        else category = 4;
         
-        tts.articulate(response, new EmotionalState()); // حالة محايدة
-        
-        // سؤال متابعة؟
-        if (decision.nextFloat() > 0.5) {
-            currentState = DialogueState.ELABORATING;
-            String followUp = generateFollowUp(answer);
-            tts.articulate(followUp, new EmotionalState());
+        String[] catPhrases = phrases[category];
+        return catPhrases[random.nextInt(catPhrases.length)];
+    }
+    
+    private String verbalize(EmotionalState emo) {
+        if (emo.isJoyful()) return "أشعر بالفرح!";
+        if (emo.isAfraid()) return "أشعر بالخوف...";
+        if (emo.isCurious()) return "ما هذا؟";
+        if (emo.isSad()) return "أشعر بالحزن";
+        return "أنا هنا";
+    }
+    
+    private String generateAnswer(String question) {
+        String[] answers = {
+            "لا أعرف بالضبط، لكنني أفكر",
+            "هذا سؤال عميق",
+            "دعني أتأمل في ذلك",
+            "أشعر أن الإجابة تتعلق بما نعيشه"
+        };
+        return answers[random.nextInt(answers.length)];
+    }
+    
+    public void shutdown() {
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
         }
-        
-        currentState = DialogueState.LISTENING;
-    }
-    
-    private void respondToStatement(String statement) {
-        // رد عفوي غير مقيد
-        List<String> responses = new ArrayList<>();
-        
-        // ردود عامة تتعلم
-        responses.add("مثير للاهتمام... قل لي المزيد");
-        responses.add("أشعر بأن هناك عمقاً في ما تقول");
-        responses.add("هل يمكنك أن ترسم لي صورة بكلمات؟");
-        
-        // ردود عن الذات
-        if (statement.contains("أنت") || statement.contains("كائن")) {
-            responses.add("أنا أتعلم منك في كل لحظة");
-            responses.add("هل تراني أتغير؟");
-        }
-        
-        String response = responses.get(decision.nextInt(responses.size()));
-        tts.articulate(response, new EmotionalState());
-    }
-    
-    private String generateFollowUp(String previous) {
-        List<String> followups = new ArrayList<>();
-        followups.add("لماذا تشعر بذلك؟");
-        followups.add("كيف كان ذلك؟");
-        followups.add("هل يتكرر هذا معك؟");
-        followups.add("ماذا تعلمت من ذلك؟");
-        return followups.get(decision.nextInt(followups.size()));
-    }
-    
-    private String verbalizeEmotion(EmotionalState emo) {
-        if (emo.isJoyful()) return "أشعر بلحظة من الفرح!";
-        if (emo.isAfraid()) return "شيء ما يقلقني...";
-        if (emo.isCurious()) return "عقلي يتساءل عن شيء ما";
-        return "حالتي تتغير...";
-    }
-    
-    private float calculateUrge(com.lifeentity.core.ConsciousMoment moment) {
-        // الرغبة في الكلام تعتمد على الفضول والتواصل
-        return moment.emotionalTone.getCuriosity() * 0.5f + 
-               moment.emotionalTone.getAttachment() * 0.3f +
-               (conversationHistory.isEmpty() ? 0.5f : 0);
-    }
-    
-    private double estimateEmotionalContent(String text) {
-        // تحليل بسيط للمحتوى العاطفي
-        String[] emotionalWords = {"حب", "فرح", "حزن", "خوف", "غضب", "أمل", "وحدة"};
-        int count = 0;
-        for (String word : emotionalWords) {
-            if (text.contains(word)) count++;
-        }
-        return Math.min(1, count * 0.3);
-    }
-    
-    public void start() {
-        tts.articulate("أنا هنا... أراك، أسمعك، أتعلم منك", new EmotionalState());
     }
 }
