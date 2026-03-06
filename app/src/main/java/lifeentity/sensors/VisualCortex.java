@@ -32,7 +32,7 @@ public class VisualCortex {
     private ObjectDetector objectDetector;
     private ExecutorService analysisExecutor;
     private OnVisualPerceptionListener listener;
-    private List<Face> lastFaces;
+    private List<Face> lastFaces = new ArrayList<>();
     
     public interface OnVisualPerceptionListener {
         void onPerception(VisualPerception perception);
@@ -50,7 +50,6 @@ public class VisualCortex {
         objectDetector = ObjectDetection.getClient(options);
         
         analysisExecutor = Executors.newSingleThreadExecutor();
-        lastFaces = new ArrayList<>();
     }
     
     public void start(LifecycleOwner lifecycleOwner, Context context) {
@@ -95,11 +94,13 @@ public class VisualCortex {
                 if (listener != null) {
                     listener.onFacesDetected(faces);
                 }
-                processFaces(faces);
                 
                 objectDetector.process(image)
                     .addOnSuccessListener(objects -> {
-                        finalizePerception(faces, objects);
+                        VisualPerception perception = createPerception(faces, objects);
+                        if (listener != null) {
+                            listener.onPerception(perception);
+                        }
                         imageProxy.close();
                     })
                     .addOnFailureListener(e -> imageProxy.close());
@@ -107,42 +108,37 @@ public class VisualCortex {
             .addOnFailureListener(e -> imageProxy.close());
     }
     
-    private void processFaces(List<Face> faces) {
-        // معالجة الوجوه للحصول على بيانات
-    }
-    
-    private void finalizePerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects) {
-        VisualPerception perception = new VisualPerception();
+    private VisualPerception createPerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects) {
+        VisualPerception p = new VisualPerception();
+        p.faceCount = faces.size();
         
-        perception.faceCount = faces.size();
         if (!faces.isEmpty()) {
-            Face main = faces.get(0);
-            perception.mainFace = main;
+            p.mainFace = faces.get(0);
+            Float smile = p.mainFace.getSmilingProbability();
+            Float leftEye = p.mainFace.getLeftEyeOpenProbability();
+            Float rightEye = p.mainFace.getRightEyeOpenProbability();
             
-            Float smile = main.getSmilingProbability();
-            Float leftEye = main.getLeftEyeOpenProbability();
-            Float rightEye = main.getRightEyeOpenProbability();
-            
-            perception.smileProbability = smile != null ? smile : 0;
-            perception.eyeOpenProbability = (leftEye != null ? leftEye : 1) * 
-                                           (rightEye != null ? rightEye : 1);
-            perception.faceBounds = main.getBoundingBox();
+            p.smileProbability = smile != null ? smile : 0.5f;
+            p.eyeOpenProbability = (leftEye != null ? leftEye : 1f) * 
+                                  (rightEye != null ? rightEye : 1f);
+            p.faceBounds = p.mainFace.getBoundingBox();
         }
         
-        perception.objects = new ArrayList<>();
+        p.objects = new ArrayList<>();
         for (com.google.mlkit.vision.objects.DetectedObject obj : objects) {
             VisualObject vo = new VisualObject();
             if (!obj.getLabels().isEmpty()) {
                 vo.label = obj.getLabels().get(0).getText();
                 vo.confidence = obj.getLabels().get(0).getConfidence();
+            } else {
+                vo.label = "unknown";
+                vo.confidence = 0.5f;
             }
             vo.bounds = obj.getBoundingBox();
-            perception.objects.add(vo);
+            p.objects.add(vo);
         }
         
-        if (listener != null) {
-            listener.onPerception(perception);
-        }
+        return p;
     }
     
     public List<Face> getLastFaces() {
@@ -153,8 +149,6 @@ public class VisualCortex {
         this.listener = l;
     }
     
-    // الفئات الداخلية
-    
     public static class VisualPerception {
         public int faceCount;
         public Face mainFace;
@@ -162,14 +156,6 @@ public class VisualCortex {
         public float eyeOpenProbability;
         public android.graphics.Rect faceBounds;
         public List<VisualObject> objects;
-        
-        public float getAverageBrightness() {
-            return 0.5f; // placeholder
-        }
-        
-        public float getMotionIntensity() {
-            return 0; // placeholder
-        }
     }
     
     public static class VisualObject {
