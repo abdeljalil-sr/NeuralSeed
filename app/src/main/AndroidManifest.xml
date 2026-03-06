@@ -18,8 +18,8 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="كائن حي"
-        
+        android:label="@string/app_name"
+       
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.Dark.NoActionBar"
         android:usesCleartextTraffic="false">
@@ -29,7 +29,8 @@
             android:exported="true"
             android:screenOrientation="portrait"
             android:keepScreenOn="true"
-            android:configChanges="orientation|screenSize">
+            android:configChanges="orientation|screenSize|keyboardHidden">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
