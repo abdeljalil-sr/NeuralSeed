@@ -30,6 +30,7 @@ import com.lifeentity.sensors.AuditoryCortex;
 import com.lifeentity.sensors.KinestheticSense;
 import com.lifeentity.sensors.SensoryInput;
 import com.lifeentity.sensors.VisualCortex;
+import com.lifeentity.sync.FirebaseSync;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,9 +44,11 @@ public class LifeActivity extends AppCompatActivity {
     private AuditoryCortex ears;
     private KinestheticSense body;
     private MemoryDao memory;
+    private FirebaseSync cloud;
     
     private FaceIdentitySystem identitySystem;
     private EmbeddingsEngine embeddings;
+    private VisualImagination imagination;
     private SharedCanvas sharedCanvas;
     private ArabicDialogue voice;
     
@@ -121,14 +124,43 @@ public class LifeActivity extends AppCompatActivity {
         AppDatabase db = AppDatabase.getDatabase(this);
         memory = db.memoryDao();
         
+        cloud = new FirebaseSync(deviceId);
+        cloud.setListener(new FirebaseSync.SyncListener() {
+            @Override
+            public void onMemorySyncedFromCloud(String source, com.lifeentity.memory.EpisodicMemory.Event event) {
+                if (voice != null) {
+                    voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", new EmotionalState());
+                }
+            }
+            
+            @Override
+            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
+                if (voice != null) {
+                    voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
+                }
+            }
+            
+            @Override
+            public void onSyncComplete(int items) {
+                if (items > 0) {
+                    runOnUiThread(() -> statusText.setText("تمت مزامنة " + items + " ذكريات"));
+                }
+            }
+        });
+        
+        eyes = new VisualCortex(this);
+        ears = new AuditoryCortex(this);
+        body = new KinestheticSense(this);
+        
         identitySystem = new FaceIdentitySystem();
         embeddings = new EmbeddingsEngine(this);
+        imagination = new VisualImagination(800, 1200);
         
         sharedCanvas = new SharedCanvas(800, 1200);
         sharedCanvas.setListener(new SharedCanvas.OnCanvasInteraction() {
             @Override
             public void onObjectCreated(String desc, float x, float y) {
-                updateStatus("Created: " + desc);
+                runOnUiThread(() -> statusText.setText("Created: " + desc));
             }
             
             @Override
@@ -187,7 +219,6 @@ public class LifeActivity extends AppCompatActivity {
             }
         });
         
-        eyes = new VisualCortex(this);
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
             public void onPerception(VisualCortex.VisualPerception perception) {
@@ -197,11 +228,13 @@ public class LifeActivity extends AppCompatActivity {
                     
                     if (result.isKnown && voice != null) {
                         voice.articulate("أهلاً " + result.name, new EmotionalState());
+                    } else if (voice != null) {
+                        voice.articulate("من أنت؟ أرى وجهاً جديداً", new EmotionalState());
                     }
                 }
                 
                 for (VisualCortex.VisualObject obj : perception.objects) {
-                    float[] visualVec = new float[] { obj.getArea() / 100000f, obj.confidence, 0, 0 };
+                    float[] visualVec = extractVisualEmbedding(obj);
                     embeddings.learnAssociation(obj.label, visualVec);
                     
                     sharedCanvas.imagineObject(
@@ -222,7 +255,6 @@ public class LifeActivity extends AppCompatActivity {
             }
         });
         
-        ears = new AuditoryCortex(this);
         ears.setListener(new AuditoryCortex.OnHearingListener() {
             @Override
             public void onSoundHeard(float amplitude, float pitch, boolean isSpeech) {
@@ -234,6 +266,11 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onSpeechRecognized(String text, float confidence) {
+                if (sharedCanvas.getLastSelectedObject() != null) {
+                    String concept = sharedCanvas.getLastSelectedObject().concept;
+                    embeddings.learnAssociation(text, embeddings.getEmbedding(concept));
+                }
+                
                 if (voice != null) {
                     voice.hearUser(text, false);
                 }
@@ -247,7 +284,6 @@ public class LifeActivity extends AppCompatActivity {
             }
         });
         
-        body = new KinestheticSense(this);
         body.setListener(new KinestheticSense.OnMotionSensed() {
             @Override
             public void onMotionDetected(KinestheticSense.MotionState state) {
@@ -298,23 +334,28 @@ public class LifeActivity extends AppCompatActivity {
         ears.startContinuousListening();
         body.activate();
         mind.awaken();
+        cloud.startRealtimeSync();
+        cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000);
         
         if (voice != null) {
             voice.articulate("أنا هنا... أراك، أسمعك، أتعلم منك", new EmotionalState());
         }
         
-        guideText.setText("المس الشاشة • تحدث معي • حرك الهاتف");
+        runOnUiThread(() -> guideText.setText("المس الشاشة • تحدث معي • حرك الهاتف"));
     }
     
     private void updateDisplay() {
         Bitmap bitmap = sharedCanvas.getBitmap();
         if (bitmap != null) {
-            displayView.setImageBitmap(bitmap);
+            runOnUiThread(() -> displayView.setImageBitmap(bitmap));
         }
     }
     
-    private void updateStatus(String text) {
-        statusText.setText(text);
+    private float[] extractVisualEmbedding(VisualCortex.VisualObject obj) {
+        float[] vec = new float[128];
+        vec[0] = obj.getArea() / 100000f;
+        vec[1] = obj.confidence;
+        return vec;
     }
     
     @Override
@@ -322,235 +363,7 @@ public class LifeActivity extends AppCompatActivity {
         if (mind != null) mind.sleep();
         if (ears != null) ears.stop();
         if (body != null) body.deactivate();
-        super.onDestroy();
-    }
-}
-        memory = AppDatabase.getDatabase(this).memoryDao();
-        
-        // السحابة
-        cloud = new FirebaseSync(deviceId);
-        cloud.setListener(new FirebaseSync.SyncListener() {
-            @Override
-            public void onMemorySyncedFromCloud(String source, com.lifeentity.memory.EpisodicMemory.Event event) {
-                voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-            
-            @Override
-            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
-                voice.articulate("عرفتُ " + name + " من تجربة أخرى", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-            
-            @Override
-            public void onSyncComplete(int items) {
-                if (items > 0) {
-                    statusText.setText("تمت مزامنة " + items + " ذكريات");
-                }
-            }
-        });
-        
-        // الحواس
-        eyes = new VisualCortex(this);
-        ears = new AuditoryCortex(this);
-        body = new KinestheticSense(this);
-        
-        // المعرفة
-        identitySystem = new FaceIdentitySystem();
-        embeddings = new EmbeddingsEngine(this);
-        imagination = new VisualImagination(800, 1200);
-        
-        // اللوحة المشتركة
-        sharedCanvas = new SharedCanvas(800, 1200);
-        
-        // الصوت
-        voice = new ArabicDialogue(this, memory);
-        
-        // الوعي
-        mind = new ConsciousnessCore();
-        mind.addObserver(voice);
-        
-        // الواجهة
-        displayView = findViewById(R.id.displayView);
-        statusText = findViewById(R.id.statusText);
-    }
-    
-    private void setupInteractions() {
-        // الكاميرا → الهوية والخيال
-        eyes.setListener(perception -> {
-            // التعرف على الهوية
-            if (perception.faceCount > 0) {
-                FaceIdentitySystem.IdentityResult result = 
-                    identitySystem.recognizeOrLearn(perception.faces.get(0), "direct_vision");
-                
-                if (result.isKnown) {
-                    // شخص معروف!
-                    voice.articulate("أهلاً " + result.name, 
-                        new com.lifeentity.core.EmotionalState());
-                } else {
-                    // سؤال عن الاسم
-                    voice.articulate("من أنت؟ أرى وجهاً جديداً", 
-                        new com.lifeentity.core.EmotionalState());
-                }
-            }
-            
-            // تعلم الأشياء المرئية
-            for (VisualCortex.VisualObject obj : perception.objects) {
-                float[] visualVec = extractVisualEmbedding(obj);
-                embeddings.learnAssociation(obj.label, visualVec);
-                
-                // رسم في الخيال
-                sharedCanvas.imagineObject(
-                    obj.label,
-                    100 + (float)Math.random() * 600,
-                    100 + (float)Math.random() * 1000,
-                    obj.area / 1000f,
-                    new int[]{200, 200, 200}
-                );
-            }
-            
-            updateDisplay();
-        });
-        
-        // السمع → الحوار
-        ears.setListener(new AuditoryCortex.OnHearingListener() {
-            @Override
-            public void onSoundHeard(float amp, float pitch, boolean speech) {
-                // تمرير للوعي
-            }
-            
-            @Override
-            public void onSpeechRecognized(String text, float conf) {
-                // تعلم الارتباطات
-                if (sharedCanvas.getLastSelectedObject() != null) {
-                    String concept = sharedCanvas.getLastSelectedObject().concept;
-                    embeddings.learnAssociation(text, embeddings.getEmbedding(concept));
-                }
-                
-                voice.hearUser(text, false);
-            }
-            
-            @Override
-            public void onQuestionDetected(String q) {
-                voice.hearUser(q, true);
-            }
-        });
-        
-        // الجيروسكوب → الحالة الجسدية
-        body.setListener(new KinestheticSense.OnMotionSensed() {
-            @Override
-            public void onMotionDetected(KinestheticSense.MotionState state) {
-                SensoryInput motion = new SensoryInput();
-                motion.motionIntensity = state.accelerationMagnitude;
-                motion.posture = state.orientation;
-                mind.receiveSensoryData(motion);
-            }
-            
-            @Override
-            public void onShakeDetected(float intensity) {
-                voice.articulate("أهتز! ما الذي يحدث؟", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-            
-            @Override
-            public void onOrientationChanged(String orient) {
-                if (orient.equals("face_down")) {
-                    voice.articulate("أشعر بالثقل... كأنني أغمض عيني", 
-                        new com.lifeentity.core.EmotionalState());
-                }
-            }
-            
-            @Override
-            public void onFallDetected() {
-                voice.articulate("سقطت! أشعر بالخوف", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-        });
-        
-        // اللوحة التفاعلية
-        sharedCanvas.setListener(new SharedCanvas.OnCanvasInteraction() {
-            @Override
-            public void onObjectCreated(String desc, float x, float y) {
-                // الكائن خلق شيئاً
-            }
-            
-            @Override
-            public void onObjectSelected(String id, String concept) {
-                voice.articulate("هذا " + concept + ". يمكنك تحريكه", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-            
-            @Override
-            public void onObjectMoved(String id, float x, float y) {
-                // المستخدم حرك شيئاً في عالم الكائن
-                voice.articulate("أرى أنك تغير عالمي", 
-                    new com.lifeentity.core.EmotionalState());
-            }
-            
-            @Override
-            public void onGestureDrawn(String gesture, float x, float y) {
-                if (gesture.equals("swipe_up")) {
-                    voice.articulate("إلى الأعلى!", 
-                        new com.lifeentity.core.EmotionalState());
-                }
-            }
-            
-            @Override
-            public void onCanvasQuestion(String q) {
-                String nearest = sharedCanvas.findNearestConcept(lastTouchX, lastTouchY);
-                voice.articulate("هذا ما أتخيله: " + nearest, 
-                    new com.lifeentity.core.EmotionalState());
-            }
-        });
-        
-        displayView.setOnTouchListener((v, event) -> {
-            sharedCanvas.onTouch(event);
-            updateDisplay();
-            return true;
-        });
-    }
-    
-    private void awakenEntity() {
-        eyes.start(this, this);
-        ears.startContinuousListening();
-        body.activate();
-        mind.awaken();
-        cloud.startRealtimeSync();
-        
-        // مزامنة أولية
-        cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000); // أمس
-        
-        voice.start();
-    }
-    
-    private void updateDisplay() {
-        runOnUiThread(() -> {
-            displayView.setImageBitmap(sharedCanvas.getBitmap());
-        });
-    }
-    
-    private float[] extractVisualEmbedding(VisualCortex.VisualObject obj) {
-        // تبسيط: تحويل خصائص بصرية إلى vector
-        float[] vec = new float[128];
-        vec[0] = obj.area / 100000f;
-        vec[1] = obj.confidence;
-        // ... إكمال التعبئة
-        return vec;
-    }
-    
-    private void requestPermissions() {
-        ActivityCompat.requestPermissions(this, new String[]{
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.INTERNET
-        }, 100);
-    }
-    
-    @Override
-    protected void onDestroy() {
-        mind.sleep();
-        ears.stop();
-        body.deactivate();
+        if (voice != null) voice.shutdown();
         super.onDestroy();
     }
 }
