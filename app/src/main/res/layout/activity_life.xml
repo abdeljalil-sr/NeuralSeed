@@ -7,37 +7,30 @@
     android:background="#0a0a0a"
     tools:context=".ui.LifeActivity">
 
-    <!-- الخلفية الحية -->
     <View
         android:id="@+id/emotionalBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#1a1a2e" />
 
-    <!-- لوحة الخيال المشتركة -->
     <ImageView
         android:id="@+id/displayView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerCrop"
+        android:scaleType="fitCenter"
         android:contentDescription="لوحة الخيال" />
 
-    <!-- حالة الوعي -->
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="30dp"
-        android:layout_marginHorizontal="20dp"
         android:textColor="#88ffffff"
         android:textSize="12sp"
         android:fontFamily="monospace"
-        android:gravity="center"
-        android:shadowColor="#000"
-        android:shadowRadius="3" />
+        android:gravity="center" />
 
-    <!-- دليل المستخدم -->
     <TextView
         android:id="@+id/guideText"
         android:layout_width="wrap_content"
@@ -46,7 +39,6 @@
         android:layout_marginTop="50dp"
         android:text="المس الشاشة • تحدث معي • حرك الهاتف"
         android:textColor="#44ffffff"
-        android:textSize="11sp"
-        android:fontFamily="sans-serif-light" />
+        android:textSize="11sp" />
 
 </FrameLayout>
