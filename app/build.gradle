@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services'  // ← أضف هذا السطر
 }
 
 android {
@@ -48,10 +49,12 @@ dependencies {
     implementation 'com.google.mlkit:face-detection:16.1.5'
     implementation 'com.google.mlkit:object-detection:17.0.0'
     
-    // Firebase
+    // Firebase - BOM يدير الإصدارات تلقائياً
     implementation platform('com.google.firebase:firebase-bom:32.7.0')
     implementation 'com.google.firebase:firebase-firestore'
     implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-auth'           // ← للمصادقة (اختياري)
+    implementation 'com.google.firebase:firebase-database'       // ← Realtime DB (اختياري)
     
     // Gson
     implementation 'com.google.code.gson:gson:2.10.1'
