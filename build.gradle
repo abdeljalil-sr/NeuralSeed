@@ -1,21 +1,7 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // النسخة المتوافقة مع Gradle 8.1.1
-        classpath 'com.android.tools.build:gradle:8.1.1'
-        classpath 'com.google.gms:google-services:4.4.0'
-        
-        // إضافة هذا السطر لتوحيد نسخة Kotlin وحل خطأ Duplicate class
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10"
-    }
-}
+// لا شيء هنا - فارغ أو احذف الملف
+// أو استخدم هذا إذا أردت الاحتفاظ به:
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+plugins {
+    id 'com.android.application' version '8.1.0' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.0' apply false
 }
