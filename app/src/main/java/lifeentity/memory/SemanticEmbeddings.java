@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey;
 public class SemanticEmbeddings {
     
     @Entity(tableName = "embeddings")
-    public static class Entity {
+    public static class EmbeddingEntity {
         @PrimaryKey
         public String concept;
         public float[] vector;
