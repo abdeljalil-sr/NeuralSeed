@@ -139,6 +139,11 @@ public class SharedCanvas {
     public ImaginedObject getLastSelectedObject() {
         return selected;
     }
+
+    public enum ImaginationMode {
+        PERCEPTUAL, MEMORY, COUNTERFACTUAL, CREATIVE, DREAM
+    }
+
     
     public String findNearestConcept(float x, float y) {
         ImaginedObject nearest = null;
