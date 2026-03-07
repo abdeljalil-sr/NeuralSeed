@@ -22,7 +22,7 @@
         android:scaleType="centerCrop"
         android:contentDescription="لوحة الخيال" />
 
-    <!-- ✅ سجل الأحداث الداخلية - أعلى الشاشة -->
+    <!-- ✅ سجل الأحداث الداخلية -->
     <TextView
         android:id="@+id/eventLogText"
         android:layout_width="match_parent"
@@ -40,6 +40,18 @@
         android:gravity="center"
         android:text="" />
 
+    <!-- دليل المستخدم -->
+    <TextView
+        android:id="@+id/guideText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="50dp"
+        android:text="المس الشاشة • تحدث معي • حرك الهاتف"
+        android:textColor="#44ffffff"
+        android:textSize="11sp"
+        android:fontFamily="sans-serif-light" />
+
     <!-- حالة الوعي -->
     <TextView
         android:id="@+id/statusText"
@@ -54,17 +66,5 @@
         android:gravity="center"
         android:shadowColor="#000"
         android:shadowRadius="3" />
-
-    <!-- دليل المستخدم -->
-    <TextView
-        android:id="@+id/guideText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="50dp"
-        android:text="المس الشاشة • تحدث معي • حرك الهاتف"
-        android:textColor="#44ffffff"
-        android:textSize="11sp"
-        android:fontFamily="sans-serif-light" />
 
 </FrameLayout>
