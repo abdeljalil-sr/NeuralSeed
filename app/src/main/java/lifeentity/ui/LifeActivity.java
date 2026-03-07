@@ -59,10 +59,10 @@ public class LifeActivity extends AppCompatActivity {
     private ImageView displayView;
     private TextView statusText;
     private TextView guideText;
-    private TextView eventLogText;  // ✅ جديد: سجل الأحداث
+    private TextView eventLogText;
     
     private float lastTouchX, lastTouchY;
-    private String lastEvent = "";  // ✅ لتجنب التكرار
+    private String lastEvent = "";
     private long lastEventTime = 0;
 
     @Override
@@ -84,12 +84,10 @@ public class LifeActivity extends AppCompatActivity {
         displayView = findViewById(R.id.displayView);
         statusText = findViewById(R.id.statusText);
         guideText = findViewById(R.id.guideText);
-        eventLogText = findViewById(R.id.eventLogText);  // ✅ جديد
+        eventLogText = findViewById(R.id.eventLogText);
     }
     
-    // ✅ دالة سجل الأحداث
     private void logEvent(String event) {
-        // تجنب تكرار نفس الحدث خلال 2 ثانية
         long now = System.currentTimeMillis();
         if (event.equals(lastEvent) && (now - lastEventTime) < 2000) {
             return;
@@ -157,61 +155,37 @@ public class LifeActivity extends AppCompatActivity {
         AppDatabase db = AppDatabase.getDatabase(this);
         memory = db.memoryDao();
         
-        cloud = new FirebaseSync(deviceId);
-        cloud.setListener(new FirebaseSync.SyncListener() {
+        // ✅ إنشاء الأنظمة بعد معرفة أبعاد الشاشة
+        displayView.post(() -> {
+            int w = displayView.getWidth();
+            int h = displayView.getHeight();
             
-            @Override
-            public void onConnectionStatusChanged(boolean connected) {
-                Log.d("LifeEntity", "Cloud: " + (connected ? "connected" : "disconnected"));
-                if (connected) {
-                    logEvent("متصل بالسحابة");  // ✅
-                }
-            }
+            if (w == 0) w = 800;
+            if (h == 0) h = 1200;
             
-            @Override
-            public void onMemorySyncedFromCloud(String source, com.lifeentity.memory.EpisodicMemory.Event event) {
-                logEvent("ذكرى من جهاز آخر");  // ✅
-                if (voice != null) {
-                    voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", new EmotionalState());
-                }
-            }
+            // ✅ إنشاء Canvas بحجم الشاشة الفعلي
+            sharedCanvas = new SharedCanvas(w, h);
+            sharedCanvas.setViewSize(w, h);
+            imagination = new VisualImagination(w, h);
             
-            @Override
-            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
-                logEvent("تعلم شخصاً من جهاز آخر: " + name);  // ✅
-                if (voice != null) {
-                    voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
-                }
-            }
-            
-            @Override
-            public void onSyncComplete(int items) {
-                if (items > 0) {
-                    logEvent("مزامنة " + items + " ذكريات");  // ✅
-                    runOnUiThread(() -> statusText.setText("تمت مزامنة " + items + " ذكريات"));
-                }
-            }
+            setupCanvasListener();
+            setupCloud(deviceId);
+            setupSensors();
+            startSystems();
         });
-        
-        eyes = new VisualCortex(this);
-        ears = new AuditoryCortex(this);
-        body = new KinestheticSense(this);
-        
-        identitySystem = new FaceIdentitySystem();
-        embeddings = new EmbeddingsEngine(this);
-        imagination = new VisualImagination(800, 1200);
-        
-        sharedCanvas = new SharedCanvas(800, 1200);
+    }
+    
+    private void setupCanvasListener() {
         sharedCanvas.setListener(new SharedCanvas.OnCanvasInteraction() {
             @Override
             public void onObjectCreated(String desc, float x, float y) {
-                logEvent("تخيل: " + desc);  // ✅
+                logEvent("تخيل: " + desc);
                 runOnUiThread(() -> statusText.setText("Created: " + desc));
             }
             
             @Override
             public void onObjectSelected(String id, String concept) {
-                logEvent("اختار: " + concept);  // ✅
+                logEvent("اختار: " + concept);
                 if (voice != null) {
                     voice.articulate("هذا " + concept, new EmotionalState());
                 }
@@ -224,18 +198,64 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onGestureDrawn(String gesture, float x, float y) {
-                logEvent("إيماءة: " + gesture);  // ✅
+                logEvent("إيماءة: " + gesture);
             }
             
             @Override
             public void onCanvasQuestion(String question) {
                 String nearest = sharedCanvas.findNearestConcept(lastTouchX, lastTouchY);
-                logEvent("سؤال: ما هذا؟ → " + nearest);  // ✅
+                logEvent("سؤال: ما هذا؟ → " + nearest);
                 if (voice != null) {
                     voice.articulate("هذا ما أتخيله: " + nearest, new EmotionalState());
                 }
             }
         });
+    }
+    
+    private void setupCloud(String deviceId) {
+        cloud = new FirebaseSync(deviceId);
+        cloud.setListener(new FirebaseSync.SyncListener() {
+            @Override
+            public void onConnectionStatusChanged(boolean connected) {
+                Log.d("LifeEntity", "Cloud: " + (connected ? "connected" : "disconnected"));
+                if (connected) {
+                    logEvent("متصل بالسحابة");
+                }
+            }
+            
+            @Override
+            public void onMemorySyncedFromCloud(String source, com.lifeentity.memory.EpisodicMemory.Event event) {
+                logEvent("ذكرى من جهاز آخر");
+                if (voice != null) {
+                    voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", new EmotionalState());
+                }
+            }
+            
+            @Override
+            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
+                logEvent("تعلم شخصاً من جهاز آخر: " + name);
+                if (voice != null) {
+                    voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
+                }
+            }
+            
+            @Override
+            public void onSyncComplete(int items) {
+                if (items > 0) {
+                    logEvent("مزامنة " + items + " ذكريات");
+                    runOnUiThread(() -> statusText.setText("تمت مزامنة " + items + " ذكريات"));
+                }
+            }
+        });
+    }
+    
+    private void setupSensors() {
+        eyes = new VisualCortex(this);
+        ears = new AuditoryCortex(this);
+        body = new KinestheticSense(this);
+        
+        identitySystem = new FaceIdentitySystem();
+        embeddings = new EmbeddingsEngine(this);
         
         voice = new ArabicDialogue(this, memory);
         
@@ -253,7 +273,6 @@ public class LifeActivity extends AppCompatActivity {
                             (int)(moment.emotionalTone.getEnergy() * 100)
                         ));
                         
-                        // ✅ سجل التحولات العاطفية المهمة فقط
                         if (!"محايد".equals(emotion) && !emotion.equals(lastEvent)) {
                             logEvent("يشعر بـ: " + emotion);
                         }
@@ -267,38 +286,36 @@ public class LifeActivity extends AppCompatActivity {
                 String fromStr = from.toArabic();
                 String toStr = to.toArabic();
                 if (!fromStr.equals(toStr)) {
-                    logEvent("تحول من " + fromStr + " إلى " + toStr);  // ✅
+                    logEvent("تحول من " + fromStr + " إلى " + toStr);
                 }
             }
             
             @Override
             public void onArticulation(String thought, int urgency) {
-                logEvent("قال: " + thought);  // ✅
+                logEvent("قال: " + thought);
             }
         });
         
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
             public void onPerception(VisualCortex.VisualPerception perception) {
-                // ✅ سجل الوجوه
                 if (perception.faceCount > 0 && perception.mainFace != null) {
                     FaceIdentitySystem.IdentityResult result = 
                         identitySystem.recognizeOrLearn(perception.mainFace, "vision");
                     
                     if (result.isKnown) {
-                        logEvent("رأى: " + result.name + " (معروف)");  // ✅
+                        logEvent("رأى: " + result.name + " (معروف)");
                         if (voice != null) {
                             voice.articulate("أهلاً " + result.name, new EmotionalState());
                         }
                     } else {
-                        logEvent("رأى وجهاً جديداً");  // ✅
+                        logEvent("رأى وجهاً جديداً");
                         if (voice != null) {
                             voice.articulate("من أنت؟ أرى وجهاً جديداً", new EmotionalState());
                         }
                     }
                 }
                 
-                // ✅ سجل الأشياء المكتشفة
                 for (VisualCortex.VisualObject obj : perception.objects) {
                     float[] visualVec = extractVisualEmbedding(obj);
                     embeddings.learnAssociation(obj.label, visualVec);
@@ -311,7 +328,7 @@ public class LifeActivity extends AppCompatActivity {
                         new int[] { 200, 200, 200 }
                     );
                     
-                    logEvent("لاحظ: " + obj.label);  // ✅
+                    logEvent("لاحظ: " + obj.label);
                 }
                 
                 updateDisplay();
@@ -332,13 +349,13 @@ public class LifeActivity extends AppCompatActivity {
                 mind.receiveSensoryData(input);
                 
                 if (isSpeech && amplitude > 0.5f) {
-                    logEvent("سمع صوتاً...");  // ✅
+                    logEvent("سمع صوتاً...");
                 }
             }
             
             @Override
             public void onSpeechRecognized(String text, float confidence) {
-                logEvent("فهم: \"" + text + "\"");  // ✅
+                logEvent("فهم: \"" + text + "\"");
                 
                 if (sharedCanvas.getLastSelectedObject() != null) {
                     String concept = sharedCanvas.getLastSelectedObject().concept;
@@ -352,7 +369,7 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onQuestionDetected(String question) {
-                logEvent("سؤال: " + question);  // ✅
+                logEvent("سؤال: " + question);
                 if (voice != null) {
                     voice.hearUser(question, true);
                 }
@@ -370,7 +387,7 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onShakeDetected(float intensity) {
-                logEvent("اهتزاز! شدة: " + (int)(intensity * 100) + "%");  // ✅
+                logEvent("اهتزاز! شدة: " + (int)(intensity * 100) + "%");
                 if (voice != null) {
                     voice.articulate("أهتز! ما الذي يحدث؟", new EmotionalState());
                 }
@@ -378,7 +395,7 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onOrientationChanged(String newOrientation) {
-                logEvent("وضع: " + newOrientation);  // ✅
+                logEvent("وضع: " + newOrientation);
                 if ("face_down".equals(newOrientation) && voice != null) {
                     voice.articulate("أشعر بالثقل...", new EmotionalState());
                 }
@@ -386,7 +403,7 @@ public class LifeActivity extends AppCompatActivity {
             
             @Override
             public void onFallDetected() {
-                logEvent("⚠️ سقوط!");  // ✅
+                logEvent("⚠️ سقوط!");
                 if (voice != null) {
                     voice.articulate("سقطت! أشعر بالخوف", new EmotionalState());
                 }
@@ -403,8 +420,6 @@ public class LifeActivity extends AppCompatActivity {
             }
             return true;
         });
-        
-        startSystems();
     }
     
     private void startSystems() {
@@ -415,7 +430,7 @@ public class LifeActivity extends AppCompatActivity {
         cloud.startRealtimeSync();
         cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000);
         
-        logEvent("✓ استيقظ");  // ✅
+        logEvent("✓ استيقظ");
         
         if (voice != null) {
             voice.articulate("أنا هنا... أراك، أسمعك، أتعلم منك", new EmotionalState());
