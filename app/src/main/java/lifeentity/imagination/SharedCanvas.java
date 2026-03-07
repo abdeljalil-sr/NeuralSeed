@@ -22,6 +22,10 @@ public class SharedCanvas {
     private float lastX, lastY;
     private long touchStartTime;
     
+    // ✅ إضافة: أبعاد العرض الفعلية والتحويل
+    private int viewWidth, viewHeight;
+    private float scaleX = 1f, scaleY = 1f;
+    
     public interface OnCanvasInteraction {
         void onObjectCreated(String desc, float x, float y);
         void onObjectSelected(String id, String concept);
@@ -38,8 +42,17 @@ public class SharedCanvas {
         paint = new Paint();
         paint.setAntiAlias(true);
         paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeWidth(8); // ✅ خط أوضح
         
         objects = new ArrayList<>();
+    }
+    
+    // ✅ إضافة: تحديث أبعاد العرض
+    public void setViewSize(int width, int height) {
+        this.viewWidth = width;
+        this.viewHeight = height;
+        this.scaleX = (float) bitmap.getWidth() / width;
+        this.scaleY = (float) bitmap.getHeight() / height;
     }
     
     public void clear() {
@@ -65,8 +78,11 @@ public class SharedCanvas {
     }
     
     public boolean onTouch(MotionEvent event) {
-        float x = event.getX();
-        float y = event.getY();
+        // ✅ تحويل إحداثيات الشاشة إلى إحداثيات Canvas
+        float rawX = event.getX();
+        float rawY = event.getY();
+        float x = rawX * scaleX;
+        float y = rawY * scaleY;
         
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
@@ -89,6 +105,9 @@ public class SharedCanvas {
                         listener.onObjectMoved(selected.id, selected.x, selected.y);
                     }
                 } else {
+                    // ✅ رسم خط مرئي بلون واضح
+                    paint.setColor(Color.argb(200, 100, 200, 255));
+                    paint.setStrokeWidth(8);
                     canvas.drawLine(lastX, lastY, x, y, paint);
                     detectGesture(x - lastX, y - lastY);
                 }
@@ -143,15 +162,18 @@ public class SharedCanvas {
     public enum ImaginationMode {
         PERCEPTUAL, MEMORY, COUNTERFACTUAL, CREATIVE, DREAM
     }
-
     
     public String findNearestConcept(float x, float y) {
+        // ✅ تحويل الإحداثيات
+        float canvasX = x * scaleX;
+        float canvasY = y * scaleY;
+        
         ImaginedObject nearest = null;
         float minDist = Float.MAX_VALUE;
         
         for (ImaginedObject obj : objects) {
-            float dx = x - obj.x;
-            float dy = y - obj.y;
+            float dx = canvasX - obj.x;
+            float dy = canvasY - obj.y;
             float dist = (float) Math.sqrt(dx*dx + dy*dy);
             if (dist < minDist) {
                 minDist = dist;
