@@ -5,6 +5,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -126,6 +127,13 @@ public class LifeActivity extends AppCompatActivity {
         
         cloud = new FirebaseSync(deviceId);
         cloud.setListener(new FirebaseSync.SyncListener() {
+            
+            // ✅ هذه الدالة المضافة:
+            @Override
+            public void onConnectionStatusChanged(boolean connected) {
+                Log.d("LifeEntity", "Cloud: " + (connected ? "connected" : "disconnected"));
+            }
+            
             @Override
             public void onMemorySyncedFromCloud(String source, com.lifeentity.memory.EpisodicMemory.Event event) {
                 if (voice != null) {
