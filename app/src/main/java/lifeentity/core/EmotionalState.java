@@ -36,10 +36,8 @@ public class EmotionalState {
     public double getDopamine() { return dimensions.getOrDefault("dopamine", 0.3); }
     public double getCortisol() { return dimensions.getOrDefault("cortisol", 0.0); }
     public double getSerotonin() { return dimensions.getOrDefault("serotonin", 0.5); }
-    
-    public float getIntensity() {
-        return (float)(getArousal() + Math.abs(getDopamine() - getCortisol()));
-    }
+    public double getOxytocin() { return dimensions.getOrDefault("oxytocin", 0.0); }
+    public float getIntensity() { return (float)(getArousal() + Math.abs(getDopamine() - getCortisol())); }
     
     public boolean isSignificantShift() {
         // يحددها ConsciousnessCore عبر مقارنة مع previousEmotion
