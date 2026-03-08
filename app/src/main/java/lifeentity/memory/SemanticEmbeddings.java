@@ -1,8 +1,8 @@
-// ====================== SemanticEmbeddings.java (مع استيراد صحيح لـ @Entity) ======================
+// ====================== memory/SemanticEmbeddings.java (مع استيراد صحيح) ======================
 package com.lifeentity.memory;
 
 import androidx.annotation.NonNull;
-import androidx.room.Entity;
+import androidx.room.Entity; // ✅ استيراد صحيح من androidx.room
 import androidx.room.PrimaryKey;
 import androidx.room.TypeConverters;
 
