@@ -10,12 +10,17 @@ import androidx.room.TypeConverters;
 @Database(entities = {
     EpisodicMemory.EventEntity.class,
     IdentityMemory.class,
-    SemanticEmbeddings.Entity.class
-}, version = 1, exportSchema = false)
+    SemanticEmbeddings.Entity.class,
+    VisualMemory.class          // إضافة كيان الذاكرة البصرية الجديد
+}, version = 2, exportSchema = false)  // زيادة رقم الإصدار إلى 2
 @TypeConverters({Converters.class})
 public abstract class AppDatabase extends RoomDatabase {
     
+    // Dao الموجود سابقاً
     public abstract MemoryDao memoryDao();
+    
+    // Dao جديد للذاكرة البصرية
+    public abstract VisualMemoryDao visualMemoryDao();
     
     private static volatile AppDatabase INSTANCE;
     
@@ -27,7 +32,9 @@ public abstract class AppDatabase extends RoomDatabase {
                         context.getApplicationContext(),
                         AppDatabase.class,
                         "life_entity_brain.db"
-                    ).build();
+                    )
+                    .fallbackToDestructiveMigration() // يسمح بإعادة بناء الجداول أثناء التطوير
+                    .build();
                 }
             }
         }
