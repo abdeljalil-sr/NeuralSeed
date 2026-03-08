@@ -73,8 +73,7 @@ public class SceneUnderstanding {
 
         // تجهيز المخزن المؤقت للمخرجات (بافتراض أن النموذج يخرج float[1][num_labels])
         int numLabels = labels.size();
-        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, org.tensorflow.lite.support.tensorbuffer.TensorBuffer.DataType.FLOAT32);
-
+        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
         // تشغيل النموذج
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
