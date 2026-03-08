@@ -22,7 +22,58 @@
         android:scaleType="centerCrop"
         android:contentDescription="لوحة الخيال" />
 
-    <!-- ✅ سجل الأحداث الداخلية -->
+    <!-- طبقة المحادثة (تظهر فوق الصورة) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:background="#AA000000">
+
+        <!-- عرض المحادثة -->
+        <TextView
+            android:id="@+id/chatTextView"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:scrollbars="vertical"
+            android:padding="4dp"
+            android:background="#55000000"
+            android:gravity="bottom" />
+
+        <!-- صف الإدخال والإرسال -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <EditText
+                android:id="@+id/messageEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="اكتب رسالتك..."
+                android:textColor="#FFFFFF"
+                android:textColorHint="#88FFFFFF"
+                android:background="#44000000"
+                android:padding="8dp"
+                android:maxLines="3" />
+
+            <Button
+                android:id="@+id/sendButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="إرسال"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#FF5722"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- سجل الأحداث الداخلية -->
     <TextView
         android:id="@+id/eventLogText"
         android:layout_width="match_parent"
@@ -58,7 +109,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="30dp"
+        android:layout_marginBottom="200dp"  <!-- رفعها فوق شريط المحادثة -->
         android:layout_marginHorizontal="20dp"
         android:textColor="#88ffffff"
         android:textSize="12sp"
