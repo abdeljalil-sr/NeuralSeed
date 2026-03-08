@@ -360,7 +360,7 @@ public class LifeActivity extends AppCompatActivity {
                 // تعلم الارتباط بين الكلمات والمرئيات
                 for (VisualCortex.VisualObject obj : perception.objects) {
                     float[] visualVec = extractVisualEmbedding(obj);
-                    embeddings.learnAssociation(obj.label, visualVec);
+                    embeddings.learnAssociationAsync(obj.label, visualVec);
                 }
 
                 // ⬅️ تحليل المشهد وتعلمه باستخدام SceneUnderstanding
