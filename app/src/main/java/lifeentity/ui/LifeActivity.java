@@ -3,7 +3,6 @@ package com.lifeentity.ui;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -29,6 +28,7 @@ import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.MemoryDao;
 import com.lifeentity.perception.EmbeddingsEngine;
 import com.lifeentity.perception.FaceIdentitySystem;
+import com.lifeentity.perception.SceneUnderstanding;
 import com.lifeentity.sensors.AuditoryCortex;
 import com.lifeentity.sensors.KinestheticSense;
 import com.lifeentity.sensors.SensoryInput;
@@ -59,6 +59,7 @@ public class LifeActivity extends AppCompatActivity {
     private VisualImagination imagination;
     private SharedCanvas sharedCanvas;
     private ArabicDialogue voice;
+    private SceneUnderstanding sceneUnderstanding; // ⬅️ إضافة SceneUnderstanding
 
     private ImageView displayView;
     private TextView statusText;
@@ -159,6 +160,9 @@ public class LifeActivity extends AppCompatActivity {
         // تهيئة قاعدة البيانات
         database = AppDatabase.getDatabase(this);
         memoryDao = database.memoryDao();
+
+        // تهيئة SceneUnderstanding (يتطلب Context)
+        sceneUnderstanding = new SceneUnderstanding(this, database.visualMemoryDao());
 
         // تهيئة المكونات التي تعتمد على حجم الشاشة بعد معرفة الأبعاد
         displayView.post(() -> {
@@ -265,10 +269,10 @@ public class LifeActivity extends AppCompatActivity {
         identitySystem = new FaceIdentitySystem(memoryDao);
         embeddings = new EmbeddingsEngine(memoryDao);
 
-        voice = new ArabicDialogue(this, database); // تمرير قاعدة البيانات
+        voice = new ArabicDialogue(this, database);
 
-        // ConsciousnessCore الجديد يحتاج قاعدة البيانات
-        mind = new ConsciousnessCore(database);
+        // ConsciousnessCore الجديد يحتاج Context وقاعدة البيانات
+        mind = new ConsciousnessCore(this, database); // ⬅️ تعديل المنشئ ليشمل Context
         mind.addObserver(voice);
         mind.addObserver(new ConsciousnessCore.ConsciousnessObserver() {
             @Override
@@ -305,14 +309,23 @@ public class LifeActivity extends AppCompatActivity {
 
             @Override
             public void onVisualExpression(float[] latentVector, float intensity, String modality) {
-                // يتم استدعاؤها عندما يكون لدى الكائن دافع تعبيري بصري
-                // نستخدم VisualImagination لتحويل المتجه إلى صورة
                 Bitmap imagined = imagination.imagine(latentVector, intensity, VisualImagination.ImaginationMode.CREATIVE);
                 if (imagined != null) {
-                    // يمكن عرض الصورة مباشرة على SharedCanvas كخلفية أو ككائن
                     runOnUiThread(() -> {
-                        sharedCanvas.setBackground(imagined); // تعيين كخلفية
+                        sharedCanvas.setBackground(imagined);
                         updateDisplay();
+                    });
+                }
+            }
+
+            // ⬅️ إضافة مستمع الأحلام
+            @Override
+            public void onDreamGenerated(Bitmap dreamImage, String description) {
+                if (dreamImage != null) {
+                    runOnUiThread(() -> {
+                        sharedCanvas.setBackground(dreamImage);
+                        updateDisplay();
+                        logEvent("💭 " + description);
                     });
                 }
             }
@@ -360,6 +373,13 @@ public class LifeActivity extends AppCompatActivity {
                     float[] visualVec = extractVisualEmbedding(obj);
                     embeddings.learnAssociation(obj.label, visualVec);
                 }
+
+                // ⬅️ تحليل المشهد وتعلمه في SceneUnderstanding
+                // نحتاج للحصول على الصورة كاملة من الكاميرا. في الوقت الحالي، يمكننا تمرير الصورة التي حصلنا عليها.
+                // هذا يتطلب تعديل VisualCortex ليمرر الصورة (Bitmap) في VisualPerception.
+                // إذا لم تكن متوفرة، نؤجل هذا الجزء أو نمرر null.
+                // في الإصدار الحالي من VisualCortex، لا تتضمن الصورة كاملة، لذلك نؤقتاً نتركها.
+                // يمكننا لاحقاً إضافة صورة مصغرة في VisualPerception.
             }
 
             @Override
@@ -408,7 +428,7 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onMotionDetected(KinestheticSense.MotionState state) {
                 SensoryInput input = new SensoryInput();
-                input.motionIntensity = state.accelerationMagnitude / 20f; // تطبيع
+                input.motionIntensity = state.accelerationMagnitude / 20f;
                 input.posture = state.orientation;
                 mind.receiveSensoryData(input);
             }
@@ -438,7 +458,6 @@ public class LifeActivity extends AppCompatActivity {
             }
         });
 
-        // تفعيل اللمس على SharedCanvas
         displayView.setOnTouchListener((v, event) -> {
             lastTouchX = event.getX();
             lastTouchY = event.getY();
@@ -452,17 +471,14 @@ public class LifeActivity extends AppCompatActivity {
     }
 
     private void startSystems() {
-        // بدء الحواس
         eyes.start(this, this);
         ears.startContinuousListening();
         body.activate();
 
-        // إيقاظ الوعي
         mind.awaken();
 
-        // بدء مزامنة Firebase
-        cloud.startRealtimeSync();
-        cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000); // آخر 24 ساعة
+        cloud.start();
+        cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000);
 
         logEvent("✓ استيقظ");
 
@@ -480,16 +496,12 @@ public class LifeActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * استخراج متجه بصري بسيط من كائن مرئي (لتغذية EmbeddingsEngine).
-     */
     private float[] extractVisualEmbedding(VisualCortex.VisualObject obj) {
         float[] vec = new float[128];
-        vec[0] = obj.getArea() / 100000f; // مساحة نسبية
+        vec[0] = obj.getArea() / 100000f;
         vec[1] = obj.confidence;
-        // يمكن إضافة المزيد من الخصائص (لون، شكل) لكن هذا مبسط
         for (int i = 2; i < 128; i++) {
-            vec[i] = (float) Math.random(); // مؤقت
+            vec[i] = (float) Math.random();
         }
         return vec;
     }
@@ -501,6 +513,7 @@ public class LifeActivity extends AppCompatActivity {
         if (body != null) body.deactivate();
         if (voice != null) voice.shutdown();
         if (cloud != null) cloud.stop();
+        if (sceneUnderstanding != null) sceneUnderstanding.close();
         super.onDestroy();
     }
 }
