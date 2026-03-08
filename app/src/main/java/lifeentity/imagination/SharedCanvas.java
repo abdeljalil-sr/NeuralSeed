@@ -6,48 +6,96 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
+import android.graphics.RectF;
 import android.view.MotionEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
+/**
+ * لوحة مشتركة بين الكائن والمستخدم.
+ * يمكن للكائن أن يتخيل كائنات (ImaginedObject) ويرسمها، ويمكن للمستخدم التفاعل عبر اللمس.
+ * الخلفية يمكن تعيينها من ImaginationEngine (صورة مولدة من الذاكرة).
+ */
 public class SharedCanvas {
     
-    private Bitmap bitmap;
-    private Canvas canvas;
-    private Paint paint;
-    private List<ImaginedObject> objects;
-    private ImaginedObject selected;
-    private OnCanvasInteraction listener;
-    private float lastX, lastY;
-    private long touchStartTime;
+    private Bitmap bitmap;                 // اللوحة النهائية (الخلفية + الكائنات)
+    private Canvas canvas;                  // لرسم اللوحة
+    private Paint paint;                     // للرسم
     
-    // ✅ إضافة: أبعاد العرض الفعلية والتحويل
+    private Bitmap backgroundBitmap;        // صورة الخلفية (يمكن أن تأتي من ImaginationEngine)
+    private Canvas backgroundCanvas;        // لرسم الخلفية (اختياري)
+    
+    private List<ImaginedObject> objects;   // كائنات متخيلة
+    private ImaginedObject selected;         // الكائن المحدد حالياً
+    private OnCanvasInteraction listener;    // مستمع للتفاعلات
+    
+    private float lastX, lastY;              // آخر إحداثيات لمس (بالـ canvas pixels)
+    private long touchStartTime;              // وقت بدء اللمس
+    
+    // تحويل إحداثيات الشاشة إلى إحداثيات اللوحة
     private int viewWidth, viewHeight;
     private float scaleX = 1f, scaleY = 1f;
     
+    // عشوائية موجهة (لرسم الكائنات)
+    private Random random;
+    
     public interface OnCanvasInteraction {
-        void onObjectCreated(String desc, float x, float y);
+        void onObjectCreated(String concept, float x, float y);
         void onObjectSelected(String id, String concept);
         void onObjectMoved(String id, float x, float y);
         void onGestureDrawn(String gesture, float x, float y);
         void onCanvasQuestion(String question);
     }
     
-    public SharedCanvas(int w, int h) {
-        bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+    public SharedCanvas(int width, int height) {
+        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         canvas = new Canvas(bitmap);
         clear();
         
+        // إعداد الفرشاة
         paint = new Paint();
         paint.setAntiAlias(true);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStrokeWidth(8); // ✅ خط أوضح
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        paint.setStyle(Paint.Style.FILL_AND_STROKE);
+        paint.setStrokeWidth(8);
         
         objects = new ArrayList<>();
+        random = new Random();
+        
+        backgroundBitmap = null;
     }
     
-    // ✅ إضافة: تحديث أبعاد العرض
+    /**
+     * تعيين صورة الخلفية (تأتي من ImaginationEngine مثلاً)
+     */
+    public void setBackground(Bitmap bg) {
+        if (bg == null) return;
+        // تغيير حجم الصورة لتناسب اللوحة إذا لزم الأمر
+        backgroundBitmap = Bitmap.createScaledBitmap(bg, bitmap.getWidth(), bitmap.getHeight(), true);
+        redraw(); // إعادة رسم اللوحة بالخلفية الجديدة
+    }
+    
+    /**
+     * مسح الخلفية وإعادة تعيينها للون الأسود
+     */
+    public void clearBackground() {
+        backgroundBitmap = null;
+        redraw();
+    }
+    
+    /**
+     * مسح اللوحة بالكامل (الخلفية والكائنات)
+     */
+    public void clear() {
+        canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR);
+    }
+    
+    /**
+     * تحديث أبعاد العرض (لتطبيق scale)
+     */
     public void setViewSize(int width, int height) {
         this.viewWidth = width;
         this.viewHeight = height;
@@ -55,41 +103,97 @@ public class SharedCanvas {
         this.scaleY = (float) bitmap.getHeight() / height;
     }
     
-    public void clear() {
-        canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR);
-    }
-    
-    public void imagineObject(String concept, float x, float y, float size, int[] colors) {
+    /**
+     * إضافة كائن متخيل (يناديها ConsciousnessCore عند وجود دافع تعبيري)
+     * @param concept مفهوم الكائن (يمكن أن يكون عشوائياً أو من الذاكرة)
+     * @param x إحداثي x (0..1 نسبة إلى عرض اللوحة)
+     * @param y إحداثي y
+     * @param intensity شدة الدافع (تؤثر على الحجم والشفافية)
+     * @param hue لون مقترح (ثلاثي RGB)
+     */
+    public void imagineObject(String concept, float x, float y, float intensity, int[] hue) {
+        if (concept == null) concept = "شيء";
+        
         ImaginedObject obj = new ImaginedObject();
-        obj.id = "obj_" + System.currentTimeMillis();
+        obj.id = "obj_" + System.currentTimeMillis() + "_" + random.nextInt(1000);
         obj.concept = concept;
-        obj.x = x;
-        obj.y = y;
-        obj.size = Math.max(20, size);
-        obj.colors = colors != null ? colors : new int[] { 200, 200, 200 };
-        obj.shape = generateShape(concept);
+        obj.x = x * bitmap.getWidth();
+        obj.y = y * bitmap.getHeight();
+        obj.size = 50 + intensity * 100; // الحجم يتناسب مع الشدة
+        if (hue == null || hue.length < 3) {
+            obj.colors = new int[]{
+                100 + random.nextInt(155),
+                100 + random.nextInt(155),
+                100 + random.nextInt(155)
+            };
+        } else {
+            obj.colors = hue.clone();
+        }
+        
+        // توليد مسار عشوائي فريد لكل كائن بناءً على مفهومه
+        obj.path = generateRandomPath(obj.x, obj.y, obj.size, concept);
         
         objects.add(obj);
-        drawObject(obj);
+        redraw();
         
         if (listener != null) {
-            listener.onObjectCreated(concept, x, y);
+            listener.onObjectCreated(concept, obj.x / bitmap.getWidth(), obj.y / bitmap.getHeight());
         }
     }
     
+    /**
+     * توليد مسار عشوائي (شكل عضوي) يعتمد على concept
+     */
+    private Path generateRandomPath(float cx, float cy, float size, String seed) {
+        random.setSeed(seed.hashCode() + System.currentTimeMillis() % 10000);
+        Path path = new Path();
+        
+        // عدد النقاط: بين 5 و 12
+        int numPoints = 5 + random.nextInt(8);
+        float[] angles = new float[numPoints];
+        float[] radii = new float[numPoints];
+        
+        // توليد زوايا متباعدة بشكل متساوٍ مع بعض العشوائية
+        for (int i = 0; i < numPoints; i++) {
+            angles[i] = (float) (2 * Math.PI * i / numPoints + random.nextFloat() * 0.5 - 0.25);
+            radii[i] = size * (0.7f + random.nextFloat() * 0.6f);
+        }
+        
+        // بناء المسار (نقاط متصلة)
+        float startX = cx + (float) Math.cos(angles[0]) * radii[0];
+        float startY = cy + (float) Math.sin(angles[0]) * radii[0];
+        path.moveTo(startX, startY);
+        
+        for (int i = 1; i < numPoints; i++) {
+            float x = cx + (float) Math.cos(angles[i]) * radii[i];
+            float y = cy + (float) Math.sin(angles[i]) * radii[i];
+            path.lineTo(x, y);
+        }
+        path.close();
+        
+        // إضافة بعض التموجات (Bezier curves) لجعل الشكل أقل خشونة
+        // (يمكن تطويرها لاحقاً)
+        
+        return path;
+    }
+    
+    /**
+     * معالجة حدث اللمس (من LifeActivity)
+     */
     public boolean onTouch(MotionEvent event) {
-        // ✅ تحويل إحداثيات الشاشة إلى إحداثيات Canvas
+        if (viewWidth == 0 || viewHeight == 0) return false;
+        
         float rawX = event.getX();
         float rawY = event.getY();
-        float x = rawX * scaleX;
-        float y = rawY * scaleY;
+        float canvasX = rawX * scaleX;
+        float canvasY = rawY * scaleY;
         
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 touchStartTime = System.currentTimeMillis();
-                lastX = x;
-                lastY = y;
-                selected = findObjectAt(x, y);
+                lastX = canvasX;
+                lastY = canvasY;
+                selected = findObjectAt(canvasX, canvasY);
                 
                 if (selected != null && listener != null) {
                     listener.onObjectSelected(selected.id, selected.concept);
@@ -98,21 +202,24 @@ public class SharedCanvas {
                 
             case MotionEvent.ACTION_MOVE:
                 if (selected != null) {
-                    selected.x += (x - lastX);
-                    selected.y += (y - lastY);
+                    // تحريك الكائن المحدد
+                    selected.x += (canvasX - lastX);
+                    selected.y += (canvasY - lastY);
+                    // إعادة توليد المسار مع الحفاظ على الشكل (نفس البذرة)
+                    selected.path = generateRandomPath(selected.x, selected.y, selected.size, selected.concept);
                     redraw();
                     if (listener != null) {
-                        listener.onObjectMoved(selected.id, selected.x, selected.y);
+                        listener.onObjectMoved(selected.id, selected.x / bitmap.getWidth(), selected.y / bitmap.getHeight());
                     }
                 } else {
-                    // ✅ رسم خط مرئي بلون واضح
-                    paint.setColor(Color.argb(200, 100, 200, 255));
+                    // رسم خط (المستخدم يرسم)
+                    paint.setColor(Color.argb(200, 100, 200, 255)); // لون أزرق فاتح
                     paint.setStrokeWidth(8);
-                    canvas.drawLine(lastX, lastY, x, y, paint);
-                    detectGesture(x - lastX, y - lastY);
+                    canvas.drawLine(lastX, lastY, canvasX, canvasY, paint);
+                    detectGesture(canvasX - lastX, canvasY - lastY);
                 }
-                lastX = x;
-                lastY = y;
+                lastX = canvasX;
+                lastY = canvasY;
                 return true;
                 
             case MotionEvent.ACTION_UP:
@@ -126,6 +233,9 @@ public class SharedCanvas {
         return false;
     }
     
+    /**
+     * الكشف عن إيماءة بسيطة (سحب، رسم)
+     */
     private void detectGesture(float dx, float dy) {
         if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
         
@@ -139,13 +249,17 @@ public class SharedCanvas {
         }
         
         if (listener != null) {
-            listener.onGestureDrawn(gesture, lastX, lastY);
+            listener.onGestureDrawn(gesture, lastX / bitmap.getWidth(), lastY / bitmap.getHeight());
         }
     }
     
+    /**
+     * البحث عن كائن تحت إحداثيات معينة
+     */
     private ImaginedObject findObjectAt(float x, float y) {
         for (int i = objects.size() - 1; i >= 0; i--) {
             ImaginedObject obj = objects.get(i);
+            // تقريب: نعتبر الكائن دائرة قطره size
             float dx = x - obj.x;
             float dy = y - obj.y;
             if (Math.sqrt(dx*dx + dy*dy) < obj.size) {
@@ -155,35 +269,27 @@ public class SharedCanvas {
         return null;
     }
     
-    public ImaginedObject getLastSelectedObject() {
-        return selected;
-    }
-
-    public enum ImaginationMode {
-        PERCEPTUAL, MEMORY, COUNTERFACTUAL, CREATIVE, DREAM
-    }
-    
-    public String findNearestConcept(float x, float y) {
-        // ✅ تحويل الإحداثيات
-        float canvasX = x * scaleX;
-        float canvasY = y * scaleY;
+    /**
+     * إعادة رسم اللوحة بالكامل (الخلفية + الكائنات)
+     */
+    private void redraw() {
+        // مسح اللوحة
+        canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR);
         
-        ImaginedObject nearest = null;
-        float minDist = Float.MAX_VALUE;
-        
-        for (ImaginedObject obj : objects) {
-            float dx = canvasX - obj.x;
-            float dy = canvasY - obj.y;
-            float dist = (float) Math.sqrt(dx*dx + dy*dy);
-            if (dist < minDist) {
-                minDist = dist;
-                nearest = obj;
-            }
+        // رسم الخلفية إن وجدت
+        if (backgroundBitmap != null) {
+            canvas.drawBitmap(backgroundBitmap, 0, 0, null);
         }
         
-        return nearest != null ? nearest.concept : "الفراغ";
+        // رسم الكائنات
+        for (ImaginedObject obj : objects) {
+            drawObject(obj);
+        }
     }
     
+    /**
+     * رسم كائن متخيل على اللوحة
+     */
     private void drawObject(ImaginedObject obj) {
         paint.setColor(Color.rgb(
             Math.min(255, obj.colors[0]),
@@ -193,47 +299,27 @@ public class SharedCanvas {
         paint.setAlpha(200);
         paint.setStyle(Paint.Style.FILL);
         
-        switch (obj.shape) {
-            case "circle":
-                canvas.drawCircle(obj.x, obj.y, obj.size, paint);
-                break;
-            case "square":
-                canvas.drawRect(
-                    obj.x - obj.size, obj.y - obj.size,
-                    obj.x + obj.size, obj.y + obj.size,
-                    paint
-                );
-                break;
-            default:
-                Path p = new Path();
-                for (int i = 0; i < 6; i++) {
-                    double angle = i * Math.PI / 3;
-                    float px = obj.x + (float)(Math.cos(angle) * obj.size);
-                    float py = obj.y + (float)(Math.sin(angle) * obj.size);
-                    if (i == 0) p.moveTo(px, py);
-                    else p.lineTo(px, py);
-                }
-                p.close();
-                canvas.drawPath(p, paint);
+        // رسم المسار الخاص بالكائن
+        if (obj.path != null) {
+            canvas.drawPath(obj.path, paint);
         }
         
-        // Label
+        // رسم إطار خفيف حول الكائن إذا كان مختاراً
+        if (obj == selected) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(4);
+            paint.setColor(Color.WHITE);
+            paint.setAlpha(255);
+            if (obj.path != null) {
+                canvas.drawPath(obj.path, paint);
+            }
+        }
+        
+        // رسم التسمية (concept)
+        paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.WHITE);
         paint.setTextSize(24);
         canvas.drawText(obj.concept, obj.x - obj.size, obj.y + obj.size + 30, paint);
-    }
-    
-    private void redraw() {
-        clear();
-        for (ImaginedObject obj : objects) {
-            drawObject(obj);
-        }
-    }
-    
-    private String generateShape(String concept) {
-        int hash = concept.hashCode();
-        String[] shapes = {"circle", "square", "organic"};
-        return shapes[Math.abs(hash) % shapes.length];
     }
     
     public Bitmap getBitmap() {
@@ -244,11 +330,15 @@ public class SharedCanvas {
         this.listener = l;
     }
     
+    /**
+     * الكائن المتخيل (تمثيل داخلي)
+     */
     public static class ImaginedObject {
         public String id;
         public String concept;
-        public float x, y, size;
-        public int[] colors;
-        public String shape;
+        public float x, y;          // إحداثيات المركز بالبكسل
+        public float size;           // نصف قطر تقريبي
+        public int[] colors;         // RGB
+        public Path path;            // المسار العضوي الفريد
     }
 }
