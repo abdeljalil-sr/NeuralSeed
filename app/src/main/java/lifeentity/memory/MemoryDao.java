@@ -1,3 +1,4 @@
+// ====================== memory/MemoryDao.java (مع تصحيح الإشارات إلى SemanticEmbeddings.EmbeddingEntity) ======================
 package com.lifeentity.memory;
 
 import androidx.room.Dao;
@@ -7,15 +8,10 @@ import androidx.room.Query;
 
 import java.util.List;
 
-/**
- * واجهة الوصول إلى قاعدة البيانات للذاكرة العرضية (episodic memory)
- * والهويات (identities) والتضمينات الدلالية (semantic embeddings).
- */
 @Dao
 public interface MemoryDao {
 
     // ========================== الأحداث (EpisodicMemory) ==========================
-
     @Insert
     void insertEvent(EpisodicMemory.EventEntity event);
 
@@ -38,7 +34,6 @@ public interface MemoryDao {
     EpisodicMemory.EventEntity getLatestEvent();
 
     // ========================== الهويات (IdentityMemory) ==========================
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void saveIdentity(IdentityMemory identity);
 
@@ -58,15 +53,15 @@ public interface MemoryDao {
     void deleteIdentity(String hash);
 
     // ========================== التضمينات الدلالية (SemanticEmbeddings) ==========================
-
+    // ✅ تم تغيير Entity إلى EmbeddingEntity
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    void saveEmbedding(SemanticEmbeddings.Entity embedding);
+    void saveEmbedding(SemanticEmbeddings.EmbeddingEntity embedding);
 
     @Query("SELECT * FROM embeddings WHERE concept = :concept")
-    SemanticEmbeddings.Entity getEmbedding(String concept);
+    SemanticEmbeddings.EmbeddingEntity getEmbedding(String concept);
 
     @Query("SELECT * FROM embeddings ORDER BY learnedAt DESC LIMIT 100")
-    List<SemanticEmbeddings.Entity> getRecentEmbeddings();
+    List<SemanticEmbeddings.EmbeddingEntity> getRecentEmbeddings();
 
     @Query("SELECT concept FROM embeddings")
     List<String> getAllConcepts();
