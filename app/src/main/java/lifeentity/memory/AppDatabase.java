@@ -21,7 +21,8 @@ public abstract class AppDatabase extends RoomDatabase {
     
     // Dao جديد للذاكرة البصرية
     public abstract VisualMemoryDao visualMemoryDao();
-    
+    // داخل AppDatabase.jav
+public abstract ConceptEmbeddingDao conceptEmbeddingDao();
     private static volatile AppDatabase INSTANCE;
     
     public static AppDatabase getDatabase(Context context) {
