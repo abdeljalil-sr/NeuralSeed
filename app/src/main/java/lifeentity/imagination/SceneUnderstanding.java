@@ -1,4 +1,4 @@
-// ====================== SceneUnderstanding.java (مع إصلاح TensorBuffer.DataType) ======================
+// ====================== imagination/SceneUnderstanding.java (مع إصلاح TensorBuffer.DataType) ======================
 package com.lifeentity.perception;
 
 import android.content.Context;
@@ -13,6 +13,8 @@ import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.label.TensorLabel;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+// استيراد DataType بشكل صريح (وهو enum داخل TensorBuffer)
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer.DataType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -57,10 +59,8 @@ public class SceneUnderstanding {
         ByteBuffer inputBuffer = tensorImage.getBuffer();
 
         int numLabels = labels.size();
-        // ✅ التصحيح: استخدام TensorBuffer.DataType.FLOAT32 مباشرة (DataType هو enum داخل TensorBuffer)
-        // إذا لم يعمل، يمكن استخدام: TensorBuffer.createFixedSize(new int[]{1, numLabels}, DataType.FLOAT32);
-        // مع استيراد org.tensorflow.lite.support.tensorbuffer.TensorBuffer.DataType;
-        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
+        // ✅ استخدام DataType المستورد بشكل صريح
+        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, DataType.FLOAT32);
 
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
