@@ -1,4 +1,3 @@
-// ====================== perception/EmbeddingsEngine.java (معدل بالكامل) ======================
 package com.lifeentity.perception;
 
 import android.util.Log;
@@ -28,6 +27,7 @@ public class EmbeddingsEngine {
         word = normalize(word);
         if (word.isEmpty()) return getRandomVector("empty");
 
+        // ✅ استخدم EmbeddingEntity
         SemanticEmbeddings.EmbeddingEntity entity = memoryDao.getEmbedding(word);
         if (entity != null && entity.vector != null) {
             return entity.vector;
@@ -49,6 +49,7 @@ public class EmbeddingsEngine {
         }
 
         String conceptKey = "concept:" + word;
+        // ✅ استخدم EmbeddingEntity
         SemanticEmbeddings.EmbeddingEntity entity = new SemanticEmbeddings.EmbeddingEntity(conceptKey, fused);
         memoryDao.saveEmbedding(entity);
 
@@ -56,6 +57,7 @@ public class EmbeddingsEngine {
     }
 
     public String findVisualConcept(float[] visualVector) {
+        // ✅ استخدم EmbeddingEntity
         List<SemanticEmbeddings.EmbeddingEntity> allEmbeddings = memoryDao.getRecentEmbeddings();
         String bestConcept = null;
         float bestSimilarity = -1f;
