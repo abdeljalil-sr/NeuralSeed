@@ -11,20 +11,15 @@ import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.IdentityMemory;
-import com.lifeentity.perception.FaceIdentitySystem;
+import com.lifeentity.perception.FaceIdentitySystem; // لاستيراد IdentityProfile
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * مزامنة التجارب بين الأجهزة عبر Firebase
- * يتيح للكائن أن يتعلم من تجارب أجهزة أخرى، ويشارك تجاربه الخاصة.
- */
 public class FirebaseSync {
     private static final String TAG = "FirebaseSync";
 
-    // أسماء المجموعات في Firestore
     private static final String COLLECTION_MEMORIES = "memories";
     private static final String COLLECTION_IDENTITIES = "identities";
     private static final String COLLECTION_EMBEDDINGS = "embeddings";
@@ -34,8 +29,6 @@ public class FirebaseSync {
     private String deviceId;
     private String deviceName;
     private SyncListener listener;
-
-    // للتحكم في تحديث حالة الجهاز
     private Handler heartbeatHandler;
     private Runnable heartbeatRunnable;
     private AtomicBoolean isActive = new AtomicBoolean(false);
@@ -52,31 +45,24 @@ public class FirebaseSync {
         this.deviceName = "Device_" + (deviceId.length() > 6 ? deviceId.substring(0, 6) : deviceId);
         this.db = FirebaseFirestore.getInstance();
         this.heartbeatHandler = new Handler(Looper.getMainLooper());
-
         Log.i(TAG, "FirebaseSync initialized for: " + deviceName);
     }
 
-    /**
-     * بدء الاستماع للتحديثات المباشرة من Firestore وتسجيل الجهاز
-     */
     public void start() {
         if (isActive.get()) return;
         isActive.set(true);
-
-        // تسجيل الجهاز كـ "نشط" وتحديث كل دقيقة
         updateDeviceStatus();
         heartbeatRunnable = new Runnable() {
             @Override
             public void run() {
                 if (isActive.get()) {
                     updateDeviceStatus();
-                    heartbeatHandler.postDelayed(this, 60000); // كل 60 ثانية
+                    heartbeatHandler.postDelayed(this, 60000);
                 }
             }
         };
         heartbeatHandler.post(heartbeatRunnable);
 
-        // الاستماع للذكريات الجديدة من أجهزة أخرى
         db.collection(COLLECTION_MEMORIES)
                 .whereNotEqualTo("deviceId", deviceId)
                 .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -84,38 +70,25 @@ public class FirebaseSync {
                 .addSnapshotListener((snapshots, error) -> {
                     if (error != null) {
                         Log.e(TAG, "Listen failed: ", error);
-                        if (listener != null) {
-                            listener.onConnectionStatusChanged(false);
-                        }
+                        if (listener != null) listener.onConnectionStatusChanged(false);
                         return;
                     }
-
                     if (snapshots == null) return;
-
                     int newItems = 0;
                     for (DocumentChange dc : snapshots.getDocumentChanges()) {
                         if (dc.getType() == DocumentChange.Type.ADDED) {
-                            DocumentSnapshot doc = dc.getDocument();
-                            processNewMemory(doc);
+                            processNewMemory(dc.getDocument());
                             newItems++;
                         }
                     }
-
-                    if (newItems > 0 && listener != null) {
-                        listener.onSyncComplete(newItems);
-                    }
-
-                    if (listener != null) {
-                        listener.onConnectionStatusChanged(true);
-                    }
+                    if (newItems > 0 && listener != null) listener.onSyncComplete(newItems);
+                    if (listener != null) listener.onConnectionStatusChanged(true);
                 });
 
-        // الاستماع للهويات الجديدة
         db.collection(COLLECTION_IDENTITIES)
                 .whereNotEqualTo("createdBy", deviceId)
                 .addSnapshotListener((snapshots, error) -> {
                     if (error != null || snapshots == null) return;
-
                     for (DocumentChange dc : snapshots.getDocumentChanges()) {
                         if (dc.getType() == DocumentChange.Type.ADDED) {
                             processNewIdentity(dc.getDocument());
@@ -124,27 +97,17 @@ public class FirebaseSync {
                 });
     }
 
-    /**
-     * تحديث حالة الجهاز في Firestore
-     */
     private void updateDeviceStatus() {
         Map<String, Object> deviceInfo = new HashMap<>();
         deviceInfo.put("lastActive", System.currentTimeMillis());
         deviceInfo.put("name", deviceName);
         deviceInfo.put("deviceId", deviceId);
-
-        db.collection(COLLECTION_DEVICES)
-                .document(deviceId)
-                .set(deviceInfo, SetOptions.merge())
+        db.collection(COLLECTION_DEVICES).document(deviceId).set(deviceInfo, SetOptions.merge())
                 .addOnFailureListener(e -> Log.w(TAG, "Failed to update device status", e));
     }
 
-    /**
-     * رفع ذاكرة محلية إلى السحابة
-     */
     public void uploadMemory(EpisodicMemory.Event event) {
         if (event == null) return;
-
         Map<String, Object> data = new HashMap<>();
         data.put("deviceId", deviceId);
         data.put("deviceName", deviceName);
@@ -156,22 +119,15 @@ public class FirebaseSync {
         data.put("location", event.location);
         data.put("shared", true);
         data.put("sharedAt", System.currentTimeMillis());
-
-        // استخدام sensoryHash كمعرف فريد، أو إنشاء واحد
         String docId = event.sensoryHash != null ? event.sensoryHash : deviceId + "_" + event.timestamp;
-        db.collection(COLLECTION_MEMORIES)
-                .document(docId)
-                .set(data, SetOptions.merge())
+        db.collection(COLLECTION_MEMORIES).document(docId).set(data, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Memory uploaded: " + docId))
                 .addOnFailureListener(e -> Log.e(TAG, "Upload failed: ", e));
     }
 
-    /**
-     * رفع هوية جديدة (شخص معروف)
-     */
+    // ✅ التصحيح: استخدم FaceIdentitySystem.IdentityProfile مباشرة
     public void uploadIdentity(FaceIdentitySystem.IdentityProfile identity) {
         if (identity == null || identity.faceHash == null) return;
-
         Map<String, Object> data = new HashMap<>();
         data.put("createdBy", deviceId);
         data.put("deviceName", deviceName);
@@ -184,19 +140,12 @@ public class FirebaseSync {
         data.put("firstSeen", identity.firstSeen);
         data.put("lastSeen", identity.lastSeen);
         data.put("sharedAt", System.currentTimeMillis());
-
-        db.collection(COLLECTION_IDENTITIES)
-                .document(identity.faceHash)
-                .set(data, SetOptions.merge())
+        db.collection(COLLECTION_IDENTITIES).document(identity.faceHash).set(data, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> Log.i(TAG, "Identity shared: " + identity.name));
     }
 
-    /**
-     * رفع تمثيل دلالي (embedding) للمفاهيم المشتركة
-     */
     public void uploadEmbedding(String concept, float[] embedding, String context) {
         if (concept == null || embedding == null) return;
-
         Map<String, Object> data = new HashMap<>();
         data.put("deviceId", deviceId);
         data.put("deviceName", deviceName);
@@ -204,16 +153,10 @@ public class FirebaseSync {
         data.put("vector", embeddingToList(embedding));
         data.put("context", context);
         data.put("learnedAt", System.currentTimeMillis());
-
-        db.collection(COLLECTION_EMBEDDINGS)
-                .document(deviceId + "_" + concept)
-                .set(data, SetOptions.merge())
+        db.collection(COLLECTION_EMBEDDINGS).document(deviceId + "_" + concept).set(data, SetOptions.merge())
                 .addOnFailureListener(e -> Log.w(TAG, "Failed to upload embedding", e));
     }
 
-    /**
-     * جلب ذكريات من أجهزة أخرى (للتزامن الأولي)
-     */
     public void syncMemoriesFromOthers(long sinceTimestamp) {
         db.collection(COLLECTION_MEMORIES)
                 .whereNotEqualTo("deviceId", deviceId)
@@ -227,23 +170,15 @@ public class FirebaseSync {
                         processNewMemory(doc);
                         count++;
                     }
-
                     Log.i(TAG, "Synced " + count + " memories from other devices");
-
-                    if (listener != null) {
-                        listener.onSyncComplete(count);
-                    }
+                    if (listener != null) listener.onSyncComplete(count);
                 })
                 .addOnFailureListener(e -> Log.e(TAG, "Sync failed: ", e));
     }
 
-    /**
-     * معالجة ذكرية جديدة من جهاز آخر
-     */
     private void processNewMemory(DocumentSnapshot doc) {
         String sourceDevice = doc.getString("deviceName");
         if (sourceDevice == null) sourceDevice = "جهاز آخر";
-
         EpisodicMemory.Event event = new EpisodicMemory.Event();
         event.timestamp = doc.getLong("timestamp") != null ? doc.getLong("timestamp") : 0L;
         event.sensoryHash = doc.getString("sensoryHash");
@@ -253,53 +188,34 @@ public class FirebaseSync {
         String narrative = doc.getString("narrative");
         event.narrative = "[من " + sourceDevice + "] " + (narrative != null ? narrative : "");
         event.location = doc.getString("location");
-
-        // تقليل الشدة العاطفية لأنها تجربة غير مباشرة
         event.emotionalIntensity *= 0.6;
-
         Log.d(TAG, "Received memory from " + sourceDevice + ": " + event.narrative);
-
-        if (listener != null) {
-            listener.onMemorySyncedFromCloud(sourceDevice, event);
-        }
+        if (listener != null) listener.onMemorySyncedFromCloud(sourceDevice, event);
     }
 
-    /**
-     * معالجة هوية جديدة من جهاز آخر
-     */
     private void processNewIdentity(DocumentSnapshot doc) {
         String name = doc.getString("name");
         String relationship = doc.getString("relationship");
         String emotionalAssoc = doc.getString("emotionalAssociation");
-
         if (name == null) return;
-
         Log.i(TAG, "Learned identity from other device: " + name);
-
         if (listener != null) {
-            listener.onIdentityLearnedFromOtherDevice(
-                    name,
+            listener.onIdentityLearnedFromOtherDevice(name,
                     (relationship != null ? relationship : "شخص") +
-                            (emotionalAssoc != null ? " (يشعر بالـ" + emotionalAssoc + " معهم)" : "")
-            );
+                    (emotionalAssoc != null ? " (يشعر بالـ" + emotionalAssoc + " معهم)" : ""));
         }
     }
 
-    /**
-     * الحصول على قائمة الأجهزة النشطة (آخر 5 دقائق)
-     */
     public void getActiveDevices(OnDevicesListListener callback) {
         db.collection(COLLECTION_DEVICES)
-                .whereGreaterThan("lastActive", System.currentTimeMillis() - 300_000) // 5 دقائق
+                .whereGreaterThan("lastActive", System.currentTimeMillis() - 300_000)
                 .get()
                 .addOnSuccessListener(snapshot -> {
                     Map<String, Long> devices = new HashMap<>();
                     for (DocumentSnapshot doc : snapshot.getDocuments()) {
                         String name = doc.getString("name");
                         Long lastActive = doc.getLong("lastActive");
-                        if (name != null && lastActive != null) {
-                            devices.put(name, lastActive);
-                        }
+                        if (name != null && lastActive != null) devices.put(name, lastActive);
                     }
                     callback.onDevicesReceived(devices);
                 })
@@ -315,25 +231,14 @@ public class FirebaseSync {
 
     private java.util.List<Double> embeddingToList(float[] embedding) {
         java.util.List<Double> list = new java.util.ArrayList<>();
-        for (float f : embedding) {
-            list.add((double) f);
-        }
+        for (float f : embedding) list.add((double) f);
         return list;
     }
 
-    public void setListener(SyncListener l) {
-        this.listener = l;
-    }
-
-    /**
-     * إيقاف المزامنة وإزالة المستمعين
-     */
+    public void setListener(SyncListener l) { this.listener = l; }
     public void stop() {
         isActive.set(false);
-        if (heartbeatHandler != null && heartbeatRunnable != null) {
-            heartbeatHandler.removeCallbacks(heartbeatRunnable);
-        }
-        // إزالة المستمعين يتم تلقائياً عند تدمير Firestore (لا توجد طريقة يدوية)
+        if (heartbeatHandler != null && heartbeatRunnable != null) heartbeatHandler.removeCallbacks(heartbeatRunnable);
         Log.i(TAG, "Sync stopped");
     }
 }
