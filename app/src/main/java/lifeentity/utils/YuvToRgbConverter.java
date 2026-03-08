@@ -9,7 +9,7 @@ import androidx.camera.core.ImageProxy;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
-
+import android.graphics.BitmapFactory;
 /**
  * محول لتحويل ImageProxy (بتنسيق YUV_420_888) إلى Bitmap
  * مأخوذ من نماذج CameraX مع تعديلات
