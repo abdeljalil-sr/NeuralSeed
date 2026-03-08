@@ -55,6 +55,11 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     @Override
+    public void onDreamGenerated(Bitmap dreamImage, String description) {
+    // يمكن تركه فارغاً حالياً، أو إضافة منطق لاحقاً
+    }
+
+    @Override
     public void onConsciousMoment(ConsciousMoment moment) {
         // لا نرد على كل لحظة، بل باحتمال منخفض (2%)
         if (random.nextFloat() > 0.02 || isSpeaking || moment.emotionalTone == null) return;
