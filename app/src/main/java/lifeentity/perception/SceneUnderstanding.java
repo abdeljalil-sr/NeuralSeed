@@ -56,8 +56,16 @@ public class SceneUnderstanding {
         ByteBuffer inputBuffer = tensorImage.getBuffer();
 
         int numLabels = labels.size();
-        // ✅ استخدام TensorBuffer.DataType مباشرة (بدون استيراد إضافي)
-        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
+        
+        // ✅ حل متوافق مع معظم الإصدارات
+        TensorBuffer outputBuffer;
+        try {
+            // المحاولة الأولى: استخدام TensorBuffer.DataType (إذا كان متاحاً كـ enum داخلي)
+            outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
+        } catch (NoSuchFieldError | NoSuchMethodError e) {
+            // المحاولة الثانية: استخدام DataType المستقل
+            outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, org.tensorflow.lite.support.tensorbuffer.DataType.FLOAT32);
+        }
 
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
