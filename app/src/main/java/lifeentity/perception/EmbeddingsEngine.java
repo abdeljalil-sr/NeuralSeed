@@ -1,5 +1,7 @@
 package com.lifeentity.perception;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.lifeentity.memory.MemoryDao;
@@ -9,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class EmbeddingsEngine {
     private static final String TAG = "EmbeddingsEngine";
@@ -16,31 +20,30 @@ public class EmbeddingsEngine {
 
     private MemoryDao memoryDao;
     private Map<String, float[]> randomCache;
+    private ExecutorService dbExecutor; // ✅ منفذ للعمليات في الخلفية
+    private Handler mainHandler; // ✅ للعودة إلى الخيط الرئيسي إذا لزم الأمر
 
     public EmbeddingsEngine(MemoryDao dao) {
         this.memoryDao = dao;
         this.randomCache = new HashMap<>();
+        this.dbExecutor = Executors.newSingleThreadExecutor(); // ✅ خيط واحد لعمليات قاعدة البيانات
+        this.mainHandler = new Handler(Looper.getMainLooper());
         Log.i(TAG, "EmbeddingsEngine initialized with database");
     }
 
-    public float[] getEmbedding(String word) {
-        word = normalize(word);
-        if (word.isEmpty()) return getRandomVector("empty");
-
-        // ✅ استخدم EmbeddingEntity
-        SemanticEmbeddings.EmbeddingEntity entity = memoryDao.getEmbedding(word);
-        if (entity != null && entity.vector != null) {
-            return entity.vector;
-        }
-
-        return getConsistentRandom(word);
+    // ✅ دالة غير متزامنة لتعلم الارتباط (لا تنتظر النتيجة)
+    public void learnAssociationAsync(String word, float[] visualVector) {
+        dbExecutor.execute(() -> {
+            learnAssociation(word, visualVector);
+        });
     }
 
-    public void learnAssociation(String word, float[] visualVector) {
+    // ✅ دالة متزامنة (تستخدم داخلياً في الخلفية)
+    private void learnAssociation(String word, float[] visualVector) {
         word = normalize(word);
         if (word.isEmpty() || visualVector == null) return;
 
-        float[] wordVec = getEmbedding(word);
+        float[] wordVec = getEmbedding(word); // هذه تستدعي قاعدة البيانات
         float[] fused = new float[SIZE];
 
         for (int i = 0; i < SIZE; i++) {
@@ -49,15 +52,41 @@ public class EmbeddingsEngine {
         }
 
         String conceptKey = "concept:" + word;
-        // ✅ استخدم EmbeddingEntity
         SemanticEmbeddings.EmbeddingEntity entity = new SemanticEmbeddings.EmbeddingEntity(conceptKey, fused);
-        memoryDao.saveEmbedding(entity);
+        memoryDao.saveEmbedding(entity); // ✅ هذا في الخلفية لأننا داخل dbExecutor
 
         Log.i(TAG, "Learned association for: " + word);
     }
 
-    public String findVisualConcept(float[] visualVector) {
-        // ✅ استخدم EmbeddingEntity
+    // ✅ دالة غير متزامنة مع Callback للحصول على النتيجة
+    public void getEmbeddingAsync(String word, EmbeddingCallback callback) {
+        dbExecutor.execute(() -> {
+            float[] result = getEmbedding(word);
+            mainHandler.post(() -> callback.onResult(result));
+        });
+    }
+
+    // ✅ دالة متزامنة (تستخدم داخلياً في الخلفية)
+    private float[] getEmbedding(String word) {
+        word = normalize(word);
+        if (word.isEmpty()) return getRandomVector("empty");
+
+        SemanticEmbeddings.EmbeddingEntity entity = memoryDao.getEmbedding(word);
+        if (entity != null && entity.vector != null) {
+            return entity.vector;
+        }
+
+        return getConsistentRandom(word);
+    }
+
+    public void findVisualConceptAsync(float[] visualVector, FindConceptCallback callback) {
+        dbExecutor.execute(() -> {
+            String result = findVisualConcept(visualVector);
+            mainHandler.post(() -> callback.onResult(result));
+        });
+    }
+
+    private String findVisualConcept(float[] visualVector) {
         List<SemanticEmbeddings.EmbeddingEntity> allEmbeddings = memoryDao.getRecentEmbeddings();
         String bestConcept = null;
         float bestSimilarity = -1f;
@@ -75,6 +104,7 @@ public class EmbeddingsEngine {
         return (bestSimilarity > 0.6f) ? bestConcept : null;
     }
 
+    // ====================== دوال مساعدة ======================
     private float[] getConsistentRandom(String word) {
         if (randomCache.containsKey(word)) {
             return randomCache.get(word);
@@ -123,5 +153,19 @@ public class EmbeddingsEngine {
 
     private float[] getRandomVector(String seed) {
         return getConsistentRandom(seed);
+    }
+
+    // ====================== واجهات Callback ======================
+    public interface EmbeddingCallback {
+        void onResult(float[] embedding);
+    }
+
+    public interface FindConceptCallback {
+        void onResult(String concept);
+    }
+
+    // إيقاف التشغيل (يُستدعى عند إغلاق التطبيق)
+    public void shutdown() {
+        dbExecutor.shutdown();
     }
 }
