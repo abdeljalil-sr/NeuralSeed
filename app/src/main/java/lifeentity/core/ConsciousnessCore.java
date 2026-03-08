@@ -1,5 +1,6 @@
 package com.lifeentity.core;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -8,7 +9,9 @@ import com.lifeentity.sensors.SensoryInput;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.VisualMemory;
 import com.lifeentity.imagination.ImaginationEngine;
+import com.lifeentity.imagination.VisualDream;
 import com.lifeentity.perception.FaceIdentitySystem;
+import com.lifeentity.perception.SceneUnderstanding;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,7 +22,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * النواة الواعية - دماغ الكائن الرقمي الحي
- * تعمل في خيط خاص بها، وتدير الرغبات والمشاعر والذاكرة والخيال.
+ * تعمل في خيط خاص بها، وتدير الرغبات والمشاعر والذاكرة والخيال والأحلام.
  * تنتج لحظات واعية (ConsciousMoment) وتبعثها للمراقبين.
  */
 public class ConsciousnessCore {
@@ -27,12 +30,14 @@ public class ConsciousnessCore {
     private static final long CYCLE_MS = 100;          // دورة اليقظة (100ms)
     private static final long DREAM_CYCLE_MS = 5000;   // دورة الأحلام (5 ثوان) عندما يكون خاملاً
     private static final int SHORT_TERM_SIZE = 30;     // حجم الذاكرة القصيرة (عدد اللحظات)
+    private static final long IDLE_THRESHOLD = 10000;  // 10 ثوان بدون مدخلات للدخول في حالة الأحلام
 
     // الخيوط والمعالجة
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
     private boolean isAwake = false;
     private boolean isDreaming = false;    // هل الكائن في حالة حلم؟
+    private long lastInputTime;             // آخر مرة ورد فيها مدخل
     private long birthTime;
     private Random entropy;
 
@@ -52,7 +57,9 @@ public class ConsciousnessCore {
     // روابط خارجية (يتم حقنها عبر المنشئ)
     private AppDatabase database;
     private ImaginationEngine imaginationEngine;
-    private FaceIdentitySystem faceIdentity;  // اختياري
+    private VisualDream visualDream;
+    private SceneUnderstanding sceneUnderstanding;  // اختياري
+    private FaceIdentitySystem faceIdentity;        // اختياري
 
     // واجهة المراقبين
     public interface ConsciousnessObserver {
@@ -60,19 +67,24 @@ public class ConsciousnessCore {
         void onEmotionalShift(EmotionalState from, EmotionalState to);
         void onArticulation(String utterance, int urgency);
         void onVisualExpression(float[] latentVector, float intensity, String modality);
+        void onDreamGenerated(android.graphics.Bitmap dreamImage, String description); // جديد
     }
 
     // ========================== المنشئون ==========================
 
     /**
-     * منشئ يعتمد على قاعدة البيانات (يجب أن تكون مهيأة مسبقاً)
+     * منشئ يعتمد على قاعدة البيانات والسياق (يجب أن تكون مهيأة مسبقاً)
      */
-    public ConsciousnessCore(AppDatabase db) {
+    public ConsciousnessCore(Context context, AppDatabase db) {
         this.database = db;
         this.imaginationEngine = new ImaginationEngine(db.visualMemoryDao());
-        // يمكن لاحقاً إضافة faceIdentity = new FaceIdentitySystem(db);
+        this.visualDream = new VisualDream(db.visualMemoryDao(), imaginationEngine);
+        // يمكن تفعيل SceneUnderstanding إذا كان النموذج متوفراً
+        // this.sceneUnderstanding = new SceneUnderstanding(context, db.visualMemoryDao());
+        // this.faceIdentity = new FaceIdentitySystem(db.memoryDao());
 
         birthTime = System.currentTimeMillis();
+        lastInputTime = birthTime;
         perceptualQueue = new ConcurrentLinkedQueue<>();
         observers = new ArrayList<>();
         physiology = new HomeostasisSystem();
@@ -158,45 +170,56 @@ public class ConsciousnessCore {
 
         // 8. جدولة الدورة التالية
         consciousnessHandler.postDelayed(this::cycleConsciousness, CYCLE_MS);
+
+        // 9. التحقق من الدخول في حالة الأحلام إذا مضى وقت كافٍ دون مدخلات
+        long nowTime = System.currentTimeMillis();
+        if (!isDreaming && (nowTime - lastInputTime) > IDLE_THRESHOLD) {
+            startDreaming();
+        }
     }
 
     /**
-     * دورة الأحلام: تعمل بتردد أبطأ عندما يكون الكائن خاملاً (يمكن استدعاؤها من خارجي)
-     * أو يمكن تشغيلها في خيط منفصل عندما لا تكون هناك مدخلات.
+     * دورة الأحلام: تعمل بتردد أبطأ عندما يكون الكائن خاملاً
      */
-    public void startDreaming() {
-        if (isDreaming) return;
-        isDreaming = true;
-        consciousnessHandler.postDelayed(this::dreamCycle, DREAM_CYCLE_MS);
-    }
-
     private void dreamCycle() {
         if (!isDreaming) return;
 
-        // أثناء الحلم، نستدعي ذكريات عشوائية وندمجها في الخيال
-        VisualMemory randomMem = database.visualMemoryDao().getRandom();
-        if (randomMem != null) {
-            // توليد متجه كامن من الذاكرة العشوائية
-            float[] latent = randomMem.latentVector;
-            // إضافة ضوضاء
-            for (int i = 0; i < latent.length; i++) {
-                latent[i] += (entropy.nextFloat() - 0.5f) * 0.2f;
-            }
-            // إرسال تعبير بصري (حلم) للمراقبين
+        // توليد حلم باستخدام VisualDream
+        android.graphics.Bitmap dreamImage = visualDream.dreamOnce();
+
+        if (dreamImage != null) {
+            // إرسال الحلم للمراقبين
             for (ConsciousnessObserver obs : observers) {
-                obs.onVisualExpression(latent, 0.5f, "dream");
+                obs.onDreamGenerated(dreamImage, "حلمت بشيء...");
             }
 
-            // تعديل طفيف في الكيمياء (الاسترخاء)
-            // physiology.modulateDream();  (يمكن إضافته لاحقاً)
+            // تأثير الحلم على الكيمياء (اختياري)
+            // يمكننا استدعاء visualDream.getLastAffect() إذا أردنا
         }
 
-        // جدولة الحلم التالي
-        consciousnessHandler.postDelayed(this::dreamCycle, DREAM_CYCLE_MS);
+        // جدولة الحلم التالي إذا كنا لا نزال في حالة الأحلام
+        if (isDreaming) {
+            consciousnessHandler.postDelayed(this::dreamCycle, DREAM_CYCLE_MS);
+        }
+    }
+
+    public void startDreaming() {
+        if (isDreaming) return;
+        isDreaming = true;
+        // إعلام المراقبين ببدء الأحلام (اختياري)
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation("أنا أحلم...", 3);
+        }
+        consciousnessHandler.post(this::dreamCycle);
     }
 
     public void stopDreaming() {
+        if (!isDreaming) return;
         isDreaming = false;
+        // إعلام المراقبين بانتهاء الأحلام
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation("استيقظت", 2);
+        }
     }
 
     /**
@@ -204,7 +227,7 @@ public class ConsciousnessCore {
      */
     public void sleep() {
         isAwake = false;
-        isDreaming = false;
+        stopDreaming();
         if (consciousnessHandler != null) {
             consciousnessHandler.removeCallbacksAndMessages(null);
         }
@@ -236,8 +259,11 @@ public class ConsciousnessCore {
     public void receiveSensoryData(SensoryInput input) {
         if (input != null) {
             perceptualQueue.offer(input);
-            // إذا كان هناك مدخلات، نوقف الحلم (اختياري)
-            if (isDreaming) stopDreaming();
+            lastInputTime = System.currentTimeMillis();
+            // إذا كان هناك مدخلات، نوقف الحلم فوراً
+            if (isDreaming) {
+                stopDreaming();
+            }
         }
     }
 
