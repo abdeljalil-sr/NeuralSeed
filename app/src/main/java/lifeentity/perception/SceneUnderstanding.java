@@ -7,6 +7,7 @@ import android.util.Log;
 import com.lifeentity.memory.VisualMemory;
 import com.lifeentity.memory.VisualMemoryDao;
 
+import org.tensorflow.lite.DataType; // ✅ الاستيراد الصحيح (كلاس منفصل)
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.image.TensorImage;
@@ -57,15 +58,8 @@ public class SceneUnderstanding {
 
         int numLabels = labels.size();
         
-        // ✅ حل متوافق مع معظم الإصدارات
-        TensorBuffer outputBuffer;
-        try {
-            // المحاولة الأولى: استخدام TensorBuffer.DataType (إذا كان متاحاً كـ enum داخلي)
-            outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
-        } catch (NoSuchFieldError | NoSuchMethodError e) {
-            // المحاولة الثانية: استخدام DataType المستقل
-            outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, org.tensorflow.lite.support.tensorbuffer.DataType.FLOAT32);
-        }
+        // ✅ التصحيح النهائي: استخدام DataType المستورد مباشرة
+        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, DataType.FLOAT32);
 
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
