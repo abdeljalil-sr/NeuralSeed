@@ -1,3 +1,4 @@
+// ====================== SemanticEmbeddings.java (مع استيراد صحيح لـ @Entity) ======================
 package com.lifeentity.memory;
 
 import androidx.annotation.NonNull;
