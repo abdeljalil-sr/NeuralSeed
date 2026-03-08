@@ -40,7 +40,23 @@ public class SharedCanvas {
     
     // عشوائية موجهة (لرسم الكائنات)
     private Random random;
-    
+    // داخل SharedCanvas.java، أضف الدالة التالية:
+    public String findNearestConcept(float screenX, float screenY) {
+    float canvasX = screenX * scaleX;
+    float canvasY = screenY * scaleY;
+    ImaginedObject nearest = null;
+    float minDist = Float.MAX_VALUE;
+    for (ImaginedObject obj : objects) {
+        float dx = canvasX - obj.x;
+        float dy = canvasY - obj.y;
+        float dist = (float) Math.sqrt(dx*dx + dy*dy);
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = obj;
+        }
+    }
+    return nearest != null ? nearest.concept : "الفراغ";
+        }
     public interface OnCanvasInteraction {
         void onObjectCreated(String concept, float x, float y);
         void onObjectSelected(String id, String concept);
