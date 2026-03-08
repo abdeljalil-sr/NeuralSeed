@@ -2,7 +2,7 @@ package com.lifeentity.sensors;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitFactory;
+import android.graphics.BitmapFactory;
 import android.media.Image;
 import android.util.Log;
 
@@ -24,21 +24,16 @@ import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions;
 
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.VisualMemory;
+import com.lifeentity.utils.YuvToRgbConverter;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * القشرة البصرية (Visual Cortex) – مسؤولة عن التقاط الصور من الكاميرا،
- * اكتشاف الوجوه والأجسام، واستخراج المتجهات الكامنة (latent vectors)
- * لتخزينها في الذاكرة البصرية (VisualMemory).
- */
 public class VisualCortex {
     private static final String TAG = "VisualCortex";
-    private static final int THUMBNAIL_SIZE = 64; // حجم الصورة المصغرة
+    private static final int THUMBNAIL_SIZE = 64;
 
     private FaceDetector faceDetector;
     private ObjectDetector objectDetector;
@@ -46,7 +41,7 @@ public class VisualCortex {
     private OnVisualPerceptionListener listener;
     private List<Face> lastFaces = new ArrayList<>();
 
-    private AppDatabase database; // لحفظ الصور في VisualMemory
+    private AppDatabase database;
 
     public interface OnVisualPerceptionListener {
         void onPerception(VisualPerception perception);
@@ -81,7 +76,6 @@ public class VisualCortex {
 
                 analysis.setAnalyzer(analysisExecutor, this::analyzeFrame);
 
-                // يمكن اختيار الكاميرا الأمامية أو الخلفية، هنا نستخدم الأمامية للوجوه
                 CameraSelector selector = CameraSelector.DEFAULT_FRONT_CAMERA;
 
                 provider.unbindAll();
@@ -114,7 +108,8 @@ public class VisualCortex {
 
                     objectDetector.process(image)
                             .addOnSuccessListener(objects -> {
-                                VisualPerception perception = createPerception(faces, objects, imageProxy);
+                                Bitmap frameBitmap = YuvToRgbConverter.imageProxyToBitmap(imageProxy);
+                                VisualPerception perception = createPerception(faces, objects, frameBitmap);
                                 if (listener != null) {
                                     listener.onPerception(perception);
                                 }
@@ -125,15 +120,10 @@ public class VisualCortex {
                 .addOnFailureListener(e -> imageProxy.close());
     }
 
-    /**
-     * إنشاء كائن VisualPerception من نتائج ML Kit وإطار الصورة.
-     */
-    private VisualPerception createPerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects, ImageProxy imageProxy) {
+    private VisualPerception createPerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects, Bitmap frameBitmap) {
         VisualPerception p = new VisualPerception();
         p.faceCount = faces.size();
-
-        // استخراج الصورة الكاملة (Bitmap)
-        p.frame = imageProxyToBitmap(imageProxy);
+        p.frame = frameBitmap;
 
         if (!faces.isEmpty()) {
             Face mainFace = faces.get(0);
@@ -142,8 +132,6 @@ public class VisualCortex {
             p.eyeOpenProbability = (mainFace.getLeftEyeOpenProbability() != null ? mainFace.getLeftEyeOpenProbability() : 1f)
                     * (mainFace.getRightEyeOpenProbability() != null ? mainFace.getRightEyeOpenProbability() : 1f);
             p.faceBounds = mainFace.getBoundingBox();
-
-            // استخراج متجه الوجه (face embedding) – في الإصدار الحالي نستخدم دالة بسيطة
             p.faceEmbedding = extractFaceEmbedding(mainFace);
         }
 
@@ -161,18 +149,14 @@ public class VisualCortex {
             p.objects.add(vo);
         }
 
-        // حفظ في الذاكرة البصرية (اختياري، يمكن نقله إلى المستوى الأعلى)
-        saveToVisualMemory(p.frame, p, faces);
+        if (frameBitmap != null) {
+            saveToVisualMemory(frameBitmap, p, faces);
+        }
 
         return p;
     }
 
-    /**
-     * استخراج متجه وجه بسيط (مكان لحين استخدام نموذج حقيقي).
-     */
     private float[] extractFaceEmbedding(Face face) {
-        // يمكن استبدال هذا باستخدام FaceNet أو ML Kit face embedding إذا كان متاحاً
-        // حالياً نستخدم مزيجاً من معالم الوجه لتوليد متجه 128 بعداً
         float[] embedding = new float[128];
         int i = 0;
         embedding[i++] = face.getBoundingBox().width() / 1000f;
@@ -182,49 +166,19 @@ public class VisualCortex {
         embedding[i++] = face.getSmilingProbability() != null ? face.getSmilingProbability() : 0.5f;
         embedding[i++] = face.getLeftEyeOpenProbability() != null ? face.getLeftEyeOpenProbability() : 0.5f;
         embedding[i++] = face.getRightEyeOpenProbability() != null ? face.getRightEyeOpenProbability() : 0.5f;
-        // الباقي عشوائي متناسق (يمكن تحسينه)
         for (; i < 128; i++) {
-            embedding[i] = (float) Math.random(); // مؤقت
+            embedding[i] = (float) Math.random();
         }
         return embedding;
     }
 
-    /**
-     * استخراج صورة كاملة من ImageProxy.
-     */
-    private Bitmap imageProxyToBitmap(ImageProxy image) {
-        // تحويل ImageProxy إلى Bitmap (هذه دالة مبسطة، قد تحتاج إلى تنفيذ حقيقي)
-        // الافتراض أن الصورة بصيغة YUV_420_888
-        ImageProxy.PlaneProxy[] planes = image.getPlanes();
-        ByteBuffer yBuffer = planes[0].getBuffer();
-        ByteBuffer uBuffer = planes[1].getBuffer();
-        ByteBuffer vBuffer = planes[2].getBuffer();
-
-        int width = image.getWidth();
-        int height = image.getHeight();
-
-        // تحويل YUV إلى RGB (مبسط جداً – في التطبيق الحقيقي استخدم مكتبة)
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        // ... هنا كود التحويل ... (يمكن استخدام RenderScript أو مكتبة خارجية)
-
-        // مؤقتاً نعيد null (يجب تنفيذ التحويل الفعلي)
-        return bitmap;
-    }
-
-    /**
-     * تحويل Bitmap إلى مصفوفة بايتات (PNG).
-     */
     private byte[] bitmapToBytes(Bitmap bmp) {
         java.io.ByteArrayOutputStream stream = new java.io.ByteArrayOutputStream();
         bmp.compress(Bitmap.CompressFormat.PNG, 90, stream);
         return stream.toByteArray();
     }
 
-    /**
-     * توليد متجه كامن بسيط من الصورة (يستخدم ImaginationEngine لاحقاً).
-     */
     private float[] computeSimpleLatent(Bitmap bmp) {
-        // يمكن تحسينها باستخدام نموذج encoder حقيقي
         float[] latent = new float[128];
         int[] pixels = new int[THUMBNAIL_SIZE * THUMBNAIL_SIZE];
         bmp.getPixels(pixels, 0, THUMBNAIL_SIZE, 0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE);
@@ -239,18 +193,14 @@ public class VisualCortex {
         latent[1] = gSum / n / 255f;
         latent[2] = bSum / n / 255f;
         for (int i = 3; i < 128; i++) {
-            latent[i] = (float) Math.random(); // مؤقت
+            latent[i] = (float) Math.random();
         }
         return latent;
     }
 
-    /**
-     * حفظ الصورة في الذاكرة البصرية (VisualMemory).
-     */
     private void saveToVisualMemory(Bitmap frame, VisualPerception perception, List<Face> faces) {
         if (database == null || frame == null) return;
 
-        // تصغير الصورة
         Bitmap thumbnail = Bitmap.createScaledBitmap(frame, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true);
         byte[] thumbBytes = bitmapToBytes(thumbnail);
         float[] latent = computeSimpleLatent(thumbnail);
@@ -261,10 +211,8 @@ public class VisualCortex {
         mem.latentVector = latent;
         mem.thumbnail = thumbBytes;
         mem.concept = concept;
-        // affectVector يمكن تمريره لاحقاً من ConsciousnessCore، نضعه مؤقتاً صفر
         mem.affectAtEncoding = new float[]{0,0,0,0,0};
 
-        // تخزين في خلفية
         new Thread(() -> database.visualMemoryDao().insert(mem)).start();
     }
 
@@ -276,19 +224,15 @@ public class VisualCortex {
         this.listener = l;
     }
 
-    // ======================= الفئات الداخلية =======================
-
     public static class VisualPerception {
         public int faceCount;
         public Face mainFace;
         public float smileProbability;
         public float eyeOpenProbability;
         public android.graphics.Rect faceBounds;
-        public float[] faceEmbedding; // متجه الوجه
+        public float[] faceEmbedding;
         public List<VisualObject> objects;
-        public Bitmap frame; // الصورة الكاملة (مضافة حديثاً)
-
-        // يمكن إضافة دوال مساعدة مثل getAverageBrightness إذا أردت
+        public Bitmap frame;
     }
 
     public static class VisualObject {
