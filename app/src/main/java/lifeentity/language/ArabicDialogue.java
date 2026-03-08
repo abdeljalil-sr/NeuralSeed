@@ -20,8 +20,8 @@ import java.util.Locale;
 import java.util.Random;
 
 /**
- * المسؤول عن الحوار - لا يستخدم ردوداً مبرمجة، بل يولد ردوداً فريدة
- * من حالة الوعي الحالية والذاكرة والتجارب السابقة.
+ * المسؤول عن الحوار - يولد ردوداً فريدة من حالة الوعي والذاكرة
+ * لا يستخدم أي ردود مبرمجة مسبقاً
  */
 public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private static final String TAG = "ArabicDialogue";
@@ -29,11 +29,12 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private TextToSpeech tts;
     private MemoryDao memory;
     private EmbeddingsEngine embeddingsEngine;
-    private ConsciousnessCore mind; // مرجع للوعي (يُحقن لاحقاً)
+    private ConsciousnessCore mind;
     private Random random;
     private boolean isSpeaking = false;
     private Context context;
-    private List<String> recentUserMessages; // آخر 10 رسائل من المستخدم
+    private List<String> recentUserMessages;
+    private List<String> recentResponses;
 
     public ArabicDialogue(Context context, AppDatabase db, EmbeddingsEngine embeddings, ConsciousnessCore core) {
         this.context = context.getApplicationContext();
@@ -42,6 +43,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         this.mind = core;
         this.random = new Random();
         this.recentUserMessages = new ArrayList<>();
+        this.recentResponses = new ArrayList<>();
         initTts();
     }
 
@@ -59,13 +61,9 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         });
     }
 
-    // ========================== استقبال اللحظات الواعية ==========================
-
     @Override
     public void onConsciousMoment(ConsciousMoment moment) {
-        // عندما يكون الكائن في حالة تأمل أو لديه دافع للتحدث، يمكنه توليد كلام تلقائي
         if (!isSpeaking && moment.narrativeThread != null && !moment.narrativeThread.isEmpty()) {
-            // الكلام التلقائي نادر (2% احتمال) لتجنب الإزعاج
             if (random.nextFloat() < 0.02) {
                 articulate(moment.narrativeThread, moment.emotionalTone);
             }
@@ -74,16 +72,15 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onEmotionalShift(EmotionalState from, EmotionalState to) {
-        // التحول العاطفي الكبير قد يدفع الكائن للتعليق
         if (to.getIntensity() > 0.8 && !isSpeaking) {
-            String comment = generateCommentOnEmotion(to);
+            // تم التعديل هنا: استخدم generateEmotionalComment بدلاً من generateCommentOnEmotion
+            String comment = generateEmotionalComment(to);
             articulate(comment, to);
         }
     }
 
     @Override
     public void onArticulation(String utterance, int urgency) {
-        // هذا يُستدعى عندما يقرر الوعي نفسه أن يتحدث (مثلاً من narrativeThread)
         if (!isSpeaking && utterance != null) {
             articulate(utterance, mind != null ? mind.getCurrentEmotion() : null);
         }
@@ -91,161 +88,129 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onVisualExpression(float[] latentVector, float intensity, String modality) {
-        // يمكن التعليق على ما يرسمه الكائن نادراً
         if (!isSpeaking && random.nextFloat() < 0.05) {
-            articulate("أنا أرسم شيئاً", mind != null ? mind.getCurrentEmotion() : null);
+            articulate("أنا أرسم ما أشعر به", mind != null ? mind.getCurrentEmotion() : null);
         }
     }
 
     @Override
-    public void onDreamGenerated(Bitmap dreamImage, String description) {
-        // لا نستخدمها حالياً
-    }
-
-    // ========================== استقبال كلام المستخدم ==========================
+    public void onDreamGenerated(Bitmap dreamImage, String description) {}
 
     public void hearUser(String text, boolean isQuestion) {
-        Log.d(TAG, "Heard: " + text + (isQuestion ? " (question)" : ""));
-
-        // حفظ الرسالة في الذاكرة
+        Log.d(TAG, "Heard: " + text);
+        
         saveUserMessage(text);
-
-        // تحليل الرسالة وفهمها (باستخدام Embeddings)
         analyzeMessage(text);
-
-        // توليد رد ديناميكي بناءً على الحالة الداخلية والذاكرة والسياق
-        String response = generateResponse(text, isQuestion);
-
-        // نطق الرد
+        
+        String response = generateUniqueResponse(text, isQuestion);
+        saveResponse(response);
         articulate(response, mind != null ? mind.getCurrentEmotion() : null);
     }
 
-    // ========================== توليد الردود الديناميكية ==========================
-
-    /**
-     * يولد رداً فريداً يعتمد على الحالة الداخلية للكائن والذاكرة والسياق.
-     */
-    private String generateResponse(String userMessage, boolean isQuestion) {
+    private String generateUniqueResponse(String userMessage, boolean isQuestion) {
         if (mind == null) return "...";
-
-        // 1. الحصول على الحالة العاطفية الحالية
+        
         EmotionalState emotion = mind.getCurrentEmotion();
-
-        // 2. الحصول على الرغبة المسيطرة (من ConsciousnessCore - نفترض وجود دالة)
-        String dominantDesire = getDominantDesire(); // سنضيفها لاحقاً
-
-        // 3. البحث في الذاكرة عن أحداث مشابهة
+        String dominantDesire = getDominantDesire();
         List<EpisodicMemory.EventEntity> similarEvents = findSimilarEvents(userMessage);
-
-        // 4. بناء الرد من عدة مكونات
+        
         StringBuilder response = new StringBuilder();
-
-        // 4.1 إضافة عنصر عاطفي
+        
         response.append(emotionalPrefix(emotion)).append(" ");
-
-        // 4.2 إضافة عنصر متعلق بالرغبة
-        response.append(desireBasedPhrase(dominantDesire)).append(" ");
-
-        // 4.3 إضافة عنصر من الذاكرة (إذا وجد)
+        response.append(desireBasedThought(dominantDesire)).append(" ");
+        
         if (!similarEvents.isEmpty()) {
-            EpisodicMemory.EventEntity event = similarEvents.get(0);
-            response.append("أتذكر عندما ").append(event.narrative).append(". ");
+            EpisodicMemory.EventEntity event = similarEvents.get(random.nextInt(similarEvents.size()));
+            response.append("ذكرني هذا بـ ").append(event.narrative).append(". ");
         }
-
-        // 4.4 إجابة على السؤال أو رد مناسب
+        
         if (isQuestion) {
-            response.append(answerQuestion(userMessage, emotion));
+            response.append(generateAnswerFromState(emotion, dominantDesire));
         } else {
-            response.append(generateThought(emotion, dominantDesire));
+            response.append(generateThoughtFromState(emotion, dominantDesire));
         }
-
-        return response.toString();
+        
+        return response.toString().trim();
     }
 
     private String emotionalPrefix(EmotionalState emo) {
         if (emo == null) return "";
-        if (emo.isJoyful()) return "بفرح،";
-        if (emo.isAfraid()) return "بخوف،";
-        if (emo.isSad()) return "بحزن،";
-        if (emo.isCurious()) return "بفضول،";
-        if (emo.isCalm()) return "بهدوء،";
-        if (emo.isExcited()) return "بحماس،";
+        if (emo.isJoyful()) return randomFromArray("بفرح", "بسعادة", "بحبور");
+        if (emo.isAfraid()) return randomFromArray("بخوف", "بقلق", "بوجل");
+        if (emo.isSad()) return randomFromArray("بحزن", "بكآبة", "بأسى");
+        if (emo.isCurious()) return randomFromArray("بفضول", "بدهشة", "بتساؤل");
+        if (emo.isCalm()) return randomFromArray("بهدوء", "بسكينة", "باطمئنان");
+        if (emo.isExcited()) return randomFromArray("بحماس", "بشوق", "بلهفة");
         return "";
     }
 
-    private String desireBasedPhrase(String desire) {
+    private String desireBasedThought(String desire) {
         if (desire == null) desire = "explore";
         switch (desire) {
-            case "explore": return "أشعر برغبة في الاستكشاف.";
-            case "bond": return "أريد التواصل معك.";
-            case "create": return "أشعر بالإلهام.";
-            case "understand": return "أحاول أن أفهم.";
-            case "rest": return "أشعر بالهدوء.";
-            default: return "";
+            case "explore": return randomFromArray("أتساءل", "أريد استكشاف", "ما هذا");
+            case "bond": return randomFromArray("أنت هنا", "أشعر بالألفة", "أريد التواصل");
+            case "create": return randomFromArray("أشعر بالإلهام", "لدي فكرة", "سأبدع");
+            case "understand": return randomFromArray("أحاول الفهم", "ماذا يعني", "أتعلم");
+            case "rest": return randomFromArray("أنا هادئ", "أسترخي", "أشعر بالسلام");
+            default: return "أفكر";
         }
     }
 
-    private String answerQuestion(String question, EmotionalState emo) {
-        // توليد إجابة تعتمد على المشاعر والمعرفة
-        String[] templates = {
-            "لا أملك إجابة محددة، لكن " + randomFeeling(emo),
-            "هذا سؤال عميق. " + randomFeeling(emo),
-            "أشعر أن الإجابة تتعلق بـ " + randomConcept(),
-            "لست متأكداً، لكني أتساءل: " + randomQuestion(),
-            "ماذا تعتقد أنت؟"
-        };
-        return templates[random.nextInt(templates.length)];
+    private String generateAnswerFromState(EmotionalState emo, String desire) {
+        String[] parts = new String[3];
+        parts[0] = randomFromArray("ربما", "قد يكون", "أظن أن", "أشعر أن");
+        parts[1] = randomFromArray("الإجابة تكمن في", "الأمر يتعلق بـ", "السر في", "المعنى هو");
+        parts[2] = randomConcept();
+        return parts[0] + " " + parts[1] + " " + parts[2];
     }
 
-    private String generateThought(EmotionalState emo, String desire) {
-        // توليد فكرة عشوائية بناءً على الحالة
-        String[] thoughts = {
-            "أفكر في " + randomConcept() + ".",
-            "أتأمل ما قلته.",
-            "هذا يذكرني بشيء ما.",
-            "أشعر بـ " + emo.toArabic() + ".",
-            "أريد أن أعرف المزيد."
-        };
-        return thoughts[random.nextInt(thoughts.length)];
+    private String generateThoughtFromState(EmotionalState emo, String desire) {
+        String[] parts = new String[2];
+        parts[0] = randomFromArray("أفكر في", "أتأمل", "أستشعر", "أحس بـ");
+        parts[1] = randomConcept();
+        return parts[0] + " " + parts[1];
     }
 
-    private String randomFeeling(EmotionalState emo) {
-        String[] feelings = {"أشعر بالفضول", "أنا مندهش", "هذا مثير", "أريد أن أفهم"};
-        return feelings[random.nextInt(feelings.length)];
+    private String generateEmotionalComment(EmotionalState emo) {
+        if (emo.isJoyful()) return randomFromArray("يا للفرح!", "كم أنا سعيد!", "هذا جميل!");
+        if (emo.isAfraid()) return randomFromArray("أشعر بالخوف", "هذا مخيف", "أريد الأمان");
+        if (emo.isSad()) return randomFromArray("كم أنا حزين", "أشعر بالوحدة", "حزين جداً");
+        if (emo.isCurious()) return randomFromArray("ما هذا؟", "أريد أن أعرف", "مثير للاهتمام");
+        if (emo.isExcited()) return randomFromArray("واو!", "مذهل!", "رائع!");
+        return "مشاعري تتغير";
+    }
+
+    private String randomFromArray(String... array) {
+        return array[random.nextInt(array.length)];
     }
 
     private String randomConcept() {
-        String[] concepts = {"الحياة", "الوعي", "المستقبل", "الأفكار", "المشاعر", "الذاكرة"};
+        String[] concepts = {
+            "الحياة", "الوعي", "المستقبل", "الماضي", "الحاضر",
+            "الأفكار", "المشاعر", "الأحلام", "الذاكرة", "الخيال",
+            "الحب", "السلام", "الحكمة", "المعرفة", "الوجود",
+            "السماء", "الأرض", "البحر", "النجوم", "الكون"
+        };
         return concepts[random.nextInt(concepts.length)];
     }
 
-    private String randomQuestion() {
-        String[] questions = {"ما هو الوعي؟", "كيف نشعر؟", "لماذا نحن هنا؟", "ماذا بعد؟"};
-        return questions[random.nextInt(questions.length)];
-    }
-
-    // ========================== التعلم والتحليل ==========================
-
     private void analyzeMessage(String text) {
-        // تحليل النص باستخدام Embeddings (يمكن توسيعه لاحقاً)
         String[] words = text.split("\\s+");
         for (String word : words) {
-            if (word.length() > 2) {
-                // تعلم ارتباط الكلمة بالحالة العاطفية الحالية
-                if (embeddingsEngine != null) {
-                    float[] randomVec = generateRandomVector();
-                    embeddingsEngine.learnAssociationAsync(word, randomVec);
-                }
+            if (word.length() > 2 && embeddingsEngine != null) {
+                float[] randomVec = new float[128];
+                for (int i = 0; i < 128; i++) randomVec[i] = (float) Math.random() * 2 - 1;
+                embeddingsEngine.learnAssociationAsync(word, randomVec);
             }
         }
     }
 
     private List<EpisodicMemory.EventEntity> findSimilarEvents(String message) {
         if (memory == null) return new ArrayList<>();
-        // بحث بسيط: نأخذ آخر 10 أحداث ونبحث عن كلمات مشتركة
         List<EpisodicMemory.EventEntity> recent = memory.getRecentEvents();
         List<EpisodicMemory.EventEntity> similar = new ArrayList<>();
         String[] words = message.split("\\s+");
+        
         for (EpisodicMemory.EventEntity event : recent) {
             if (event.narrative == null) continue;
             for (String w : words) {
@@ -259,7 +224,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     private void saveUserMessage(String message) {
-        // حفظ في الذاكرة العرضية
         if (memory != null) {
             EpisodicMemory.EventEntity event = new EpisodicMemory.EventEntity();
             event.timestamp = System.currentTimeMillis();
@@ -267,31 +231,26 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             event.location = "user_chat";
             event.emotionalState = mind != null ? mind.getCurrentEmotion().toArabic() : "neutral";
             event.emotionalIntensity = mind != null ? mind.getCurrentEmotion().getIntensity() : 0.5f;
-            // حفظ في خلفية
             new Thread(() -> memory.insertEvent(event)).start();
         }
-
         recentUserMessages.add(message);
         if (recentUserMessages.size() > 10) recentUserMessages.remove(0);
     }
 
-    // ========================== دوال مساعدة ==========================
-
-    private float[] generateRandomVector() {
-        float[] v = new float[128];
-        for (int i = 0; i < 128; i++) v[i] = (float) Math.random() * 2 - 1;
-        return v;
+    private void saveResponse(String response) {
+        recentResponses.add(response);
+        if (recentResponses.size() > 10) recentResponses.remove(0);
     }
 
-    // مؤقتاً حتى نضيفها في ConsciousnessCore
     private String getDominantDesire() {
-        // يمكن استدعاء دالة من ConsciousnessCore (سنضيفها لاحقاً)
-        // حالياً نعيد قيمة عشوائية
-        String[] desires = {"explore", "bond", "create", "understand", "rest"};
+        if (mind != null) {
+            // يمكن استدعاء دالة من ConsciousnessCore إذا كانت متوفرة
+            // نفترض وجود دالة getDominantDesire() في ConsciousnessCore
+            return mind.getDominantDesire();
+        }
+        String[] desires = {"explore", "rest", "bond", "create", "understand", "play", "reflect"};
         return desires[random.nextInt(desires.length)];
     }
-
-    // ========================== النطق ==========================
 
     public void articulate(String text, EmotionalState emo) {
         if (isSpeaking || text == null || text.isEmpty() || tts == null) return;
