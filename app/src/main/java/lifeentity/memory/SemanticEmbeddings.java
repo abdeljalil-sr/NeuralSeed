@@ -1,4 +1,4 @@
-// ====================== memory/SemanticEmbeddings.java (تم إصلاح مشكلة @Entity) ======================
+// ====================== memory/SemanticEmbeddings.java (مع التأكيد على EmbeddingEntity) ======================
 package com.lifeentity.memory;
 
 import androidx.annotation.NonNull;
@@ -10,7 +10,7 @@ public class SemanticEmbeddings {
 
     @Entity(tableName = "embeddings")
     @TypeConverters(Converters.class)
-    public static class EmbeddingEntity {  // ✅ تغيير الاسم من Entity إلى EmbeddingEntity لتجنب التعارض مع androidx.room.Entity
+    public static class EmbeddingEntity {  // ✅ الاسم الجديد
         @PrimaryKey
         @NonNull
         public String concept;
