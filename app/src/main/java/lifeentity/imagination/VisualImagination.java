@@ -137,14 +137,14 @@ public class VisualImagination {
      * نسخة احتياطية للتوافق مع الاستدعاءات القديمة (تستخدم concept بدلاً من latent)
      */
     public Bitmap imagine(String concept, ImaginationMode mode, float intensity) {
-        // إذا كان المفهوم معروفاً، يمكن البحث عن صورة مرتبطة به
-        byte[] thumbBytes = engine.getThumbnailForConcept(concept);
-        if (thumbBytes != null) {
-            return imagine(engine.conceptToLatent(concept), intensity, mode);
+        if (concept != null) {
+            float[] latent = engine.conceptToLatent(concept);
+            return imagine(latent, intensity, mode);
         } else {
-            return generateRandomImage(new Canvas(canvas), intensity, concept);
+            return generateRandomImage(new Canvas(canvas), intensity, "null");
         }
     }
+
 
     public enum ImaginationMode {
         PERCEPTUAL,    // مستوحى من الإدراك الحالي
