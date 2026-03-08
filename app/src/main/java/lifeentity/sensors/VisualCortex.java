@@ -114,14 +114,7 @@ public class VisualCortex {
 
                     objectDetector.process(image)
                             .addOnSuccessListener(objects -> {
-                                VisualPerception perception = createPerception(faces, objects);
-
-                                // استخراج الصورة المصغرة وتخزينها في الذاكرة البصرية
-                                Bitmap thumbnail = extractThumbnail(imageProxy);
-                                if (thumbnail != null) {
-                                    saveToVisualMemory(thumbnail, perception, faces);
-                                }
-
+                                VisualPerception perception = createPerception(faces, objects, imageProxy);
                                 if (listener != null) {
                                     listener.onPerception(perception);
                                 }
@@ -133,11 +126,14 @@ public class VisualCortex {
     }
 
     /**
-     * إنشاء كائن VisualPerception من نتائج ML Kit.
+     * إنشاء كائن VisualPerception من نتائج ML Kit وإطار الصورة.
      */
-    private VisualPerception createPerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects) {
+    private VisualPerception createPerception(List<Face> faces, List<com.google.mlkit.vision.objects.DetectedObject> objects, ImageProxy imageProxy) {
         VisualPerception p = new VisualPerception();
         p.faceCount = faces.size();
+
+        // استخراج الصورة الكاملة (Bitmap)
+        p.frame = imageProxyToBitmap(imageProxy);
 
         if (!faces.isEmpty()) {
             Face mainFace = faces.get(0);
@@ -165,6 +161,9 @@ public class VisualCortex {
             p.objects.add(vo);
         }
 
+        // حفظ في الذاكرة البصرية (اختياري، يمكن نقله إلى المستوى الأعلى)
+        saveToVisualMemory(p.frame, p, faces);
+
         return p;
     }
 
@@ -191,9 +190,9 @@ public class VisualCortex {
     }
 
     /**
-     * استخراج صورة مصغرة من ImageProxy.
+     * استخراج صورة كاملة من ImageProxy.
      */
-    private Bitmap extractThumbnail(ImageProxy image) {
+    private Bitmap imageProxyToBitmap(ImageProxy image) {
         // تحويل ImageProxy إلى Bitmap (هذه دالة مبسطة، قد تحتاج إلى تنفيذ حقيقي)
         // الافتراض أن الصورة بصيغة YUV_420_888
         ImageProxy.PlaneProxy[] planes = image.getPlanes();
@@ -206,10 +205,10 @@ public class VisualCortex {
 
         // تحويل YUV إلى RGB (مبسط جداً – في التطبيق الحقيقي استخدم مكتبة)
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        // ... هنا كود التحويل ...
+        // ... هنا كود التحويل ... (يمكن استخدام RenderScript أو مكتبة خارجية)
 
-        // تصغير الصورة
-        return Bitmap.createScaledBitmap(bitmap, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true);
+        // مؤقتاً نعيد null (يجب تنفيذ التحويل الفعلي)
+        return bitmap;
     }
 
     /**
@@ -248,9 +247,11 @@ public class VisualCortex {
     /**
      * حفظ الصورة في الذاكرة البصرية (VisualMemory).
      */
-    private void saveToVisualMemory(Bitmap thumbnail, VisualPerception perception, List<Face> faces) {
-        if (database == null) return;
+    private void saveToVisualMemory(Bitmap frame, VisualPerception perception, List<Face> faces) {
+        if (database == null || frame == null) return;
 
+        // تصغير الصورة
+        Bitmap thumbnail = Bitmap.createScaledBitmap(frame, THUMBNAIL_SIZE, THUMBNAIL_SIZE, true);
         byte[] thumbBytes = bitmapToBytes(thumbnail);
         float[] latent = computeSimpleLatent(thumbnail);
         String concept = perception.objects.isEmpty() ? "scene" : perception.objects.get(0).label;
@@ -285,6 +286,7 @@ public class VisualCortex {
         public android.graphics.Rect faceBounds;
         public float[] faceEmbedding; // متجه الوجه
         public List<VisualObject> objects;
+        public Bitmap frame; // الصورة الكاملة (مضافة حديثاً)
 
         // يمكن إضافة دوال مساعدة مثل getAverageBrightness إذا أردت
     }
