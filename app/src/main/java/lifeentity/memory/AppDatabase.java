@@ -1,3 +1,4 @@
+// ====================== memory/AppDatabase.java (مع تحديث قائمة entities) ======================
 package com.lifeentity.memory;
 
 import android.content.Context;
@@ -10,21 +11,17 @@ import androidx.room.TypeConverters;
 @Database(entities = {
     EpisodicMemory.EventEntity.class,
     IdentityMemory.class,
-    SemanticEmbeddings.Entity.class,
-    VisualMemory.class          // إضافة كيان الذاكرة البصرية الجديد
-}, version = 2, exportSchema = false)  // زيادة رقم الإصدار إلى 2
+    SemanticEmbeddings.EmbeddingEntity.class,  // ✅ تم التعديل
+    VisualMemory.class
+}, version = 2, exportSchema = false)
 @TypeConverters({Converters.class})
 public abstract class AppDatabase extends RoomDatabase {
-    
-    // Dao الموجود سابقاً
+
     public abstract MemoryDao memoryDao();
-    
-    // Dao جديد للذاكرة البصرية
     public abstract VisualMemoryDao visualMemoryDao();
-    // داخل AppDatabase.jav
-public abstract ConceptEmbeddingDao conceptEmbeddingDao();
+
     private static volatile AppDatabase INSTANCE;
-    
+
     public static AppDatabase getDatabase(Context context) {
         if (INSTANCE == null) {
             synchronized (AppDatabase.class) {
@@ -34,7 +31,7 @@ public abstract ConceptEmbeddingDao conceptEmbeddingDao();
                         AppDatabase.class,
                         "life_entity_brain.db"
                     )
-                    .fallbackToDestructiveMigration() // يسمح بإعادة بناء الجداول أثناء التطوير
+                    .fallbackToDestructiveMigration()
                     .build();
                 }
             }
