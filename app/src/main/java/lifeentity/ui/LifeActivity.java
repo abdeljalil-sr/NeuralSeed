@@ -59,7 +59,7 @@ public class LifeActivity extends AppCompatActivity {
     private VisualImagination imagination;
     private SharedCanvas sharedCanvas;
     private ArabicDialogue voice;
-    private SceneUnderstanding sceneUnderstanding; // ⬅️ إضافة SceneUnderstanding
+    private SceneUnderstanding sceneUnderstanding;
 
     private ImageView displayView;
     private TextView statusText;
@@ -157,29 +157,23 @@ public class LifeActivity extends AppCompatActivity {
     private void initializeSystems() {
         String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
-        // تهيئة قاعدة البيانات
         database = AppDatabase.getDatabase(this);
         memoryDao = database.memoryDao();
 
-        // تهيئة SceneUnderstanding (يتطلب Context)
         sceneUnderstanding = new SceneUnderstanding(this, database.visualMemoryDao());
 
-        // تهيئة المكونات التي تعتمد على حجم الشاشة بعد معرفة الأبعاد
         displayView.post(() -> {
             int w = displayView.getWidth();
             int h = displayView.getHeight();
             if (w == 0) w = 800;
             if (h == 0) h = 1200;
 
-            // SharedCanvas للتفاعل مع المستخدم
             sharedCanvas = new SharedCanvas(w, h);
             sharedCanvas.setViewSize(w, h);
             setupCanvasListener();
 
-            // VisualImagination – يستخدم قاعدة البيانات للذاكرة البصرية
             imagination = new VisualImagination(w, h, database.visualMemoryDao());
 
-            // باقي الأنظمة
             setupCloud(deviceId);
             setupSensors();
             startSystems();
@@ -261,7 +255,6 @@ public class LifeActivity extends AppCompatActivity {
     }
 
     private void setupSensors() {
-        // الأنظمة التي تحتاج قاعدة البيانات
         eyes = new VisualCortex(this, database);
         ears = new AuditoryCortex(this);
         body = new KinestheticSense(this);
@@ -271,8 +264,7 @@ public class LifeActivity extends AppCompatActivity {
 
         voice = new ArabicDialogue(this, database);
 
-        // ConsciousnessCore الجديد يحتاج Context وقاعدة البيانات
-        mind = new ConsciousnessCore(this, database); // ⬅️ تعديل المنشئ ليشمل Context
+        mind = new ConsciousnessCore(this, database);
         mind.addObserver(voice);
         mind.addObserver(new ConsciousnessCore.ConsciousnessObserver() {
             @Override
@@ -318,7 +310,6 @@ public class LifeActivity extends AppCompatActivity {
                 }
             }
 
-            // ⬅️ إضافة مستمع الأحلام
             @Override
             public void onDreamGenerated(Bitmap dreamImage, String description) {
                 if (dreamImage != null) {
@@ -331,7 +322,6 @@ public class LifeActivity extends AppCompatActivity {
             }
         });
 
-        // إعداد مستمعي الحواس
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
             public void onPerception(VisualCortex.VisualPerception perception) {
@@ -346,10 +336,9 @@ public class LifeActivity extends AppCompatActivity {
                     visualInput.dominantObject = perception.objects.get(0).label;
                 }
 
-                // تمرير إلى الوعي
                 mind.receiveSensoryData(visualInput);
 
-                // التعرف على الوجوه إذا وجدت
+                // التعرف على الوجوه
                 if (perception.faceCount > 0 && perception.faceEmbedding != null) {
                     float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
                     FaceIdentitySystem.IdentityResult result =
@@ -374,12 +363,13 @@ public class LifeActivity extends AppCompatActivity {
                     embeddings.learnAssociation(obj.label, visualVec);
                 }
 
-                // ⬅️ تحليل المشهد وتعلمه في SceneUnderstanding
-                // نحتاج للحصول على الصورة كاملة من الكاميرا. في الوقت الحالي، يمكننا تمرير الصورة التي حصلنا عليها.
-                // هذا يتطلب تعديل VisualCortex ليمرر الصورة (Bitmap) في VisualPerception.
-                // إذا لم تكن متوفرة، نؤجل هذا الجزء أو نمرر null.
-                // في الإصدار الحالي من VisualCortex، لا تتضمن الصورة كاملة، لذلك نؤقتاً نتركها.
-                // يمكننا لاحقاً إضافة صورة مصغرة في VisualPerception.
+                // ⬅️ تحليل المشهد وتعلمه باستخدام SceneUnderstanding
+                if (sceneUnderstanding != null && perception.frame != null) {
+                    float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
+                    new Thread(() -> {
+                        sceneUnderstanding.learnScene(perception.frame, currentAffect);
+                    }).start();
+                }
             }
 
             @Override
