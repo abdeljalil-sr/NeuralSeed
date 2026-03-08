@@ -5,10 +5,11 @@ import java.util.Map;
 
 /**
  * الحالة العاطفية - ترجمة الكيمياء الداخلية إلى تجربة ذاتية
+ * تحتوي على متجه عاطفي (affect vector) يستخدم في التوليد البصري والخيال.
  */
 public class EmotionalState {
     private Map<String, Double> dimensions;
-    
+
     public EmotionalState() {
         dimensions = new HashMap<>();
         dimensions.put("energy", 0.5);
@@ -21,13 +22,13 @@ public class EmotionalState {
         dimensions.put("serotonin", 0.5);
         dimensions.put("oxytocin", 0.0);
     }
-    
+
     public EmotionalState(Map<String, Double> chemistry) {
         this.dimensions = new HashMap<>(chemistry);
     }
-    
-    // Getters
-    
+
+    // ========================== التوابع الأساسية ==========================
+
     public double getEnergy() { return dimensions.getOrDefault("energy", 0.5); }
     public double getArousal() { return dimensions.getOrDefault("arousal", 0.0); }
     public double getStress() { return dimensions.getOrDefault("stress", 0.0); }
@@ -37,13 +38,27 @@ public class EmotionalState {
     public double getCortisol() { return dimensions.getOrDefault("cortisol", 0.0); }
     public double getSerotonin() { return dimensions.getOrDefault("serotonin", 0.5); }
     public double getOxytocin() { return dimensions.getOrDefault("oxytocin", 0.0); }
-    public float getIntensity() { return (float)(getArousal() + Math.abs(getDopamine() - getCortisol())); }
-    
-    public boolean isSignificantShift() {
-        // يحددها ConsciousnessCore عبر مقارنة مع previousEmotion
-        return false;
+
+    public float getIntensity() {
+        return (float)(getArousal() + Math.abs(getDopamine() - getCortisol()));
     }
-    
+
+    /**
+     * تحويل الحالة العاطفية إلى متجه عاطفي (5 أبعاد) يستخدم في ImaginationEngine
+     * الترتيب: arousal, dopamine, cortisol, curiosity, attachment
+     */
+    public float[] toAffectVector() {
+        return new float[]{
+            (float) getArousal(),
+            (float) getDopamine(),
+            (float) getCortisol(),
+            (float) getCuriosity(),
+            (float) getAttachment()
+        };
+    }
+
+    // ========================== الاستعلامات النوعية ==========================
+
     public boolean isJoyful() { return getDopamine() > 0.7 && getCortisol() < 0.3; }
     public boolean isAfraid() { return getCortisol() > 0.6; }
     public boolean isCurious() { return getCuriosity() > 0.7; }
@@ -54,7 +69,9 @@ public class EmotionalState {
     public boolean isTurbulent() { return getArousal() > 0.7 || getStress() > 0.6; }
     public boolean isContemplative() { return getArousal() < 0.4 && getCuriosity() > 0.5; }
     public boolean isSocial() { return getAttachment() > 0.4 || getOxytocin() > 0.5; }
-    
+
+    // ========================== التمثيل النصي والبصري ==========================
+
     public String toExpression() {
         if (isAfraid()) return "fear";
         if (isJoyful()) return "joy";
@@ -63,7 +80,7 @@ public class EmotionalState {
         if (isCalm()) return "calm";
         return "neutral";
     }
-    
+
     public String toArabic() {
         if (isAfraid()) return "خائف";
         if (isJoyful()) return "سعيد";
@@ -71,16 +88,19 @@ public class EmotionalState {
         if (isCurious()) return "فضولي";
         if (isCalm()) return "هادئ";
         if (isExcited()) return "متحمس";
-        if (isConfused()) return " confused";
+        if (isConfused()) return "مرتبك";
         return "محايد";
     }
-    
+
+    /**
+     * اقتراح لون تقريبي للحالة العاطفية (يستخدم في واجهات قديمة)
+     */
     public int[] getHue() {
-        if (isAfraid()) return new int[]{255, 50, 50}; // أحمر
-        if (isJoyful()) return new int[]{255, 215, 0}; // ذهبي
-        if (isSad()) return new int[]{100, 100, 150}; // أزرق رمادي
-        if (isCurious()) return new int[]{153, 50, 204}; // بنفسجي
-        if (isCalm()) return new int[]{70, 130, 180}; // أزرق هادئ
-        return new int[]{200, 200, 200}; // رمادي
+        if (isAfraid()) return new int[]{255, 50, 50};      // أحمر
+        if (isJoyful()) return new int[]{255, 215, 0};     // ذهبي
+        if (isSad()) return new int[]{100, 100, 150};      // أزرق رمادي
+        if (isCurious()) return new int[]{153, 50, 204};   // بنفسجي
+        if (isCalm()) return new int[]{70, 130, 180};      // أزرق هادئ
+        return new int[]{200, 200, 200};                   // رمادي
     }
 }
