@@ -7,7 +7,10 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -61,14 +64,19 @@ public class LifeActivity extends AppCompatActivity {
     private ArabicDialogue voice;
     private SceneUnderstanding sceneUnderstanding;
 
+    // عناصر واجهة المستخدم
     private ImageView displayView;
     private TextView statusText;
     private TextView guideText;
     private TextView eventLogText;
+    private TextView chatTextView;
+    private EditText messageEditText;
+    private Button sendButton;
 
     private float lastTouchX, lastTouchY;
     private String lastEvent = "";
     private long lastEventTime = 0;
+    private List<String> chatMessages = new ArrayList<>(); // تخزين آخر 20 رسالة
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +90,7 @@ public class LifeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_life);
 
         initViews();
+        setupSendButton();
         checkPermissions();
     }
 
@@ -90,6 +99,51 @@ public class LifeActivity extends AppCompatActivity {
         statusText = findViewById(R.id.statusText);
         guideText = findViewById(R.id.guideText);
         eventLogText = findViewById(R.id.eventLogText);
+        chatTextView = findViewById(R.id.chatTextView);
+        messageEditText = findViewById(R.id.messageEditText);
+        sendButton = findViewById(R.id.sendButton);
+    }
+
+    private void setupSendButton() {
+        sendButton.setOnClickListener(v -> {
+            String message = messageEditText.getText().toString().trim();
+            if (!message.isEmpty()) {
+                // عرض رسالة المستخدم في الشات
+                addChatMessage("أنت: " + message);
+
+                // إرسال المدخلات إلى الوعي
+                SensoryInput textInput = new SensoryInput();
+                textInput.recognizedSpeech = message;
+                textInput.speechDetected = true;
+                if (mind != null) mind.receiveSensoryData(textInput);
+
+                // تمرير إلى نظام الحوار
+                if (voice != null) {
+                    voice.hearUser(message, message.contains("؟") || message.contains("?"));
+                }
+
+                // مسح حقل الإدخال
+                messageEditText.setText("");
+            }
+        });
+    }
+
+    private void addChatMessage(String message) {
+        runOnUiThread(() -> {
+            chatMessages.add(message);
+            if (chatMessages.size() > 20) chatMessages.remove(0);
+            StringBuilder sb = new StringBuilder();
+            for (String m : chatMessages) {
+                sb.append(m).append("\n");
+            }
+            chatTextView.setText(sb.toString());
+
+            // التمرير إلى الأسفل
+            chatTextView.post(() -> {
+                int scrollAmount = chatTextView.getLayout().getLineTop(chatTextView.getLineCount()) - chatTextView.getHeight();
+                if (scrollAmount > 0) chatTextView.scrollTo(0, scrollAmount);
+            });
+        });
     }
 
     private void logEvent(String event) {
@@ -262,9 +316,10 @@ public class LifeActivity extends AppCompatActivity {
         identitySystem = new FaceIdentitySystem(memoryDao);
         embeddings = new EmbeddingsEngine(memoryDao);
 
-        voice = new ArabicDialogue(this, database);
-
+        // تعديل إنشاء ArabicDialogue ليشمل ConsciousnessCore
         mind = new ConsciousnessCore(this, database);
+        voice = new ArabicDialogue(this, database, embeddings, mind); // تمرير mind
+
         mind.addObserver(voice);
         mind.addObserver(new ConsciousnessCore.ConsciousnessObserver() {
             @Override
@@ -297,6 +352,7 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onArticulation(String utterance, int urgency) {
                 logEvent("قال: " + utterance);
+                addChatMessage("الكائن: " + utterance);
             }
 
             @Override
@@ -325,7 +381,6 @@ public class LifeActivity extends AppCompatActivity {
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
             public void onPerception(VisualCortex.VisualPerception perception) {
-                // تجهيز مدخل بصري للوعي
                 SensoryInput visualInput = new SensoryInput();
                 visualInput.hasHumanFace = perception.faceCount > 0;
                 visualInput.faceProximity = perception.faceBounds != null ?
@@ -338,7 +393,6 @@ public class LifeActivity extends AppCompatActivity {
 
                 mind.receiveSensoryData(visualInput);
 
-                // التعرف على الوجوه
                 if (perception.faceCount > 0 && perception.faceEmbedding != null) {
                     float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
                     FaceIdentitySystem.IdentityResult result =
@@ -357,13 +411,11 @@ public class LifeActivity extends AppCompatActivity {
                     }
                 }
 
-                // تعلم الارتباط بين الكلمات والمرئيات
                 for (VisualCortex.VisualObject obj : perception.objects) {
                     float[] visualVec = extractVisualEmbedding(obj);
                     embeddings.learnAssociationAsync(obj.label, visualVec);
                 }
 
-                // ⬅️ تحليل المشهد وتعلمه باستخدام SceneUnderstanding
                 if (sceneUnderstanding != null && perception.frame != null) {
                     float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
                     new Thread(() -> {
@@ -373,9 +425,7 @@ public class LifeActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFacesDetected(List<com.google.mlkit.vision.face.Face> faces) {
-                // يمكن استخدامها إذا أردت
-            }
+            public void onFacesDetected(List<com.google.mlkit.vision.face.Face> faces) {}
         });
 
         ears.setListener(new AuditoryCortex.OnHearingListener() {
@@ -394,7 +444,6 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onSpeechRecognized(String text, float confidence) {
                 logEvent("فهم: \"" + text + "\"");
-
                 SensoryInput speechInput = new SensoryInput();
                 speechInput.recognizedSpeech = text;
                 speechInput.speechDetected = true;
