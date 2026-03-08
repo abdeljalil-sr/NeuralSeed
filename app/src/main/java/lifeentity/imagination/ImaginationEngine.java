@@ -148,7 +148,6 @@ public class ImaginationEngine {
         List<VisualMemory> memories = visualMemoryDao.getByConcept(concept);
         if (memories.isEmpty()) return randomLatent();
 
-        // متوسط متجهات الذكريات المرتبطة بالمفهوم
         float[] result = new float[LATENT_SIZE];
         for (VisualMemory mem : memories) {
             float[] v = mem.latentVector;
@@ -160,7 +159,9 @@ public class ImaginationEngine {
         }
         int n = memories.size();
         if (n > 0) {
-            for (int i = 0; i < LATENT_SIZE; i++) result[i] /= n;
+            for (int i = 0; i < LATENT_SIZE; i++) {
+                result[i] /= n;
+            }
         }
         return result;
     }
