@@ -12,7 +12,6 @@ import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.label.TensorLabel;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
-import org.tensorflow.lite.support.tensorbuffer.DataType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -57,7 +56,8 @@ public class SceneUnderstanding {
         ByteBuffer inputBuffer = tensorImage.getBuffer();
 
         int numLabels = labels.size();
-        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, DataType.FLOAT32);
+        // ✅ استخدام TensorBuffer.DataType مباشرة (بدون استيراد إضافي)
+        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
 
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
