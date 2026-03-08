@@ -1,4 +1,4 @@
-// ====================== perception/SceneUnderstanding.java (النسخة النهائية الصحيحة) ======================
+// ====================== perception/SceneUnderstanding.java (النسخة النهائية) ======================
 package com.lifeentity.perception;
 
 import android.content.Context;
@@ -13,6 +13,7 @@ import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.label.TensorLabel;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+import org.tensorflow.lite.support.tensorbuffer.DataType; // ✅ استيراد DataType المستقل
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -57,8 +58,8 @@ public class SceneUnderstanding {
         ByteBuffer inputBuffer = tensorImage.getBuffer();
 
         int numLabels = labels.size();
-        // ✅ استخدام TensorBuffer.DataType.FLOAT32 مباشرة (DataType enum داخل TensorBuffer)
-        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, TensorBuffer.DataType.FLOAT32);
+        // ✅ استخدام DataType المستورد
+        TensorBuffer outputBuffer = TensorBuffer.createFixedSize(new int[]{1, numLabels}, DataType.FLOAT32);
 
         tflite.run(inputBuffer, outputBuffer.getBuffer().rewind());
 
