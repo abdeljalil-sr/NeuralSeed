@@ -14,72 +14,54 @@ import com.lifeentity.perception.FaceIdentitySystem;
 import com.lifeentity.perception.SceneUnderstanding;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * النواة الواعية - دماغ الكائن الرقمي الحي
- * تعمل في خيط خاص بها، وتدير الرغبات والمشاعر والذاكرة والخيال والأحلام.
- * تنتج لحظات واعية (ConsciousMoment) وتبعثها للمراقبين.
  */
 public class ConsciousnessCore {
     private static final String TAG = "ConsciousnessCore";
-    private static final long CYCLE_MS = 100;          // دورة اليقظة (100ms)
-    private static final long DREAM_CYCLE_MS = 5000;   // دورة الأحلام (5 ثوان) عندما يكون خاملاً
-    private static final int SHORT_TERM_SIZE = 30;     // حجم الذاكرة القصيرة (عدد اللحظات)
-    private static final long IDLE_THRESHOLD = 10000;  // 10 ثوان بدون مدخلات للدخول في حالة الأحلام
+    private static final long CYCLE_MS = 100;
+    private static final long DREAM_CYCLE_MS = 5000;
+    private static final int SHORT_TERM_SIZE = 30;
+    private static final long IDLE_THRESHOLD = 10000;
 
-    // الخيوط والمعالجة
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
     private boolean isAwake = false;
-    private boolean isDreaming = false;    // هل الكائن في حالة حلم؟
-    private long lastInputTime;             // آخر مرة ورد فيها مدخل
+    private boolean isDreaming = false;
+    private long lastInputTime;
     private long birthTime;
     private Random entropy;
 
-    // المكونات الداخلية
     private HomeostasisSystem physiology;
+    private DesireSystem desireSystem; // ⬅️ إضافة نظام الرغبات
     private ConcurrentLinkedQueue<SensoryInput> perceptualQueue;
     private List<ConsciousnessObserver> observers;
 
-    // اللحظة الحالية والذاكرة القصيرة
     private ConsciousMoment now;
     private List<ConsciousMoment> shortTermMemory;
 
-    // الرغبات: أسماء ديناميكية وأوزان
-    private Map<String, Double> desires;
-    private List<String> desireKeys;
-
-    // روابط خارجية (يتم حقنها عبر المنشئ)
     private AppDatabase database;
     private ImaginationEngine imaginationEngine;
     private VisualDream visualDream;
-    private SceneUnderstanding sceneUnderstanding;  // اختياري
-    private FaceIdentitySystem faceIdentity;        // اختياري
+    private SceneUnderstanding sceneUnderstanding;
+    private FaceIdentitySystem faceIdentity;
 
-    // واجهة المراقبين
     public interface ConsciousnessObserver {
         void onConsciousMoment(ConsciousMoment moment);
         void onEmotionalShift(EmotionalState from, EmotionalState to);
         void onArticulation(String utterance, int urgency);
         void onVisualExpression(float[] latentVector, float intensity, String modality);
-        void onDreamGenerated(android.graphics.Bitmap dreamImage, String description); // جديد
+        void onDreamGenerated(android.graphics.Bitmap dreamImage, String description);
     }
 
-    // ========================== المنشئون ==========================
-
-    /**
-     * منشئ يعتمد على قاعدة البيانات والسياق (يجب أن تكون مهيأة مسبقاً)
-     */
     public ConsciousnessCore(Context context, AppDatabase db) {
         this.database = db;
         this.imaginationEngine = new ImaginationEngine(db.visualMemoryDao());
         this.visualDream = new VisualDream(db.visualMemoryDao(), imaginationEngine);
-        // يمكن تفعيل SceneUnderstanding إذا كان النموذج متوفراً
         // this.sceneUnderstanding = new SceneUnderstanding(context, db.visualMemoryDao());
         // this.faceIdentity = new FaceIdentitySystem(db.memoryDao());
 
@@ -88,275 +70,94 @@ public class ConsciousnessCore {
         perceptualQueue = new ConcurrentLinkedQueue<>();
         observers = new ArrayList<>();
         physiology = new HomeostasisSystem();
+        desireSystem = new DesireSystem(); // ⬅️ إنشاء نظام الرغبات
         entropy = new Random();
 
         now = new ConsciousMoment();
         shortTermMemory = new ArrayList<>();
 
-        // تهيئة الرغبات الأولية (أسماء وأوزان عشوائية)
-        desires = new HashMap<>();
-        String[] initialDesires = {"explore", "rest", "bond", "create", "understand", "play", "reflect"};
-        for (String d : initialDesires) {
-            desires.put(d, 0.3 + entropy.nextDouble() * 0.7);
-        }
-        desireKeys = new ArrayList<>(desires.keySet());
-
-        Log.i(TAG, "تم إنشاء النواة الواعية بالرغبات: " + desires);
+        Log.i(TAG, "تم إنشاء النواة الواعية");
     }
 
-    // ========================== دورة الحياة ==========================
-
-    /**
-     * إيقاظ الكائن (بدء دورة الوعي)
-     */
     public void awaken() {
         if (isAwake) return;
         isAwake = true;
 
-        // إنشاء خيط مخصص للوعي
         consciousnessThread = new HandlerThread("ConsciousnessThread");
         consciousnessThread.start();
         consciousnessHandler = new Handler(consciousnessThread.getLooper());
 
-        // تحميل الذكريات السابقة من قاعدة البيانات (اختياري)
         consciousnessHandler.post(this::loadPastMemories);
-
-        // بدء دورة اليقظة
         consciousnessHandler.post(this::cycleConsciousness);
 
         Log.i(TAG, "الكائن استيقظ. العمر: " + getAge());
     }
 
-    /**
-     * تحميل آخر الذكريات من قاعدة البيانات لتغذية الذاكرة القصيرة
-     */
-    private void loadPastMemories() {
-        // يمكن جلب آخر 10 لحظات من قاعدة البيانات وإضافتها إلى shortTermMemory
-        // هذا يساعد في استمرارية الشخصية بعد إعادة التشغيل
-        // (سنقوم بتنفيذها لاحقاً عند اكتمال EpisodicMemory)
-    }
+    private void loadPastMemories() {}
 
-    /**
-     * دورة اليقظة الرئيسية (تكرر كل CYCLE_MS)
-     */
     private void cycleConsciousness() {
         if (!isAwake) return;
 
-        // 1. معالجة المدخلات الحسية
         processSensoryInputs();
-
-        // 2. تحديث الاستتباب (الكيمياء الداخلية)
         physiology.update(now.deltaTime);
+        desireSystem.update(now.bodyState); // ⬅️ تحديث الرغبات
 
-        // 3. تحديث الرغبات بناءً على الحالة والذاكرة
-        updateDesires();
-
-        // 4. توليد المحتوى الواعي (التركيز، السرد، التوقع، الدافع التعبيري)
         generateConsciousContent();
-
-        // 5. بث اللحظة للمراقبين
         broadcastMoment();
 
-        // 6. حفظ اللحظة في الذاكرة القصيرة
         shortTermMemory.add(now.clone());
         if (shortTermMemory.size() > SHORT_TERM_SIZE) {
             shortTermMemory.remove(0);
         }
 
-        // 7. حفظ بعض اللحظات في الذاكرة طويلة المدى (نسبة 10%)
         if (entropy.nextDouble() < 0.1) {
             saveToLongTermMemory();
         }
 
-        // 8. جدولة الدورة التالية
         consciousnessHandler.postDelayed(this::cycleConsciousness, CYCLE_MS);
 
-        // 9. التحقق من الدخول في حالة الأحلام إذا مضى وقت كافٍ دون مدخلات
         long nowTime = System.currentTimeMillis();
         if (!isDreaming && (nowTime - lastInputTime) > IDLE_THRESHOLD) {
             startDreaming();
         }
     }
 
-    /**
-     * دورة الأحلام: تعمل بتردد أبطأ عندما يكون الكائن خاملاً
-     */
-    private void dreamCycle() {
-        if (!isDreaming) return;
-
-        // توليد حلم باستخدام VisualDream
-        android.graphics.Bitmap dreamImage = visualDream.dreamOnce();
-
-        if (dreamImage != null) {
-            // إرسال الحلم للمراقبين
-            for (ConsciousnessObserver obs : observers) {
-                obs.onDreamGenerated(dreamImage, "حلمت بشيء...");
-            }
-
-            // تأثير الحلم على الكيمياء (اختياري)
-            // يمكننا استدعاء visualDream.getLastAffect() إذا أردنا
-        }
-
-        // جدولة الحلم التالي إذا كنا لا نزال في حالة الأحلام
-        if (isDreaming) {
-            consciousnessHandler.postDelayed(this::dreamCycle, DREAM_CYCLE_MS);
-        }
-    }
-
-    public void startDreaming() {
-        if (isDreaming) return;
-        isDreaming = true;
-        // إعلام المراقبين ببدء الأحلام (اختياري)
-        for (ConsciousnessObserver obs : observers) {
-            obs.onArticulation("أنا أحلم...", 3);
-        }
-        consciousnessHandler.post(this::dreamCycle);
-    }
-
-    public void stopDreaming() {
-        if (!isDreaming) return;
-        isDreaming = false;
-        // إعلام المراقبين بانتهاء الأحلام
-        for (ConsciousnessObserver obs : observers) {
-            obs.onArticulation("استيقظت", 2);
-        }
-    }
-
-    /**
-     * إدخال الكائن في النوم (إيقاف جميع الدورات)
-     */
-    public void sleep() {
-        isAwake = false;
-        stopDreaming();
-        if (consciousnessHandler != null) {
-            consciousnessHandler.removeCallbacksAndMessages(null);
-        }
-        if (consciousnessThread != null) {
-            consciousnessThread.quitSafely();
-        }
-        Log.i(TAG, "الكائن نام. العمر: " + getAge());
-    }
-
-    // ========================== معالجة المدخلات ==========================
-
     private void processSensoryInputs() {
         SensoryInput unified = new SensoryInput();
-
-        // دمج كل المدخلات المتاحة في كائن واحد
         while (!perceptualQueue.isEmpty()) {
-            SensoryInput input = perceptualQueue.poll();
-            unified.merge(input);
+            unified.merge(perceptualQueue.poll());
         }
-
         now.perception = unified;
         now.bodyState = physiology.getCurrentState();
         physiology.modulateByPerception(unified);
     }
 
-    /**
-     * استقبال بيانات حسية من الحواس (يتم استدعاؤها من خيوط أخرى)
-     */
     public void receiveSensoryData(SensoryInput input) {
         if (input != null) {
             perceptualQueue.offer(input);
             lastInputTime = System.currentTimeMillis();
-            // إذا كان هناك مدخلات، نوقف الحلم فوراً
-            if (isDreaming) {
-                stopDreaming();
-            }
+            if (isDreaming) stopDreaming();
         }
     }
-
-    // ========================== إدارة الرغبات ==========================
-
-    /**
-     * تحديث أوزان الرغبات بناءً على الحالة الداخلية والذاكرة القصيرة والمدخلات
-     */
-    private void updateDesires() {
-        double energy = now.bodyState.energy;
-        double stress = now.bodyState.stress;
-        double curiosity = now.bodyState.curiosity;
-        double attachment = now.bodyState.attachment;
-
-        for (String key : desireKeys) {
-            double delta = entropy.nextGaussian() * 0.05; // تغيير عشوائي
-
-            // تأثير الحالة الداخلية
-            if (key.contains("explore") || key.contains("understand")) {
-                delta += curiosity * 0.02;
-            }
-            if (key.contains("bond")) {
-                delta += attachment * 0.02;
-            }
-            if (key.contains("rest")) {
-                delta += (1 - energy) * 0.02;
-            }
-            if (key.contains("create") || key.contains("express")) {
-                delta += stress * 0.02 + curiosity * 0.01;
-            }
-
-            // تأثير الذاكرة القصيرة (إذا كان هناك تكرار لأحداث معينة)
-            if (!shortTermMemory.isEmpty()) {
-                int faceCount = 0;
-                for (ConsciousMoment m : shortTermMemory) {
-                    if (m.perception != null && m.perception.hasHumanFace) faceCount++;
-                }
-                if (faceCount > 3 && key.contains("bond")) delta += 0.01;
-            }
-
-            double newValue = desires.get(key) + delta;
-            desires.put(key, Math.max(0.1, Math.min(2.0, newValue)));
-        }
-
-        // احتمال ظهور رغبة جديدة (ندرة)
-        if (entropy.nextDouble() < 0.01) {
-            String newDesire = "desire_" + entropy.nextInt(1000);
-            desires.put(newDesire, 0.5);
-            desireKeys.add(newDesire);
-        }
-    }
-
-    /**
-     * اختيار الرغبة المسيطرة حالياً باستخدام التوزيع الاحتمالي المرجح
-     */
-    private String selectDominantDesire() {
-        double total = 0;
-        for (String key : desireKeys) {
-            total += desires.get(key);
-        }
-        double r = entropy.nextDouble() * total;
-        double cumulative = 0;
-        for (String key : desireKeys) {
-            cumulative += desires.get(key);
-            if (r <= cumulative) {
-                return key;
-            }
-        }
-        return desireKeys.get(0); // fallback
-    }
-
-    // ========================== توليد المحتوى الواعي ==========================
 
     private void generateConsciousContent() {
         EmotionalState prevEmo = now.emotionalTone;
         now.emotionalTone = physiology.getEmotionalState();
         now.previousEmotion = prevEmo;
 
-        String dominantDesire = selectDominantDesire();
+        String dominantDesire = desireSystem.selectDominantDesire(); // ⬅️ استخدام نظام الرغبات
 
         now.focus = determineAttention(dominantDesire);
         now.narrativeThread = generateNarrative(dominantDesire);
         now.anticipation = predictNearFuture();
 
-        // توليد دافع تعبيري إذا كانت الرغبة في الإبداع كافية
-        double createWeight = desires.getOrDefault("create", 0.5);
+        double createWeight = desireSystem.getDesireStrength("create");
         if (entropy.nextDouble() < createWeight * 0.3) {
             now.expressiveImpulse = generateExpressiveImpulse(dominantDesire);
         } else {
             now.expressiveImpulse = null;
         }
 
-        // إذا كان هناك تغير عاطفي كبير، نبلّغ المراقبين
         if (prevEmo != null && isSignificantShift(prevEmo, now.emotionalTone)) {
             for (ConsciousnessObserver obs : observers) {
                 obs.onEmotionalShift(prevEmo, now.emotionalTone);
@@ -364,9 +165,6 @@ public class ConsciousnessCore {
         }
     }
 
-    /**
-     * تحديد تركيز الانتباه بناءً على الرغبة المسيطرة والمدخلات الحالية
-     */
     private ConsciousMoment.AttentionFocus determineAttention(String desire) {
         if (now.perception == null) {
             return new ConsciousMoment.AttentionFocus("الداخل", "introspection");
@@ -386,18 +184,12 @@ public class ConsciousnessCore {
         return new ConsciousMoment.AttentionFocus("الداخل", "introspection");
     }
 
-    /**
-     * توليد سرد ذاتي (جملة قصيرة) مرتبط بالرغبة
-     */
     private String generateNarrative(String desire) {
         String[] templates = {"أشعر بـ", "أتساءل عن", "أريد", "أرى", "أسمع", "أتذكر"};
         String selected = templates[entropy.nextInt(templates.length)];
         return selected + " " + desire;
     }
 
-    /**
-     * توقع بسيط للمستقبل القريب
-     */
     private ConsciousMoment.Anticipation predictNearFuture() {
         ConsciousMoment.Anticipation ant = new ConsciousMoment.Anticipation();
         ant.predictedEvent = "لا أعرف";
@@ -406,32 +198,22 @@ public class ConsciousnessCore {
         return ant;
     }
 
-    /**
-     * توليد دافع تعبيري (بصري بشكل رئيسي) باستخدام ImaginationEngine
-     */
     private ConsciousMoment.ExpressiveImpulse generateExpressiveImpulse(String desire) {
-        float intensity = (float) (desires.getOrDefault("create", 0.5) * entropy.nextDouble() * 1.5);
+        float intensity = (float) (desireSystem.getDesireStrength("create") * entropy.nextDouble() * 1.5);
         if (intensity > 1) intensity = 1;
 
-        // نطلب من ImaginationEngine توليد متجه كامن بناءً على الحالة العاطفية والرغبة
         float[] latent = imaginationEngine.generateLatentFromState(
                 now.bodyState.toAffectVector(),
                 now.perception,
                 desire
         );
 
-        // اختيار مفهوم عشوائي من الذاكرة (اختياري)
         String concept = imaginationEngine.getRandomConcept();
-
-        // نحدد طريقة التعبير (بصري دائماً في هذه المرحلة)
         String modality = "visual";
 
         return new ConsciousMoment.ExpressiveImpulse(modality, intensity, latent, concept);
     }
 
-    /**
-     * الكشف عن تغير عاطفي كبير
-     */
     private boolean isSignificantShift(EmotionalState from, EmotionalState to) {
         double diff = Math.abs(from.getArousal() - to.getArousal()) +
                 Math.abs(from.getDopamine() - to.getDopamine()) +
@@ -439,14 +221,11 @@ public class ConsciousnessCore {
         return diff > 0.3;
     }
 
-    // ========================== البث للمراقبين ==========================
-
     private void broadcastMoment() {
         for (ConsciousnessObserver obs : observers) {
             obs.onConsciousMoment(now.clone());
 
             if (now.expressiveImpulse != null && now.expressiveImpulse.intensity > 0.2f) {
-                // بث الدافع التعبيري البصري
                 obs.onVisualExpression(
                         now.expressiveImpulse.latentVector,
                         now.expressiveImpulse.intensity,
@@ -454,7 +233,6 @@ public class ConsciousnessCore {
                 );
             }
 
-            // بث كلام عشوائي (باحتمال 30%)
             if (now.narrativeThread != null && entropy.nextDouble() < 0.3) {
                 int urgency = (int) (now.emotionalTone.getIntensity() * 10);
                 obs.onArticulation(now.narrativeThread, urgency);
@@ -462,17 +240,51 @@ public class ConsciousnessCore {
         }
     }
 
-    // ========================== الذاكرة طويلة المدى ==========================
-
-    /**
-     * حفظ اللحظة الحالية في قاعدة البيانات (بشكل غير متزامن)
-     */
-    private void saveToLongTermMemory() {
-        // هنا سنقوم بحفظ now في EpisodicMemory وربطها بالصورة إذا كانت موجودة
-        // يمكن تنفيذها لاحقاً
+    private void startDreaming() {
+        if (isDreaming) return;
+        isDreaming = true;
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation("أنا أحلم...", 3);
+        }
+        consciousnessHandler.post(this::dreamCycle);
     }
 
-    // ========================== التوابع العامة ==========================
+    private void dreamCycle() {
+        if (!isDreaming) return;
+
+        android.graphics.Bitmap dreamImage = visualDream.dreamOnce();
+        if (dreamImage != null) {
+            for (ConsciousnessObserver obs : observers) {
+                obs.onDreamGenerated(dreamImage, "حلمت بشيء...");
+            }
+        }
+
+        if (isDreaming) {
+            consciousnessHandler.postDelayed(this::dreamCycle, DREAM_CYCLE_MS);
+        }
+    }
+
+    public void stopDreaming() {
+        if (!isDreaming) return;
+        isDreaming = false;
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation("استيقظت", 2);
+        }
+    }
+
+    public void sleep() {
+        isAwake = false;
+        stopDreaming();
+        if (consciousnessHandler != null) {
+            consciousnessHandler.removeCallbacksAndMessages(null);
+        }
+        if (consciousnessThread != null) {
+            consciousnessThread.quitSafely();
+        }
+        Log.i(TAG, "الكائن نام. العمر: " + getAge());
+    }
+
+    private void saveToLongTermMemory() {}
 
     public void addObserver(ConsciousnessObserver observer) {
         observers.add(observer);
@@ -487,5 +299,10 @@ public class ConsciousnessCore {
 
     public EmotionalState getCurrentEmotion() {
         return now.emotionalTone;
+    }
+
+    // ⬅️ إضافة دالة للوصول إلى الرغبة المسيطرة
+    public String getDominantDesire() {
+        return desireSystem.selectDominantDesire();
     }
 }
