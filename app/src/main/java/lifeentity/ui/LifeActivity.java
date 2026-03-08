@@ -504,6 +504,7 @@ public class LifeActivity extends AppCompatActivity {
         if (voice != null) voice.shutdown();
         if (cloud != null) cloud.stop();
         if (sceneUnderstanding != null) sceneUnderstanding.close();
+        if (embeddings != null) embeddings.shutdown();
         super.onDestroy();
     }
 }
