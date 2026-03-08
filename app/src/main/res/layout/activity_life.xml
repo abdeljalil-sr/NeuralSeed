@@ -103,13 +103,13 @@
         android:textSize="11sp"
         android:fontFamily="sans-serif-light" />
 
-    <!-- حالة الوعي -->
+    <!-- حالة الوعي (رفعها فوق شريط المحادثة) -->
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="200dp"  <!-- رفعها فوق شريط المحادثة -->
+        android:layout_marginBottom="200dp"
         android:layout_marginHorizontal="20dp"
         android:textColor="#88ffffff"
         android:textSize="12sp"
