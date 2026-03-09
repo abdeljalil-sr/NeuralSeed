@@ -8,10 +8,6 @@ import androidx.room.Transaction;
 
 import java.util.List;
 
-/**
- * واجهة الوصول للذاكرة مع فهارس متقدمة واستعلامات محسّنة
- * تدعم البحث المتجهي المستقبلي (FAISS) والاستعلامات العاطفية المعقدة
- */
 @Dao
 public interface MemoryDao {
 
@@ -128,6 +124,8 @@ public interface MemoryDao {
     @Query("SELECT * FROM visual_memories WHERE concept = :concept ORDER BY timestamp DESC LIMIT :limit")
     List<VisualMemory> getVisualMemoriesByConcept(String concept, int limit);
 
+    // تم تعطيل الاستعلامات المتقدمة التي تحتاج أعمدة غير موجودة مؤقتاً
+    /*
     @Query("SELECT * FROM visual_memories WHERE affectValence BETWEEN :minValence AND :maxValence " +
            "AND affectArousal BETWEEN :minArousal AND :maxArousal " +
            "ORDER BY timestamp DESC LIMIT :limit")
@@ -151,13 +149,6 @@ public interface MemoryDao {
         }
     }
 
-    @Query("SELECT * FROM visual_memories WHERE id IN (:ids)")
-    List<VisualMemory> getVisualMemoriesByIds(List<Long> ids);
-
-    // ❌ تم حذف السطر التالي لأنه يشير إلى كلاس غير موجود (VisualMemory.VectorOnly)
-    // @Query("SELECT id, latentVector FROM visual_memories WHERE latentVector IS NOT NULL")
-    // List<VisualMemory.VectorOnly> getAllLatentVectors();
-
     @Query("SELECT * FROM visual_memories WHERE retrievalCount > :minCount ORDER BY retrievalCount DESC LIMIT :limit")
     List<VisualMemory> getImpactfulMemories(int minCount, int limit);
 
@@ -167,6 +158,10 @@ public interface MemoryDao {
 
     @Query("UPDATE visual_memories SET retrievalCount = retrievalCount + 1 WHERE id = :id")
     void incrementRetrievalCount(long id);
+    */
+
+    @Query("SELECT * FROM visual_memories WHERE id IN (:ids)")
+    List<VisualMemory> getVisualMemoriesByIds(List<Long> ids);
 
     @Query("SELECT concept FROM visual_memories GROUP BY concept ORDER BY COUNT(*) DESC LIMIT :limit")
     List<String> getFrequentConcepts(int limit);
@@ -210,9 +205,4 @@ public interface MemoryDao {
         event.visualMemoryId = visualId;
         insertEvent(event);
     }
-
-    // ========================== تنظيف وصيانة ==========================
-    
-    // ملاحظة: VACUUM و ANALYZE لا تعمل في Room على Android
-    // يمكن تنفيذها عبر Migration أو RawQuery إذا لزم الأمر
 }
