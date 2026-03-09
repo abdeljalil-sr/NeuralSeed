@@ -154,8 +154,9 @@ public interface MemoryDao {
     @Query("SELECT * FROM visual_memories WHERE id IN (:ids)")
     List<VisualMemory> getVisualMemoriesByIds(List<Long> ids);
 
-    @Query("SELECT id, latentVector FROM visual_memories WHERE latentVector IS NOT NULL")
-    List<VisualMemory.VectorOnly> getAllLatentVectors();
+    // ❌ تم حذف السطر التالي لأنه يشير إلى كلاس غير موجود (VisualMemory.VectorOnly)
+    // @Query("SELECT id, latentVector FROM visual_memories WHERE latentVector IS NOT NULL")
+    // List<VisualMemory.VectorOnly> getAllLatentVectors();
 
     @Query("SELECT * FROM visual_memories WHERE retrievalCount > :minCount ORDER BY retrievalCount DESC LIMIT :limit")
     List<VisualMemory> getImpactfulMemories(int minCount, int limit);
