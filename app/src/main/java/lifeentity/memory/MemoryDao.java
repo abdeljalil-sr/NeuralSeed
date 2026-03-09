@@ -15,16 +15,6 @@ import java.util.List;
 @Dao
 public interface MemoryDao {
 
-    // ========================== فهارس وتحسينات الأداء ==========================
-    
-    /*
-     * الفهارس المُنشأة في AppDatabase:
-     * - events: timestamp (DESC), emotionalState, faceId, importance, visualMemoryId
-     * - identities: faceHash (UNIQUE), familiarity (DESC), lastSeen (DESC)
-     * - embeddings: concept (UNIQUE), learnedAt (DESC)
-     * - visual_memories: concept, affectValence, affectArousal, timestamp (DESC)
-     */
-
     // ========================== الأحداث (EpisodicMemory) ==========================
     
     @Insert
@@ -33,7 +23,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM events ORDER BY timestamp DESC LIMIT :limit")
     List<EpisodicMemory.EventEntity> getRecentEvents(int limit);
 
-    // استعلام افتراضي للتوافق مع الكود القديم
     default List<EpisodicMemory.EventEntity> getRecentEvents() {
         return getRecentEvents(100);
     }
@@ -41,7 +30,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM events WHERE emotionalState = :emotion ORDER BY timestamp DESC LIMIT :limit")
     List<EpisodicMemory.EventEntity> getEventsByEmotion(String emotion, int limit);
 
-    // توافق مع الكود القديم
     default List<EpisodicMemory.EventEntity> getEventsByEmotion(String emotion) {
         return getEventsByEmotion(emotion, 50);
     }
@@ -59,7 +47,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM events WHERE emotionalIntensity > :threshold ORDER BY emotionalIntensity DESC, timestamp DESC LIMIT :limit")
     List<EpisodicMemory.EventEntity> getEmotionalEvents(float threshold, int limit);
 
-    // للتوافق مع ConsciousnessCore
     default List<EpisodicMemory.EventEntity> getEmotionalEvents(float threshold) {
         return getEmotionalEvents(threshold, 100);
     }
@@ -104,7 +91,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM identities ORDER BY familiarity DESC, lastSeen DESC LIMIT :limit")
     List<IdentityMemory> getAllIdentities(int limit);
 
-    // للتوافق مع الكود القديم
     default List<IdentityMemory> getAllIdentities() {
         return getAllIdentities(1000);
     }
@@ -118,7 +104,6 @@ public interface MemoryDao {
     @Query("UPDATE identities SET familiarity = familiarity + :increment, lastSeen = :currentTime WHERE faceHash = :hash")
     void incrementFamiliarity(String hash, float increment, long currentTime);
 
-    // للتوافق مع الكود القديم
     default void incrementFamiliarity(String hash, float increment) {
         incrementFamiliarity(hash, increment, System.currentTimeMillis());
     }
@@ -151,7 +136,6 @@ public interface MemoryDao {
             float minArousal, float maxArousal, 
             int limit);
 
-    // للبحث العاطفي المبسط
     default List<VisualMemory> getVisualMemoriesByEmotion(String emotionType, int limit) {
         switch (emotionType.toLowerCase()) {
             case "joy":
@@ -167,7 +151,6 @@ public interface MemoryDao {
         }
     }
 
-    // استعلامات للبحث المتجهي المستقبلي (FAISS)
     @Query("SELECT * FROM visual_memories WHERE id IN (:ids)")
     List<VisualMemory> getVisualMemoriesByIds(List<Long> ids);
 
@@ -177,7 +160,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM visual_memories WHERE retrievalCount > :minCount ORDER BY retrievalCount DESC LIMIT :limit")
     List<VisualMemory> getImpactfulMemories(int minCount, int limit);
 
-    // للتوافق مع ConsciousnessCore
     default List<VisualMemory> getImpactfulMemories(float minIntensity) {
         return getImpactfulMemories((int)(minIntensity * 10), 50);
     }
@@ -230,9 +212,6 @@ public interface MemoryDao {
 
     // ========================== تنظيف وصيانة ==========================
     
-    @Query("VACUUM")
-    void vacuumDatabase();
-
-    @Query("ANALYZE")
-    void analyzeDatabase();
+    // ملاحظة: VACUUM و ANALYZE لا تعمل في Room على Android
+    // يمكن تنفيذها عبر Migration أو RawQuery إذا لزم الأمر
 }
