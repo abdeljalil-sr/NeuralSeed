@@ -36,9 +36,6 @@ public class EpisodicMemory {
         public String faceId;            // معرف الوجه المرتبط (إذا كان هناك وجه)
 
         public float importance;         // أهمية الحدث (تحسب لاحقاً، 0..1)
-
-        // حقل sensoryHash يمكن إضافته إذا أردنا حفظ بصمة للمدخلات الحسية
-        // public String sensoryHash;
     }
 
     /**
@@ -63,5 +60,13 @@ public class EpisodicMemory {
             this.location = entity.location;
             this.affectVector = entity.affectVector;
         }
+    }
+
+    /**
+     * فئة مساعدة للاستعلامات المركبة التي تجمع الحدث مع صورته
+     */
+    public static class EventWithVisual {
+        public EventEntity event;
+        public VisualMemory visual;
     }
 }
