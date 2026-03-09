@@ -23,11 +23,10 @@ public class IdentityMemory {
     public int encounterCount;
     public long firstSeen;
     public long lastSeen;
+    public String lastContext;
 
-    // منشئ فارغ (مطلوب لـ Room)
     public IdentityMemory() {}
 
-    // منشئ مع parameters (سيتم تجاهله بواسطة Room)
     @Ignore
     public IdentityMemory(@NonNull String faceHash, String name, String relationship, float[] faceEmbedding) {
         this.faceHash = faceHash;
