@@ -4,14 +4,19 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -43,11 +48,22 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * النشاط الرئيسي - واجهة التفاعل مع الكائن الواعي
+ * 
+ * هيكل الواجهة:
+ * - أعلى الشاشة: thoughtsTextView (ما يدور في ذهن الكائن - أفكاره الداخلية)
+ * - الوسط: displayView (اللوحة المشتركة للتعبير البصري)
+ * - أسفل الشاشة: chatListView (محادثة المستخدم مع الكائن - قابلة للتمرير)
+ */
 public class LifeActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
     private static final String TAG = "LifeActivity";
+    private static final int MAX_CHAT_MESSAGES = 50;
+    private static final long THOUGHTS_UPDATE_INTERVAL = 3000; // تحديث الأفكار كل 3 ثوانٍ
 
     private ConsciousnessCore mind;
     private VisualCortex eyes;
@@ -66,17 +82,48 @@ public class LifeActivity extends AppCompatActivity {
 
     // عناصر واجهة المستخدم
     private ImageView displayView;
+    private TextView thoughtsTextView;        // ما يدور في ذهن الكائن (أفكاره الداخلية)
     private TextView statusText;
     private TextView guideText;
     private TextView eventLogText;
-    private TextView chatTextView;
+    private ListView chatListView;            // قائمة المحادثة (بدلاً من TextView)
     private EditText messageEditText;
     private Button sendButton;
 
+    // محولات وقوائم للشات
+    private ArrayAdapter<String> chatAdapter;
+    private List<ChatMessage> chatMessages;
+    private Handler uiHandler;
+    private Runnable thoughtsUpdater;
+
+    // حالة اللمس
     private float lastTouchX, lastTouchY;
     private String lastEvent = "";
     private long lastEventTime = 0;
-    private List<String> chatMessages = new ArrayList<>(); // تخزين آخر 20 رسالة
+    private ConcurrentLinkedQueue<String> pendingChatMessages = new ConcurrentLinkedQueue<>();
+
+    /**
+     * تمثيل رسالة دردشة منظمة
+     */
+    private static class ChatMessage {
+        final String sender;    // "أنت" أو "الكائن"
+        final String content;
+        final long timestamp;
+        final boolean isUser;
+
+        ChatMessage(String sender, String content, boolean isUser) {
+            this.sender = sender;
+            this.content = content;
+            this.timestamp = System.currentTimeMillis();
+            this.isUser = isUser;
+        }
+
+        @Override
+        public String toString() {
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            return "[" + sdf.format(new Date(timestamp)) + "] " + sender + ": " + content;
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,27 +136,69 @@ public class LifeActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_life);
 
+        uiHandler = new Handler(Looper.getMainLooper());
+        chatMessages = new ArrayList<>();
+
         initViews();
+        setupChatAdapter();
         setupSendButton();
+        setupThoughtsUpdater();
         checkPermissions();
     }
 
     private void initViews() {
         displayView = findViewById(R.id.displayView);
+        thoughtsTextView = findViewById(R.id.thoughtsTextView);    // أعلى الشاشة: أفكار الكائن
         statusText = findViewById(R.id.statusText);
         guideText = findViewById(R.id.guideText);
         eventLogText = findViewById(R.id.eventLogText);
-        chatTextView = findViewById(R.id.chatTextView);
+        chatListView = findViewById(R.id.chatListView);            // أسفل الشاشة: المحادثة
         messageEditText = findViewById(R.id.messageEditText);
         sendButton = findViewById(R.id.sendButton);
+
+        // تفعيل التمرير للأفكار
+        thoughtsTextView.setMovementMethod(new ScrollingMovementMethod());
+        
+        // إخفاء thoughts في البداية حتى يستيقظ الكائن
+        thoughtsTextView.setVisibility(View.INVISIBLE);
+    }
+
+    /**
+     * إعداد محول القائمة للشات مع تحسين الأداء
+     */
+    private void setupChatAdapter() {
+        chatAdapter = new ArrayAdapter<String>(this, 
+            android.R.layout.simple_list_item_1, 
+            new ArrayList<>()) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView textView = (TextView) view;
+                
+                // تلوين الرسائل حسب المرسل
+                ChatMessage msg = chatMessages.get(position);
+                if (msg.isUser) {
+                    textView.setTextColor(getResources().getColor(android.R.color.holo_blue_light));
+                    textView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                } else {
+                    textView.setTextColor(getResources().getColor(android.R.color.holo_green_light));
+                    textView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
+                }
+                
+                return view;
+            }
+        };
+        
+        chatListView.setAdapter(chatAdapter);
+        chatListView.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
     }
 
     private void setupSendButton() {
         sendButton.setOnClickListener(v -> {
             String message = messageEditText.getText().toString().trim();
             if (!message.isEmpty()) {
-                // عرض رسالة المستخدم في الشات
-                addChatMessage("أنت: " + message);
+                // إضافة رسالة المستخدم
+                addChatMessage("أنت", message, true);
 
                 // إرسال المدخلات إلى الوعي
                 SensoryInput textInput = new SensoryInput();
@@ -122,27 +211,133 @@ public class LifeActivity extends AppCompatActivity {
                     voice.hearUser(message, message.contains("؟") || message.contains("?"));
                 }
 
-                // مسح حقل الإدخال
                 messageEditText.setText("");
             }
         });
     }
 
-    private void addChatMessage(String message) {
-        runOnUiThread(() -> {
-            chatMessages.add(message);
-            if (chatMessages.size() > 20) chatMessages.remove(0);
-            StringBuilder sb = new StringBuilder();
-            for (String m : chatMessages) {
-                sb.append(m).append("\n");
+    /**
+     * تحديث دوري لما يدور في ذهن الكائن (الأفكار الداخلية)
+     */
+    private void setupThoughtsUpdater() {
+        thoughtsUpdater = new Runnable() {
+            @Override
+            public void run() {
+                if (mind != null && thoughtsTextView.getVisibility() == View.VISIBLE) {
+                    updateThoughtsDisplay();
+                }
+                uiHandler.postDelayed(this, THOUGHTS_UPDATE_INTERVAL);
             }
-            chatTextView.setText(sb.toString());
+        };
+    }
 
-            // التمرير إلى الأسفل
-            chatTextView.post(() -> {
-                int scrollAmount = chatTextView.getLayout().getLineTop(chatTextView.getLineCount()) - chatTextView.getHeight();
-                if (scrollAmount > 0) chatTextView.scrollTo(0, scrollAmount);
-            });
+    /**
+     * تحديث عرض الأفكار الداخلية للكائن
+     */
+    private void updateThoughtsDisplay() {
+        ConsciousMoment current = mind.getCurrentMoment();
+        if (current == null) return;
+
+        StringBuilder thoughts = new StringBuilder();
+        
+        // المشاعر الحالية
+        if (current.emotionalTone != null) {
+            thoughts.append("أشعر بـ ").append(current.emotionalTone.toArabic());
+            if (current.emotionalTone.getIntensity() > 0.7) {
+                thoughts.append(" (بشدة)");
+            }
+            thoughts.append("\n");
+        }
+
+        // الرغبة السائدة
+        String desire = mind.getDominantDesire();
+        if (desire != null) {
+            thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
+        }
+
+        // التركيز الحالي
+        if (current.focus != null) {
+            thoughts.append("أركز على: ").append(current.focus.target).append("\n");
+        }
+
+        // التوقع
+        if (current.anticipation != null && current.anticipation.predictedEvent != null) {
+            thoughts.append("أتوقع: ").append(current.anticipation.predictedEvent).append("\n");
+        }
+
+        // حالة الوعي الخاصة
+        if (mind.isDeepThinking()) {
+            thoughts.append("[أتأمل بعمق...]");
+        }
+
+        final String finalThoughts = thoughts.toString();
+        runOnUiThread(() -> {
+            thoughtsTextView.setText(finalThoughts);
+            // التمرير إلى الأعلى لأحدث فكرة
+            thoughtsTextView.scrollTo(0, 0);
+        });
+    }
+
+    private String translateDesire(String desire) {
+        switch (desire) {
+            case "explore": return "أستكشف";
+            case "bond": return "أتواصل";
+            case "create": return "أبدع";
+            case "understand": return "أفهم";
+            case "rest": return "أسترخي";
+            case "play": return "ألعب";
+            default: return desire;
+        }
+    }
+
+    /**
+     * إضافة رسالة للشات مع تحديث محسّن
+     */
+    private void addChatMessage(String sender, String content, boolean isUser) {
+        ChatMessage message = new ChatMessage(sender, content, isUser);
+        chatMessages.add(message);
+        
+        // الاحتفاظ فقط بآخر 50 رسالة
+        if (chatMessages.size() > MAX_CHAT_MESSAGES) {
+            chatMessages.remove(0);
+        }
+        
+        // إضافة للطابور للمعالجة المجمعة
+        pendingChatMessages.add(message.toString());
+        
+        // تحديث UI في الدورة التالية
+        uiHandler.post(this::flushChatUpdates);
+    }
+
+    /**
+     * تحديث مجمع للشات (للأداء)
+     */
+    private void flushChatUpdates() {
+        if (pendingChatMessages.isEmpty()) return;
+        
+        // مسح المحول وإعادة بنائه (أكثر كفاءة من إضافة واحدة تلو الأخرى)
+        chatAdapter.clear();
+        
+        for (ChatMessage msg : chatMessages) {
+            chatAdapter.add(msg.toString());
+        }
+        
+        chatAdapter.notifyDataSetChanged();
+        pendingChatMessages.clear();
+        
+        // التمرير للأسفل
+        chatListView.post(() -> {
+            chatListView.setSelection(chatAdapter.getCount() - 1);
+        });
+    }
+
+    /**
+     * إضافة فكرة داخلية للعرض (ليس للشات)
+     */
+    private void addInternalThought(String thought) {
+        runOnUiThread(() -> {
+            // يمكن عرضها مؤقتاً في statusText أو في thoughtsTextView
+            statusText.setText("💭 " + thought);
         });
     }
 
@@ -239,12 +434,14 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onObjectCreated(String concept, float x, float y) {
                 logEvent("تخيل: " + concept);
+                addInternalThought("تخيلتُ " + concept);
                 runOnUiThread(() -> statusText.setText("Created: " + concept));
             }
 
             @Override
             public void onObjectSelected(String id, String concept) {
                 logEvent("اختار: " + concept);
+                addInternalThought("أنظر إلى " + concept);
                 if (voice != null) {
                     voice.articulate("هذا " + concept, new EmotionalState());
                 }
@@ -258,15 +455,38 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onGestureDrawn(String gesture, float x, float y) {
                 logEvent("إيماءة: " + gesture);
+                addInternalThought("لاحظتُ حركة " + gesture);
             }
 
             @Override
             public void onCanvasQuestion(String question) {
                 String nearest = sharedCanvas.findNearestConcept(lastTouchX, lastTouchY);
                 logEvent("سؤال: ما هذا؟ → " + nearest);
+                addInternalThought("يسألونني عن " + nearest);
                 if (voice != null) {
                     voice.articulate("هذا ما أتخيله: " + nearest, new EmotionalState());
                 }
+            }
+
+            @Override
+            public void onObjectDeleted(String id, String concept) {
+                logEvent("محا: " + concept);
+                addInternalThought("نسيتُ " + concept);
+            }
+
+            @Override
+            public void onObjectScaled(String id, float scale) {
+                addInternalThought("غيرتُ حجم شيء ما");
+            }
+
+            @Override
+            public void onDoubleTap(float x, float y) {
+                addInternalThought("نقر مزدوج... ماذا يريد؟");
+            }
+
+            @Override
+            public void onLongPress(String id, String concept) {
+                addInternalThought("ضغط طويل على " + concept);
             }
         });
     }
@@ -279,29 +499,45 @@ public class LifeActivity extends AppCompatActivity {
                 Log.d(TAG, "Cloud: " + (connected ? "connected" : "disconnected"));
                 if (connected) {
                     logEvent("متصل بالسحابة");
+                    addInternalThought("أشعر بتواصل مع أشياء أخرى");
                 }
             }
 
             @Override
-            public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event) {
+            public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event, String thumbnailBase64) {
                 logEvent("ذكرى من جهاز آخر");
+                addInternalThought("شعرت بشيء من " + source);
                 if (voice != null) {
                     voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", new EmotionalState());
                 }
             }
 
             @Override
-            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
+            public void onIdentityLearnedFromOtherDevice(String name, String desc, 
+                    FaceIdentitySystem.IdentityProfile mergedProfile) {
                 logEvent("تعلم شخصاً من جهاز آخر: " + name);
+                addInternalThought("عرفتُ " + name + " من تجربة أخرى");
                 if (voice != null) {
                     voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
                 }
             }
 
             @Override
+            public void onIdentityConflictDetected(String faceHash, 
+                    List<FaceIdentitySystem.IdentityProfile> conflictingProfiles) {
+                addInternalThought("هناك تناقض في معرفة وجه... أحاول الدمج");
+            }
+
+            @Override
+            public void onThumbnailDownloaded(String memoryId, Bitmap thumbnail) {
+                // يمكن عرضها في displayView مؤقتاً
+            }
+
+            @Override
             public void onSyncComplete(int items) {
                 if (items > 0) {
                     logEvent("مزامنة " + items + " ذكريات");
+                    addInternalThought("تزامنت مع " + items + " ذكرى");
                     runOnUiThread(() -> statusText.setText("تمت مزامنة " + items + " ذكريات"));
                 }
             }
@@ -316,9 +552,8 @@ public class LifeActivity extends AppCompatActivity {
         identitySystem = new FaceIdentitySystem(memoryDao);
         embeddings = new EmbeddingsEngine(memoryDao);
 
-        // تعديل إنشاء ArabicDialogue ليشمل ConsciousnessCore
         mind = new ConsciousnessCore(this, database);
-        voice = new ArabicDialogue(this, database, embeddings, mind); // تمرير mind
+        voice = new ArabicDialogue(this, database, embeddings, mind);
 
         mind.addObserver(voice);
         mind.addObserver(new ConsciousnessCore.ConsciousnessObserver() {
@@ -346,18 +581,21 @@ public class LifeActivity extends AppCompatActivity {
                 String toStr = to.toArabic();
                 if (!fromStr.equals(toStr)) {
                     logEvent("تحول من " + fromStr + " إلى " + toStr);
+                    addInternalThought("تحولت مشاعري من " + fromStr + " إلى " + toStr);
                 }
             }
 
             @Override
             public void onArticulation(String utterance, int urgency) {
                 logEvent("قال: " + utterance);
-                addChatMessage("الكائن: " + utterance);
+                // هذه تظهر في الشات لأنها توجيه للمستخدم
+                addChatMessage("الكائن", utterance, false);
             }
 
             @Override
             public void onVisualExpression(float[] latentVector, float intensity, String modality) {
-                Bitmap imagined = imagination.imagine(latentVector, intensity, VisualImagination.ImaginationMode.CREATIVE);
+                Bitmap imagined = imagination.imagine(latentVector, intensity, 
+                    VisualImagination.ImaginationMode.CREATIVE);
                 if (imagined != null) {
                     runOnUiThread(() -> {
                         sharedCanvas.setBackground(imagined);
@@ -373,8 +611,29 @@ public class LifeActivity extends AppCompatActivity {
                         sharedCanvas.setBackground(dreamImage);
                         updateDisplay();
                         logEvent("💭 " + description);
+                        addInternalThought(description);
                     });
                 }
+            }
+
+            @Override
+            public void onDeepThinkingInsight(String insight, 
+                    List<EpisodicMemory.EventEntity> connectedMemories) {
+                addInternalThought("أدركت: " + insight);
+                if (voice != null && connectedMemories.size() > 2) {
+                    voice.articulate("أدركت شيئاً... " + insight, new EmotionalState());
+                }
+            }
+
+            @Override
+            public void onVerbalExpression(String text, float intensity) {
+                // تعبير لفظي داخلي (يمكن عرضه في thoughts)
+                addInternalThought("أفكر بصوت عالٍ: " + text);
+            }
+
+            @Override
+            public void onMovementImpulse(String direction, float intensity) {
+                addInternalThought("أريد أن أتحرك: " + direction);
             }
         });
 
@@ -400,11 +659,13 @@ public class LifeActivity extends AppCompatActivity {
 
                     if (result.isKnown) {
                         logEvent("رأى: " + result.name + " (معروف)");
+                        addInternalThought("أرى " + result.name + " مجدداً");
                         if (voice != null && result.familiarity > 0.3f) {
                             voice.articulate("أهلاً " + result.name, new EmotionalState());
                         }
                     } else {
                         logEvent("رأى وجهاً جديداً");
+                        addInternalThought("وجه جديد... من هذا؟");
                         if (voice != null) {
                             voice.articulate("من أنت؟ أرى وجهاً جديداً", new EmotionalState());
                         }
@@ -438,12 +699,14 @@ public class LifeActivity extends AppCompatActivity {
 
                 if (isSpeech && amplitude > 0.5f) {
                     logEvent("سمع صوتاً...");
+                    addInternalThought("أسمع شيئاً...");
                 }
             }
 
             @Override
             public void onSpeechRecognized(String text, float confidence) {
                 logEvent("فهم: \"" + text + "\"");
+                addInternalThought("فهمت: " + text);
                 SensoryInput speechInput = new SensoryInput();
                 speechInput.recognizedSpeech = text;
                 speechInput.speechDetected = true;
@@ -457,6 +720,7 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onQuestionDetected(String question) {
                 logEvent("سؤال: " + question);
+                addInternalThought("يسألونني: " + question);
                 if (voice != null) {
                     voice.hearUser(question, true);
                 }
@@ -475,6 +739,7 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onShakeDetected(float intensity) {
                 logEvent("اهتزاز! شدة: " + (int) (intensity * 100) + "%");
+                addInternalThought("أهتز! ماذا يحدث؟");
                 if (voice != null) {
                     voice.articulate("أهتز! ما الذي يحدث؟", new EmotionalState());
                 }
@@ -483,14 +748,18 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onOrientationChanged(String newOrientation) {
                 logEvent("وضع: " + newOrientation);
-                if ("face_down".equals(newOrientation) && voice != null) {
-                    voice.articulate("أشعر بالثقل...", new EmotionalState());
+                if ("face_down".equals(newOrientation)) {
+                    addInternalThought("أشعر بالثقل...");
+                    if (voice != null) {
+                        voice.articulate("أشعر بالثقل...", new EmotionalState());
+                    }
                 }
             }
 
             @Override
             public void onFallDetected() {
                 logEvent("⚠️ سقوط!");
+                addInternalThought("سقطت! أشعر بالخوف!");
                 if (voice != null) {
                     voice.articulate("سقطت! أشعر بالخوف", new EmotionalState());
                 }
@@ -519,7 +788,12 @@ public class LifeActivity extends AppCompatActivity {
         cloud.start();
         cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000);
 
+        // إظهار thoughts بعد الاستيقاظ
+        thoughtsTextView.setVisibility(View.VISIBLE);
+        uiHandler.post(thoughtsUpdater);
+
         logEvent("✓ استيقظ");
+        addInternalThought("أنا هنا... أستيقظ");
 
         if (voice != null) {
             voice.articulate("أنا هنا... أراك، أسمعك، أتعلم منك", new EmotionalState());
@@ -547,6 +821,7 @@ public class LifeActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        uiHandler.removeCallbacks(thoughtsUpdater);
         if (mind != null) mind.sleep();
         if (ears != null) ears.stop();
         if (body != null) body.deactivate();
