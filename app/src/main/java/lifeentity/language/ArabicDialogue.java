@@ -112,10 +112,10 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         Log.d(TAG, "Heard: " + text);
 
         // حفظ رسالة المستخدم في الخلفية
-        saveUserMessage(text);
+        saveUserMessageAsync(text);
 
         // تحليل النص (تعلم الكلمات) - غير متزامن
-        analyzeMessage(text);
+        analyzeMessageAsync(text);
 
         // البحث عن أحداث مشابهة في الخلفية
         findSimilarEventsAsync(text, similarEvents -> {
@@ -240,7 +240,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         return concepts[random.nextInt(concepts.length)];
     }
 
-    private void analyzeMessage(String text) {
+    private void analyzeMessageAsync(String text) {
         dbExecutor.execute(() -> {
             String[] words = text.split("\\s+");
             for (String word : words) {
@@ -253,7 +253,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         });
     }
 
-    private void saveUserMessage(String message) {
+    private void saveUserMessageAsync(String message) {
         dbExecutor.execute(() -> {
             if (memory != null) {
                 EpisodicMemory.EventEntity event = new EpisodicMemory.EventEntity();
