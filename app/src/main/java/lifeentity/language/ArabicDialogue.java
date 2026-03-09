@@ -67,6 +67,8 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                     tts.setPitch(1.0f);
                     tts.setSpeechRate(0.9f);
                 }
+            } else {
+                Log.e(TAG, "TTS initialization failed");
             }
         });
     }
@@ -90,7 +92,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onArticulation(String utterance, int urgency) {
-        if (!isSpeaking && utterance != null) {
+        if (!isSpeaking && utterance != null && !utterance.isEmpty()) {
             articulate(utterance, mind != null ? mind.getCurrentEmotion() : null);
         }
     }
@@ -103,13 +105,20 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     @Override
-    public void onDreamGenerated(Bitmap dreamImage, String description) {}
+    public void onDreamGenerated(Bitmap dreamImage, String description) {
+        // يمكن استخدامها لاحقاً
+    }
 
     /**
      * استقبال رسالة المستخدم - تعمل بشكل غير متزامن لتجنب حظر الخيط الرئيسي
      */
     public void hearUser(String text, boolean isQuestion) {
-        Log.d(TAG, "Heard: " + text);
+        Log.d(TAG, "hearUser: " + text + " (isQuestion=" + isQuestion + ")");
+
+        if (text == null || text.isEmpty()) {
+            Log.w(TAG, "Empty message, ignoring");
+            return;
+        }
 
         // حفظ رسالة المستخدم في الخلفية
         saveUserMessageAsync(text);
@@ -119,10 +128,17 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
         // البحث عن أحداث مشابهة في الخلفية
         findSimilarEventsAsync(text, similarEvents -> {
-            // هذا الكود يُنفذ على الخيط الرئيسي بعد انتهاء البحث
+            Log.d(TAG, "findSimilarEventsAsync callback: found " + similarEvents.size() + " events");
             String response = generateUniqueResponse(text, isQuestion, similarEvents);
-            saveResponse(response);
-            articulate(response, mind != null ? mind.getCurrentEmotion() : null);
+            Log.d(TAG, "Generated response: " + response);
+            if (response != null && !response.isEmpty()) {
+                saveResponse(response);
+                articulate(response, mind != null ? mind.getCurrentEmotion() : null);
+            } else {
+                Log.e(TAG, "Response was null or empty");
+                // رد افتراضي في حالة الخطأ
+                articulate("آسف، لم أستطع الرد الآن", null);
+            }
         });
     }
 
@@ -133,17 +149,23 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         dbExecutor.execute(() -> {
             List<EpisodicMemory.EventEntity> similar = new ArrayList<>();
             if (memory != null) {
-                List<EpisodicMemory.EventEntity> recent = memory.getRecentEvents();
-                String[] words = message.split("\\s+");
-                for (EpisodicMemory.EventEntity event : recent) {
-                    if (event.narrative == null) continue;
-                    for (String w : words) {
-                        if (event.narrative.contains(w) && !similar.contains(event)) {
-                            similar.add(event);
-                            break;
+                try {
+                    List<EpisodicMemory.EventEntity> recent = memory.getRecentEvents();
+                    String[] words = message.split("\\s+");
+                    for (EpisodicMemory.EventEntity event : recent) {
+                        if (event.narrative == null) continue;
+                        for (String w : words) {
+                            if (event.narrative.contains(w) && !similar.contains(event)) {
+                                similar.add(event);
+                                break;
+                            }
                         }
                     }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error finding similar events", e);
                 }
+            } else {
+                Log.w(TAG, "memory is null in findSimilarEventsAsync");
             }
             List<EpisodicMemory.EventEntity> finalSimilar = similar;
             mainHandler.post(() -> callback.onResult(finalSimilar));
@@ -155,15 +177,21 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     private String generateUniqueResponse(String userMessage, boolean isQuestion, List<EpisodicMemory.EventEntity> similarEvents) {
-        if (mind == null) return "...";
+        if (mind == null) {
+            Log.w(TAG, "mind is null, returning default response");
+            return randomDefaultResponse();
+        }
 
         EmotionalState emotion = mind.getCurrentEmotion();
         String dominantDesire = getDominantDesire();
 
         StringBuilder response = new StringBuilder();
 
-        response.append(emotionalPrefix(emotion)).append(" ");
-        response.append(desireBasedThought(dominantDesire)).append(" ");
+        String prefix = emotionalPrefix(emotion);
+        if (!prefix.isEmpty()) response.append(prefix).append(" ");
+
+        String desireThought = desireBasedThought(dominantDesire);
+        if (!desireThought.isEmpty()) response.append(desireThought).append(" ");
 
         if (!similarEvents.isEmpty()) {
             EpisodicMemory.EventEntity event = similarEvents.get(random.nextInt(similarEvents.size()));
@@ -176,7 +204,18 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             response.append(generateThoughtFromState(emotion, dominantDesire));
         }
 
-        return response.toString().trim();
+        String result = response.toString().trim();
+        if (result.isEmpty()) {
+            result = randomDefaultResponse();
+        }
+        return result;
+    }
+
+    private String randomDefaultResponse() {
+        String[] defaults = {
+            "أسمعك", "نعم؟", "أنا هنا", "قل لي المزيد", "ماذا تقصد؟"
+        };
+        return defaults[random.nextInt(defaults.length)];
     }
 
     private String emotionalPrefix(EmotionalState emo) {
@@ -242,9 +281,13 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     private void analyzeMessageAsync(String text) {
         dbExecutor.execute(() -> {
+            if (embeddingsEngine == null) {
+                Log.w(TAG, "embeddingsEngine is null, skipping analysis");
+                return;
+            }
             String[] words = text.split("\\s+");
             for (String word : words) {
-                if (word.length() > 2 && embeddingsEngine != null) {
+                if (word.length() > 2) {
                     float[] randomVec = new float[128];
                     for (int i = 0; i < 128; i++) randomVec[i] = (float) Math.random() * 2 - 1;
                     embeddingsEngine.learnAssociationAsync(word, randomVec);
@@ -255,14 +298,26 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     private void saveUserMessageAsync(String message) {
         dbExecutor.execute(() -> {
-            if (memory != null) {
+            if (memory == null) {
+                Log.w(TAG, "memory is null, cannot save message");
+                return;
+            }
+            try {
                 EpisodicMemory.EventEntity event = new EpisodicMemory.EventEntity();
                 event.timestamp = System.currentTimeMillis();
                 event.narrative = message;
                 event.location = "user_chat";
-                event.emotionalState = mind != null ? mind.getCurrentEmotion().toArabic() : "neutral";
-                event.emotionalIntensity = mind != null ? mind.getCurrentEmotion().getIntensity() : 0.5f;
+                if (mind != null) {
+                    event.emotionalState = mind.getCurrentEmotion().toArabic();
+                    event.emotionalIntensity = mind.getCurrentEmotion().getIntensity();
+                } else {
+                    event.emotionalState = "neutral";
+                    event.emotionalIntensity = 0.5f;
+                }
                 memory.insertEvent(event);
+                Log.d(TAG, "User message saved to memory");
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving user message", e);
             }
         });
         recentUserMessages.add(message);
@@ -276,14 +331,29 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     private String getDominantDesire() {
         if (mind != null) {
-            return mind.getDominantDesire();
+            try {
+                return mind.getDominantDesire();
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting dominant desire", e);
+            }
         }
         String[] desires = {"explore", "rest", "bond", "create", "understand", "play", "reflect"};
         return desires[random.nextInt(desires.length)];
     }
 
     public void articulate(String text, EmotionalState emo) {
-        if (isSpeaking || text == null || text.isEmpty() || tts == null) return;
+        if (isSpeaking) {
+            Log.d(TAG, "Already speaking, skipping: " + text);
+            return;
+        }
+        if (text == null || text.isEmpty()) {
+            Log.w(TAG, "Cannot articulate null or empty text");
+            return;
+        }
+        if (tts == null) {
+            Log.e(TAG, "TTS is null, cannot speak");
+            return;
+        }
 
         float pitch = 1.0f, rate = 0.9f;
         if (emo != null) {
@@ -296,11 +366,21 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         tts.setSpeechRate(rate);
 
         isSpeaking = true;
+        Log.d(TAG, "Speaking: " + text);
+
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speech");
         tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-            @Override public void onStart(String utteranceId) {}
-            @Override public void onDone(String utteranceId) { isSpeaking = false; }
-            @Override public void onError(String utteranceId) { isSpeaking = false; }
+            @Override public void onStart(String utteranceId) {
+                Log.d(TAG, "Speech started");
+            }
+            @Override public void onDone(String utteranceId) {
+                Log.d(TAG, "Speech done");
+                isSpeaking = false;
+            }
+            @Override public void onError(String utteranceId) {
+                Log.e(TAG, "Speech error");
+                isSpeaking = false;
+            }
         });
     }
 
