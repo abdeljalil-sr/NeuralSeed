@@ -16,9 +16,9 @@ import com.lifeentity.core.ConsciousnessCore;
 import com.lifeentity.core.EmotionalState;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -45,6 +45,17 @@ public class SharedCanvas {
     // الوعي المرتبط (للقراءة فقط، لا للتحكم المباشر)
     private ConsciousnessCore connectedMind;
     
+    // مستمع لأحداث التفاعل (يستخدمه LifeActivity)
+    private OnCanvasInteraction listener;
+    
+    public interface OnCanvasInteraction {
+        void onObjectCreated(String concept, float x, float y);
+        void onObjectSelected(String id, String concept);
+        void onObjectMoved(String id, float x, float y);
+        void onGestureDrawn(String gesture, float x, float y);
+        void onCanvasQuestion(String question);
+    }
+    
     public SharedCanvas(int width, int height) {
         this.width = width;
         this.height = height;
@@ -62,6 +73,16 @@ public class SharedCanvas {
         
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setStyle(Paint.Style.FILL);
+    }
+    
+    public void setListener(OnCanvasInteraction listener) {
+        this.listener = listener;
+    }
+    
+    public void setBackground(Bitmap background) {
+        if (background == null) return;
+        // يمكن تنفيذ تعيين خلفية مؤقتة
+        canvas.drawBitmap(background, 0, 0, null);
     }
     
     // ==================== واجهة للوعي (الفنان) ====================
@@ -87,6 +108,10 @@ public class SharedCanvas {
         
         elements.add(element);
         renderElement(element);
+        
+        if (listener != null) {
+            listener.onObjectCreated(concept, x, y);
+        }
         
         return element;
     }
@@ -324,6 +349,10 @@ public class SharedCanvas {
                 
                 // الوعي هو من يقرر كيف يستجيب
                 notifyMindOfInteraction(gesture);
+                
+                if (listener != null) {
+                    listener.onGestureDrawn("touch", gesture.x, gesture.y);
+                }
                 return true;
                 
             case MotionEvent.ACTION_MOVE:
@@ -335,6 +364,10 @@ public class SharedCanvas {
                     last.velocityY = (canvasY / height - last.y) * 10;
                     last.x = canvasX / width;
                     last.y = canvasY / height;
+                    
+                    if (listener != null) {
+                        listener.onGestureDrawn("drag", last.x, last.y);
+                    }
                 }
                 return true;
                 
@@ -346,6 +379,10 @@ public class SharedCanvas {
                     
                     // الوعي يقرر إذا كان هذا "سؤالاً" أو "لعباً" أو "تعبيراً"
                     classifyGestureForMind(last);
+                    
+                    if (listener != null && last.duration < 200) {
+                        listener.onCanvasQuestion("ما هذا؟");
+                    }
                 }
                 return true;
         }
@@ -495,6 +532,26 @@ public class SharedCanvas {
     
     public void connectToMind(ConsciousnessCore mind) {
         this.connectedMind = mind;
+    }
+    
+    /**
+     * البحث عن أقرب مفهوم لإحداثيات الشاشة
+     */
+    public String findNearestConcept(float screenX, float screenY) {
+        float canvasX = screenX * scaleX;
+        float canvasY = screenY * scaleY;
+        CanvasElement nearest = null;
+        float minDist = Float.MAX_VALUE;
+        for (CanvasElement element : elements) {
+            float dx = canvasX - element.x;
+            float dy = canvasY - element.y;
+            float dist = (float) Math.sqrt(dx*dx + dy*dy);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = element;
+            }
+        }
+        return nearest != null ? nearest.concept : "الفراغ";
     }
     
     // ==================== الفئات الداخلية ====================
