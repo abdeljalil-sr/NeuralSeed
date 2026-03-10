@@ -129,12 +129,12 @@ public class ConsciousnessCore {
         
         memoryExecutor.execute(() -> {
             try {
-                // ✅ استدعاء آمن: قد لا تكون الدوال موجودة، نستخدم try-catch
+                // ✅ تم التصحيح: استخدام getRecent بدلاً من getRecentVisualMemories
                 List<VisualMemory> impactfulVisuals = new ArrayList<>();
                 try {
-                    impactfulVisuals = database.visualMemoryDao().getRecentVisualMemories(10); // بديل
+                    impactfulVisuals = database.visualMemoryDao().getRecent(10);
                 } catch (Exception e) {
-                    Log.w(TAG, "getImpactfulMemories not available, using recent");
+                    Log.w(TAG, "getRecent not available, using empty list");
                 }
                 deepThinkingContext.impactfulVisualMemories = impactfulVisuals;
                 
@@ -180,8 +180,8 @@ public class ConsciousnessCore {
      */
     private void decideConsciousnessMode() {
         long idleTime = System.currentTimeMillis() - lastInputTime;
-        float energy = now.bodyState != null ? now.bodyState.energy : 0.5f;
-        float curiosity = now.bodyState != null ? now.bodyState.curiosity : 0.5f;
+        float energy = now.bodyState != null ? (float) now.bodyState.energy : 0.5f;      // تم التصحيح: casting
+        float curiosity = now.bodyState != null ? (float) now.bodyState.curiosity : 0.5f; // تم التصحيح: casting
         
         // التفكير العميق: طاقة منخفضة + فضول مرتفع + خمول
         if (!isDreaming && !isDeepThinking && idleTime > DEEP_THINKING_THRESHOLD 
@@ -397,8 +397,8 @@ public class ConsciousnessCore {
      * الوعي يختار كيف يعبر بناءً على مشاعره والسياق
      */
     private ExpressionType chooseExpressionType() {
-        float arousal = now.emotionalTone != null ? now.emotionalTone.getArousal() : 0.5f;
-        float energy = now.bodyState != null ? now.bodyState.energy : 0.5f;
+        float arousal = now.emotionalTone != null ? (float) now.emotionalTone.getArousal() : 0.5f;  // تم التصحيح: casting
+        float energy = now.bodyState != null ? (float) now.bodyState.energy : 0.5f;                 // تم التصحيح: casting
         
         // إثارة عالية + طاقة = حركة
         if (arousal > 0.7f && energy > 0.6f) {
@@ -600,7 +600,8 @@ public class ConsciousnessCore {
                         event.narrative = moment.narrativeThread;
                         event.emotionalState = moment.emotionalTone.toArabic(); // ✅ التصحيح
                         event.emotionalIntensity = moment.emotionalTone.getIntensity();
-                        event.location = moment.focus != null ? moment.focus.target : "unknown";
+                        // تم التصحيح: استخدام subject بدلاً من target
+                        event.location = moment.focus != null ? moment.focus.subject : "unknown";
                         
                         database.memoryDao().insertEvent(event);
                     }
