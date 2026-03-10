@@ -395,8 +395,8 @@ public class LifeActivity extends AppCompatActivity {
             public void onObjectSelected(String id, String concept) {
                 logEvent("اختار: " + concept);
                 addInternalThought("أنظر إلى " + concept);
-                if (voice != null) {
-                    voice.articulate("هذا " + concept, new EmotionalState());
+                if (mind != null) {
+                    mind.speak("هذا " + concept);
                 }
             }
 
@@ -416,8 +416,8 @@ public class LifeActivity extends AppCompatActivity {
                 String nearest = sharedCanvas.findNearestConcept(lastTouchX, lastTouchY);
                 logEvent("سؤال: ما هذا؟ → " + nearest);
                 addInternalThought("يسألونني عن " + nearest);
-                if (voice != null) {
-                    voice.articulate("هذا ما أتخيله: " + nearest, new EmotionalState());
+                if (mind != null) {
+                    mind.speak("هذا ما أتخيله: " + nearest);
                 }
             }
         });
@@ -430,8 +430,8 @@ public class LifeActivity extends AppCompatActivity {
             public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event, String thumbnailBase64) {
                 logEvent("ذكرى من جهاز آخر");
                 addInternalThought("شعرت بشيء من " + source);
-                if (voice != null) {
-                    voice.articulate("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", new EmotionalState());
+                if (mind != null) {
+                    mind.speak("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً");
                 }
             }
 
@@ -439,8 +439,8 @@ public class LifeActivity extends AppCompatActivity {
             public void onIdentityLearnedFromOtherDevice(String name, String desc, FaceIdentitySystem.IdentityProfile mergedProfile) {
                 logEvent("تعلم شخصاً من جهاز آخر: " + name);
                 addInternalThought("عرفتُ " + name + " من تجربة أخرى");
-                if (voice != null) {
-                    voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
+                if (mind != null) {
+                    mind.speak("عرفتُ " + name + " من تجربة أخرى");
                 }
             }
 
@@ -586,14 +586,14 @@ public class LifeActivity extends AppCompatActivity {
                     if (result.isKnown) {
                         logEvent("رأى: " + result.name + " (معروف)");
                         addInternalThought("أرى " + result.name + " مجدداً");
-                        if (voice != null && result.familiarity > 0.3f) {
-                            voice.articulate("أهلاً " + result.name, new EmotionalState());
+                        if (mind != null && result.familiarity > 0.3f) {
+                            mind.speak("أهلاً " + result.name);
                         }
                     } else {
                         logEvent("رأى وجهاً جديداً");
                         addInternalThought("وجه جديد... من هذا؟");
-                        if (voice != null) {
-                            voice.articulate("من أنت؟ أرى وجهاً جديداً", new EmotionalState());
+                        if (mind != null) {
+                            mind.speak("من أنت؟ أرى وجهاً جديداً");
                         }
                     }
                 }
@@ -666,8 +666,8 @@ public class LifeActivity extends AppCompatActivity {
             public void onShakeDetected(float intensity) {
                 logEvent("اهتزاز! شدة: " + (int) (intensity * 100) + "%");
                 addInternalThought("أهتز! ماذا يحدث؟");
-                if (voice != null) {
-                    voice.articulate("أهتز! ما الذي يحدث؟", new EmotionalState());
+                if (mind != null) {
+                    mind.speak("أهتز! ما الذي يحدث؟");
                 }
             }
 
@@ -676,8 +676,8 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("وضع: " + newOrientation);
                 if ("face_down".equals(newOrientation)) {
                     addInternalThought("أشعر بالثقل...");
-                    if (voice != null) {
-                        voice.articulate("أشعر بالثقل...", new EmotionalState());
+                    if (mind != null) {
+                        mind.speak("أشعر بالثقل...");
                     }
                 }
             }
@@ -686,8 +686,8 @@ public class LifeActivity extends AppCompatActivity {
             public void onFallDetected() {
                 logEvent("⚠️ سقوط!");
                 addInternalThought("سقطت! أشعر بالخوف!");
-                if (voice != null) {
-                    voice.articulate("سقطت! أشعر بالخوف", new EmotionalState());
+                if (mind != null) {
+                    mind.speak("سقطت! أشعر بالخوف");
                 }
             }
         });
@@ -720,8 +720,8 @@ public class LifeActivity extends AppCompatActivity {
         logEvent("✓ استيقظ");
         addInternalThought("أنا هنا... أستيقظ");
 
-        if (voice != null) {
-            voice.articulate("أنا هنا... أراك، أسمعك، أتعلم منك", new EmotionalState());
+        if (mind != null) {
+            mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك");
         }
 
         runOnUiThread(() -> guideText.setText("المس الشاشة • تحدث معي • حرك الهاتف"));
