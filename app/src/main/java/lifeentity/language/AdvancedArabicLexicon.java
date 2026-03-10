@@ -317,7 +317,7 @@ public class AdvancedArabicLexicon {
         // الأحجام والأبعاد
         String[] sizes = {
             "كبير", "صغير", "طويل", "قصير", "عريض", "ضيق", "سميك", "رفيع", "عميق", "ضحل",
-            "ضخم", "هائل", "ضئيل", " microscopic", "واسع", "محدود", "ضخم", "هائل", "ضئيل", "قليل"
+            "ضخم", "هائل", "ضئيل", "واسع", "محدود"
         };
         for (String a : sizes) ADJECTIVES.put(a, WordCategory.ADJECTIVE_SIZE);
         
@@ -382,21 +382,6 @@ public class AdvancedArabicLexicon {
     
     // أنماط الجذور العربية الثلاثية والرباعية
     private static final Pattern ROOT_PATTERN = Pattern.compile("^[ء-ي]{3,4}$");
-    
-    // أنماط الأوزان الصرفية الشائعة
-    private static final Map<String, String> VERB_PATTERNS = new HashMap<>();
-    static {
-        VERB_PATTERNS.put("فعل", "ماضٍ");
-        VERB_PATTERNS.put("يفعل", "مضارع");
-        VERB_PATTERNS.put("افعل", "أمر");
-        VERB_PATTERNS.put("مفعل", "اسم مفعول");
-        VERB_PATTERNS.put("فاعل", "اسم فاعل");
-        VERB_PATTERNS.put("تفعل", "مضارع مبني للمجهول");
-        VERB_PATTERNS.put("انفعل", "مبني للمجهول");
-        VERB_PATTERNS.put("افتعل", "تعدية");
-        VERB_PATTERNS.put("تفاعل", "مشاركة");
-        VERB_PATTERNS.put("استفعل", "طلب");
-    }
     
     // ==================== البنية الداخلية للتحليل ====================
     
@@ -569,8 +554,8 @@ public class AdvancedArabicLexicon {
         }
         
         // التحقق من التصغير
-        if (word.startsWith("فُعَيْعِل") || word.matches("^.ُ.َيْ.ِ.$")) {
-            return WordCategory.NOUN_OBJECT; // تصغير غالباً للأشياء
+        if (word.matches("^.ُ.َيْ.ِ.$")) {
+            return WordCategory.NOUN_OBJECT;
         }
         
         // التحقق من اسم الآلة
@@ -750,54 +735,6 @@ public class AdvancedArabicLexicon {
     }
     
     /**
-     * توليد صيغ مختلفة للفعل
-     */
-    public static Map<String, String> conjugateVerb(String root, String tense) {
-        Map<String, String> forms = new HashMap<>();
-        
-        if (root.length() != 3) return forms;
-        
-        char f = root.charAt(0);
-        char a = root.charAt(1);
-        char l = root.charAt(2);
-        
-        switch (tense) {
-            case "past":
-                forms.put("هو", "" + f + "َ" + a + "َ" + l + "َ");
-                forms.put("هما", "" + f + "َ" + a + "َ" + l + "َا");
-                forms.put("هم", "" + f + "َ" + a + "َ" + l + "ُوا");
-                forms.put("هي", "" + f + "َ" + a + "َ" + l + "َتْ");
-                forms.put("هما", "" + f + "َ" + a + "َ" + l + "َتَا");
-                forms.put("هن", "" + f + "َ" + a + "َ" + l + "ْنَ");
-                forms.put("انت", "" + f + "َ" + a + "َ" + l + "ْتَ");
-                forms.put("انتي", "" + f + "َ" + a + "َ" + l + "ْتِ");
-                forms.put("انا", "" + f + "َ" + a + "َ" + l + "ْتُ");
-                forms.put("نحن", "" + f + "َ" + a + "َ" + l + "ْنَا");
-                break;
-                
-            case "present":
-                forms.put("هو", "يَ" + f + "ْ" + a + "ُ" + l + "ُ");
-                forms.put("هما", "يَ" + f + "ْ" + a + "ُ" + l + "َانِ");
-                forms.put("هم", "يَ" + f + "ْ" + a + "ُ" + l + "ُونَ");
-                forms.put("هي", "تَ" + f + "ْ" + a + "ُ" + l + "ُ");
-                forms.put("انت", "تَ" + f + "ْ" + a + "ُ" + l + "ُ");
-                forms.put("انتي", "تَ" + f + "ْ" + a + "ُ" + l + "ِينَ");
-                forms.put("انا", "أَ" + f + "ْ" + a + "ُ" + l + "ُ");
-                forms.put("نحن", "نَ" + f + "ْ" + a + "ُ" + l + "ُ");
-                break;
-                
-            case "imperative":
-                forms.put("انت", "اِ" + f + "ْ" + a + "َ" + l + "ْ");
-                forms.put("انتي", "اِ" + f + "ْ" + a + "َ" + l + "ِي");
-                forms.put("انتما", "اِ" + f + "ْ" + a + "َ" + l + "َا");
-                forms.put("انتم", "اِ" + f + "ْ" + a + "َ" + l + "ُوا");
-                break;
-        }
-        
-        return forms;
-    }
-    
-    /**
      * الحصول على إحصائيات المعجم
      */
     public static Map<String, Integer> getLexiconStats() {
@@ -845,30 +782,5 @@ public class AdvancedArabicLexicon {
         System.out.println("\nالإحصائيات:");
         analysis.getStatistics().forEach((cat, count) -> 
             System.out.printf("  %s: %d%n", cat.getArabicName(), count));
-    }
-    
-    // ==================== اختبار ====================
-    
-    public static void main(String[] args) {
-        // اختبار التحليل
-        String text = "ذهب محمد إلى المكتبة ليقرأ كتاباً جديداً عن علم النفس";
-        
-        TextAnalysis analysis = analyze(text);
-        printAnalysis(analysis);
-        
-        // اختبار التصريف
-        System.out.println("\n=== تصريف الفعل ك-ت-ب ===");
-        Map<String, String> past = conjugateVerb("كتب", "past");
-        past.forEach((pronoun, form) -> 
-            System.out.printf("  %s: %s%n", pronoun, form));
-        
-        // اختبار البحث عن مشابهات
-        System.out.println("\n=== كلمات مشابهة لـ 'كتب' ===");
-        findSimilarWords("كتب", 2).forEach(System.out::println);
-        
-        // إحصائيات المعجم
-        System.out.println("\n=== إحصائيات المعجم ===");
-        getLexiconStats().forEach((key, value) -> 
-            System.out.printf("  %s: %d%n", key, value));
     }
 }
