@@ -20,30 +20,28 @@ public class EmbeddingsEngine {
 
     private MemoryDao memoryDao;
     private Map<String, float[]> randomCache;
-    private ExecutorService dbExecutor; // ✅ منفذ للعمليات في الخلفية
-    private Handler mainHandler; // ✅ للعودة إلى الخيط الرئيسي إذا لزم الأمر
+    private ExecutorService dbExecutor;
+    private Handler mainHandler;
 
     public EmbeddingsEngine(MemoryDao dao) {
         this.memoryDao = dao;
         this.randomCache = new HashMap<>();
-        this.dbExecutor = Executors.newSingleThreadExecutor(); // ✅ خيط واحد لعمليات قاعدة البيانات
+        this.dbExecutor = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
         Log.i(TAG, "EmbeddingsEngine initialized with database");
     }
 
-    // ✅ دالة غير متزامنة لتعلم الارتباط (لا تنتظر النتيجة)
     public void learnAssociationAsync(String word, float[] visualVector) {
         dbExecutor.execute(() -> {
             learnAssociation(word, visualVector);
         });
     }
 
-    // ✅ دالة متزامنة (تستخدم داخلياً في الخلفية)
     private void learnAssociation(String word, float[] visualVector) {
         word = normalize(word);
         if (word.isEmpty() || visualVector == null) return;
 
-        float[] wordVec = getEmbedding(word); // هذه تستدعي قاعدة البيانات
+        float[] wordVec = getEmbedding(word);
         float[] fused = new float[SIZE];
 
         for (int i = 0; i < SIZE; i++) {
@@ -51,14 +49,12 @@ public class EmbeddingsEngine {
             fused[i] = wordVec[i] * 0.6f + v * 0.4f;
         }
 
-        String conceptKey = "concept:" + word;
-        SemanticEmbeddings.EmbeddingEntity entity = new SemanticEmbeddings.EmbeddingEntity(conceptKey, fused);
-        memoryDao.saveEmbedding(entity); // ✅ هذا في الخلفية لأننا داخل dbExecutor
+        SemanticEmbeddings.EmbeddingEntity entity = new SemanticEmbeddings.EmbeddingEntity(word, fused);
+        memoryDao.saveEmbedding(entity);
 
         Log.i(TAG, "Learned association for: " + word);
     }
 
-    // ✅ دالة غير متزامنة مع Callback للحصول على النتيجة
     public void getEmbeddingAsync(String word, EmbeddingCallback callback) {
         dbExecutor.execute(() -> {
             float[] result = getEmbedding(word);
@@ -66,7 +62,6 @@ public class EmbeddingsEngine {
         });
     }
 
-    // ✅ دالة متزامنة (تستخدم داخلياً في الخلفية)
     private float[] getEmbedding(String word) {
         word = normalize(word);
         if (word.isEmpty()) return getRandomVector("empty");
@@ -92,12 +87,10 @@ public class EmbeddingsEngine {
         float bestSimilarity = -1f;
 
         for (SemanticEmbeddings.EmbeddingEntity e : allEmbeddings) {
-            if (e.concept.startsWith("concept:")) {
-                float sim = cosineSimilarity(visualVector, e.vector);
-                if (sim > bestSimilarity) {
-                    bestSimilarity = sim;
-                    bestConcept = e.concept.replace("concept:", "");
-                }
+            float sim = cosineSimilarity(visualVector, e.vector);
+            if (sim > bestSimilarity) {
+                bestSimilarity = sim;
+                bestConcept = e.concept;
             }
         }
 
@@ -155,7 +148,6 @@ public class EmbeddingsEngine {
         return getConsistentRandom(seed);
     }
 
-    // ====================== واجهات Callback ======================
     public interface EmbeddingCallback {
         void onResult(float[] embedding);
     }
@@ -164,7 +156,6 @@ public class EmbeddingsEngine {
         void onResult(String concept);
     }
 
-    // إيقاف التشغيل (يُستدعى عند إغلاق التطبيق)
     public void shutdown() {
         dbExecutor.shutdown();
     }
