@@ -14,6 +14,11 @@ public interface VisualMemoryDao {
     @Query("SELECT * FROM visual_memories ORDER BY timestamp DESC LIMIT :limit")
     List<VisualMemory> getRecent(int limit);
 
+    // ✅ دالة مضافة للتوافق مع الاستدعاء في ConsciousnessCore
+    default List<VisualMemory> getRecentVisualMemories(int limit) {
+        return getRecent(limit);
+    }
+
     @Query("SELECT * FROM visual_memories WHERE concept LIKE :concept ORDER BY timestamp DESC LIMIT 50")
     List<VisualMemory> getByConcept(String concept);
 
