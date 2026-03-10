@@ -53,13 +53,14 @@ public class FirebaseSync {
 
     private ConcurrentHashMap<String, List<IdentityConflict>> pendingIdentityMerges;
 
+    // واجهة المستمع - تمت إضافة onThumbnailDownloaded
     public interface SyncListener {
         void onMemorySyncedFromCloud(String sourceDevice, EpisodicMemory.Event event, String thumbnailBase64);
         void onIdentityLearnedFromOtherDevice(String name, String description, FaceIdentitySystem.IdentityProfile mergedProfile);
         void onIdentityConflictDetected(String faceHash, List<FaceIdentitySystem.IdentityProfile> conflictingProfiles);
         void onSyncComplete(int itemsSynced);
         void onConnectionStatusChanged(boolean connected);
-        void onThumbnailDownloaded(String memoryId, Bitmap thumbnail);
+        void onThumbnailDownloaded(String memoryId, Bitmap thumbnail);  // تمت الإضافة
     }
 
     public FirebaseSync(String deviceId) {
@@ -173,8 +174,7 @@ public class FirebaseSync {
         data.put("shared", true);
         data.put("sharedAt", System.currentTimeMillis());
 
-        String docId = event.sensoryHash != null ? event.sensoryHash : deviceId + "_" + event.timestamp;
-        
+        String docId = deviceId + "_" + event.timestamp;  // تعديل لضمان الفريدة
         db.collection(COLLECTION_MEMORIES).document(docId).set(data, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Memory uploaded: " + docId))
                 .addOnFailureListener(e -> Log.e(TAG, "Upload failed: ", e));
