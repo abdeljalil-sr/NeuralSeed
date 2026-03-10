@@ -15,7 +15,7 @@ public class VisualMemory {
     public byte[] thumbnail;
     public String concept;
     public float[] affectAtEncoding;
-    public int retrievalCount;  // ✅ تمت إضافة هذا الحقل (عدد مرات الاسترجاع)
+    public int retrievalCount; // عدد مرات الاسترجاع (مهم لـ ImaginationEngine)
 
     public VisualMemory() {}
 
@@ -25,6 +25,6 @@ public class VisualMemory {
         this.thumbnail = thumbnail;
         this.concept = concept;
         this.affectAtEncoding = affect;
-        this.retrievalCount = 0;  // ✅ القيمة الافتراضية 0
+        this.retrievalCount = 0;
     }
 }
