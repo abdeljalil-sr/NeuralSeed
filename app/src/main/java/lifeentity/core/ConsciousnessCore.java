@@ -698,6 +698,14 @@ public class ConsciousnessCore {
         return isDeepThinking;
     }
 
+    // ✅ دالة جديدة لإصدار كلام من الوعي (تستخدمها ArabicDialogue)
+    public void speak(String utterance) {
+        if (utterance == null || utterance.isEmpty()) return;
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation(utterance, 5); // urgency 5 كقيمة متوسطة
+        }
+    }
+
     // ==================== الفئات الداخلية ====================
 
     private static class DeepThinkingContext {
