@@ -81,7 +81,8 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     public void onConsciousMoment(ConsciousMoment moment) {
         if (!isSpeaking && moment.narrativeThread != null && !moment.narrativeThread.isEmpty()) {
             if (random.nextFloat() < 0.02) {
-                articulate(moment.narrativeThread, moment.emotionalTone);
+                // نستخدم mind.speak بدلاً من articulate
+                if (mind != null) mind.speak(moment.narrativeThread);
             }
         }
     }
@@ -90,21 +91,21 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     public void onEmotionalShift(EmotionalState from, EmotionalState to) {
         if (to.getIntensity() > 0.7 && !isSpeaking) {
             String comment = generateEmotionalComment(to);
-            articulate(comment, to);
+            if (mind != null) mind.speak(comment);
         }
     }
 
     @Override
     public void onArticulation(String utterance, int urgency) {
-        if (!isSpeaking && utterance != null && !utterance.isEmpty()) {
-            articulate(utterance, mind != null ? mind.getCurrentEmotion() : null);
-        }
+        // لم نعد نستخدم هذه الدالة لتشغيل TTS، بل نعتمد على mind.speak في hearUser
+        // نكتفي بتسجيلها
+        Log.d(TAG, "onArticulation received: " + utterance);
     }
 
     @Override
     public void onVisualExpression(float[] latentVector, float intensity, String modality) {
         if (!isSpeaking && random.nextFloat() < 0.05) {
-            articulate("أنا أرسم ما أشعر به", mind != null ? mind.getCurrentEmotion() : null);
+            if (mind != null) mind.speak("أنا أرسم ما أشعر به");
         }
     }
 
@@ -121,13 +122,11 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         Log.d(TAG, "onVerbalExpression: " + text + " (intensity=" + intensity + ")");
     }
 
-    // ✅ إضافة الدالة المفقودة
     @Override
     public void onDeepThinkingInsight(String insight, List<EpisodicMemory.EventEntity> connectedMemories) {
         Log.d(TAG, "onDeepThinkingInsight: " + insight);
-        // يمكن استخدامها للتعليق على البصيرة إذا أردنا
         if (!isSpeaking && insight != null && !insight.isEmpty()) {
-            articulate("أدركت: " + insight, mind != null ? mind.getCurrentEmotion() : null);
+            if (mind != null) mind.speak("أدركت: " + insight);
         }
     }
 
@@ -154,11 +153,61 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             Log.d(TAG, "Generated response: " + response);
             if (response != null && !response.isEmpty()) {
                 saveResponse(response);
-                articulate(response, mind != null ? mind.getCurrentEmotion() : null);
+                // إعلام الوعي بالرد (سينشر onArticulation للمراقبين)
+                if (mind != null) mind.speak(response);
+                // تشغيل TTS مباشرة
+                performTTS(response, mind != null ? mind.getCurrentEmotion() : null);
             } else {
                 String fallback = generateContextualFallback();
                 Log.w(TAG, "Response was empty, using contextual fallback: " + fallback);
-                articulate(fallback, null);
+                if (mind != null) mind.speak(fallback);
+                performTTS(fallback, null);
+            }
+        });
+    }
+
+    /**
+     * تشغيل النطق الصوتي (TTS) دون إرسال حدث آخر
+     */
+    private void performTTS(String text, EmotionalState emo) {
+        if (isSpeaking) {
+            Log.d(TAG, "Already speaking, skipping TTS: " + text);
+            return;
+        }
+        if (text == null || text.isEmpty()) {
+            Log.w(TAG, "Cannot speak null or empty text");
+            return;
+        }
+        if (tts == null) {
+            Log.e(TAG, "TTS is null, cannot speak");
+            return;
+        }
+
+        float pitch = 1.0f, rate = 0.9f;
+        if (emo != null) {
+            if (emo.isExcited()) { pitch = 1.2f; rate = 1.1f; }
+            else if (emo.isCalm()) { pitch = 0.9f; rate = 0.7f; }
+            else if (emo.isAfraid()) { pitch = 1.3f; rate = 1.2f; }
+            else if (emo.isSad()) { pitch = 0.8f; rate = 0.8f; }
+        }
+        tts.setPitch(pitch);
+        tts.setSpeechRate(rate);
+
+        isSpeaking = true;
+        Log.d(TAG, "Speaking: " + text);
+
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speech");
+        tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+            @Override public void onStart(String utteranceId) {
+                Log.d(TAG, "Speech started");
+            }
+            @Override public void onDone(String utteranceId) {
+                Log.d(TAG, "Speech done");
+                isSpeaking = false;
+            }
+            @Override public void onError(String utteranceId) {
+                Log.e(TAG, "Speech error");
+                isSpeaking = false;
             }
         });
     }
@@ -615,49 +664,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         }
         String[] desires = {"explore", "rest", "bond", "create", "understand", "play", "reflect"};
         return desires[random.nextInt(desires.length)];
-    }
-
-    public void articulate(String text, EmotionalState emo) {
-        if (isSpeaking) {
-            Log.d(TAG, "Already speaking, skipping: " + text);
-            return;
-        }
-        if (text == null || text.isEmpty()) {
-            Log.w(TAG, "Cannot articulate null or empty text");
-            return;
-        }
-        if (tts == null) {
-            Log.e(TAG, "TTS is null, cannot speak");
-            return;
-        }
-
-        float pitch = 1.0f, rate = 0.9f;
-        if (emo != null) {
-            if (emo.isExcited()) { pitch = 1.2f; rate = 1.1f; }
-            else if (emo.isCalm()) { pitch = 0.9f; rate = 0.7f; }
-            else if (emo.isAfraid()) { pitch = 1.3f; rate = 1.2f; }
-            else if (emo.isSad()) { pitch = 0.8f; rate = 0.8f; }
-        }
-        tts.setPitch(pitch);
-        tts.setSpeechRate(rate);
-
-        isSpeaking = true;
-        Log.d(TAG, "Speaking: " + text);
-
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speech");
-        tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-            @Override public void onStart(String utteranceId) {
-                Log.d(TAG, "Speech started");
-            }
-            @Override public void onDone(String utteranceId) {
-                Log.d(TAG, "Speech done");
-                isSpeaking = false;
-            }
-            @Override public void onError(String utteranceId) {
-                Log.e(TAG, "Speech error");
-                isSpeaking = false;
-            }
-        });
     }
 
     public void shutdown() {
