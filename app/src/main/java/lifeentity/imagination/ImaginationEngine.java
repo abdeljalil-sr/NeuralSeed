@@ -167,7 +167,8 @@ public class ImaginationEngine {
         float totalWeight = 0;
         
         // normalize weights
-        float weightSum = memories.stream().map(m -> m.weight).reduce(0f, Float::sum);
+        float weightSum = 0;
+        for (WeightedMemory wm : memories) weightSum += wm.weight;
         
         for (WeightedMemory wm : memories) {
             float normalizedWeight = wm.weight / weightSum;
@@ -203,7 +204,6 @@ public class ImaginationEngine {
         
         float[] result = new float[LATENT_SIZE];
         double sinTheta = Math.sin(theta);
-        double sinTotal = Math.sin(theta / t);
         
         for (int i = 0; i < LATENT_SIZE; i++) {
             result[i] = (float) (a[i] * Math.cos(theta) + relative[i] * sinTheta);
@@ -219,9 +219,9 @@ public class ImaginationEngine {
         float[] latent = new float[LATENT_SIZE];
         
         if (fullRandom) {
-            // توليد عشوائي بحت
+            // توليد عشوائي بحت - تم التصحيح: تحويل nextGaussian إلى float
             for (int i = 0; i < LATENT_SIZE; i++) {
-                latent[i] = random.nextGaussian() * 0.5f;
+                latent[i] = (float) random.nextGaussian() * 0.5f;
             }
         } else {
             // توليع مبني على الحالة العاطفية (conditional generation)
@@ -229,7 +229,7 @@ public class ImaginationEngine {
             for (int i = 0; i < LATENT_SIZE; i++) {
                 // استخدام الحالة العاطفية لتوجيه التوليد
                 float emotionalBias = (i < seed.length) ? seed[i] * 0.3f : 0;
-                latent[i] = random.nextGaussian() * 0.4f + emotionalBias;
+                latent[i] = (float) random.nextGaussian() * 0.4f + emotionalBias;
             }
         }
         
@@ -245,7 +245,8 @@ public class ImaginationEngine {
         
         // Perlin noise مبسط للبنية الطبيعية
         for (int i = 0; i < LATENT_SIZE; i++) {
-            float noise = random.nextGaussian() * noiseAmplitude;
+            // تم التصحيح: تحويل nextGaussian إلى float
+            float noise = (float) random.nextGaussian() * noiseAmplitude;
             
             // تقليل الضوضاء في الأبعاد المهمة (الأولى)
             if (i < 16) noise *= 0.5f;
@@ -276,8 +277,10 @@ public class ImaginationEngine {
             return generateNewImage(latent, best);
         }
         
-        // تحديث إحصائيات الاسترجاع
-        updateRetrievalStats(best);
+        // تحديث إحصائيات الاسترجاع - تم التصحيح: استخدام retrievalCount
+        if (best.retrievalCount >= 0) {
+            best.retrievalCount++;
+        }
         
         // إذا كان البعد متوسطاً، استخدم interpolation
         if (distance > 0.2f && distance <= 0.5f) {
@@ -491,11 +494,6 @@ public class ImaginationEngine {
             v[i] = Math.max(-1, Math.min(1, v[i]));
         }
         return v;
-    }
-
-    private void updateRetrievalStats(VisualMemory mem) {
-        mem.retrievalCount++;
-        // يمكن تحديث قاعدة البيانات هنا إذا لزم الأمر
     }
 
     private float euclideanDistance(float[] a, float[] b) {
