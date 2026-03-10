@@ -16,7 +16,6 @@ import com.lifeentity.memory.MemoryDao;
 import com.lifeentity.perception.EmbeddingsEngine;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -24,7 +23,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 /**
  * المسؤول عن الحوار - يولد ردوداً فريدة من حالة الوعي والذاكرة والتحليل اللغوي المتقدم
@@ -46,7 +44,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private ExecutorService dbExecutor;
     private Handler mainHandler;
     
-    // تحليل المعجم المتقدم للرسالة الحالية
     private AdvancedArabicLexicon.TextAnalysis currentAnalysis;
     private Map<String, Object> messageContext;
 
@@ -80,13 +77,10 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         });
     }
 
-    // ======================== استقبال الأحداث من الوعي ========================
-
     @Override
     public void onConsciousMoment(ConsciousMoment moment) {
-        // يمكن للكائن أن يقرر التحدث تلقائياً بناءً على حالته
         if (!isSpeaking && moment.narrativeThread != null && !moment.narrativeThread.isEmpty()) {
-            if (random.nextFloat() < 0.02) { // 2% فرصة
+            if (random.nextFloat() < 0.02) {
                 articulate(moment.narrativeThread, moment.emotionalTone);
             }
         }
@@ -102,7 +96,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onArticulation(String utterance, int urgency) {
-        // الوعي يطلب التحدث مباشرة
         if (!isSpeaking && utterance != null && !utterance.isEmpty()) {
             articulate(utterance, mind != null ? mind.getCurrentEmotion() : null);
         }
@@ -110,7 +103,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onVisualExpression(float[] latentVector, float intensity, String modality) {
-        // يمكن التعليق على ما يرسمه
         if (!isSpeaking && random.nextFloat() < 0.05) {
             articulate("أنا أرسم ما أشعر به", mind != null ? mind.getCurrentEmotion() : null);
         }
@@ -119,7 +111,10 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     @Override
     public void onDreamGenerated(Bitmap dreamImage, String description) {}
 
-    // ======================== استقبال كلام المستخدم ========================
+    @Override
+    public void onMovementImpulse(String direction, float intensity) {
+        // لا نستخدمها حالياً
+    }
 
     public void hearUser(String text, boolean isQuestion) {
         Log.d(TAG, "hearUser: " + text + " (isQuestion=" + isQuestion + ")");
@@ -129,20 +124,15 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             return;
         }
 
-        // تحليل النص باستخدام المعجم المتقدم
         currentAnalysis = AdvancedArabicLexicon.analyze(text);
         updateMessageContext(text, isQuestion);
         
         Log.d(TAG, "Lexicon analysis: " + currentAnalysis.getWordCount() + " words, " +
               "recognition: " + String.format("%.1f%%", currentAnalysis.getRecognitionRate() * 100));
 
-        // حفظ في الذاكرة (خلفية)
         saveUserMessageAsync(text);
-
-        // تحليل النص العميق (خلفية)
         analyzeMessageAsync(text);
 
-        // البحث عن أحداث مشابهة (خلفية) ثم توليد الرد
         findSimilarEventsAsync(text, similarEvents -> {
             Log.d(TAG, "findSimilarEventsAsync callback: found " + similarEvents.size() + " events");
             String response = generateUniqueResponse(text, isQuestion, similarEvents);
@@ -151,75 +141,81 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                 saveResponse(response);
                 articulate(response, mind != null ? mind.getCurrentEmotion() : null);
             } else {
-                // رد افتراضي إذا فشل التوليد
                 String fallback = generateContextualFallback();
                 Log.w(TAG, "Response was empty, using contextual fallback: " + fallback);
                 articulate(fallback, null);
             }
         });
     }
-    
-    /**
-     * تحديث سياق الرسالة بناءً على التحليل اللغوي
-     */
+
     private void updateMessageContext(String text, boolean isQuestion) {
         messageContext.clear();
         messageContext.put("isQuestion", isQuestion);
         messageContext.put("text", text);
         
         if (currentAnalysis != null) {
-            // تحديد نوع السؤال إذا كان كذلك
             if (isQuestion) {
                 String questionType = detectQuestionType();
                 messageContext.put("questionType", questionType);
             }
             
-            // تحديد الموضوع الرئيسي (الأسماء)
-            List<String> nouns = currentAnalysis.getWords().stream()
-                .filter(w -> w.getCategory().name().contains("NOUN"))
-                .map(AdvancedArabicLexicon.WordAnalysis::getNormalizedWord)
-                .collect(Collectors.toList());
+            List<String> nouns = new ArrayList<>();
+            List<String> verbs = new ArrayList<>();
+            List<String> emotions = new ArrayList<>();
+            
+            for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
+                String normalized = word.getNormalizedWord();
+                AdvancedArabicLexicon.WordCategory cat = word.getCategory();
+                
+                if (cat.name().contains("NOUN")) {
+                    nouns.add(normalized);
+                } else if (cat.name().contains("VERB")) {
+                    verbs.add(normalized);
+                }
+                
+                // كشف المشاعر
+                if (normalized.contains("فرح") || normalized.contains("سعيد")) {
+                    emotions.add("joy");
+                } else if (normalized.contains("حزن") || normalized.contains("بكاء")) {
+                    emotions.add("sadness");
+                } else if (normalized.contains("خوف") || normalized.contains("قلق")) {
+                    emotions.add("fear");
+                } else if (normalized.contains("حب")) {
+                    emotions.add("love");
+                } else if (normalized.contains("دهشة") || normalized.contains("مفاجأة")) {
+                    emotions.add("surprise");
+                } else if (normalized.contains("فضول") || normalized.contains("تساؤل")) {
+                    emotions.add("curiosity");
+                }
+            }
+            
             messageContext.put("keyNouns", nouns);
-            
-            // تحديد الأفعال الرئيسية
-            List<String> verbs = currentAnalysis.getWords().stream()
-                .filter(w -> w.getCategory().name().contains("VERB"))
-                .map(AdvancedArabicLexicon.WordAnalysis::getNormalizedWord)
-                .collect(Collectors.toList());
             messageContext.put("keyVerbs", verbs);
-            
-            // تحديد المشاعر المذكورة
-            List<String> emotions = detectEmotionsInText();
             messageContext.put("mentionedEmotions", emotions);
             
-            // تحديد ما إذا كان النص يحتوي على أوامر
             boolean hasImperative = currentAnalysis.getWords().stream()
                 .anyMatch(w -> w.getCategory() == AdvancedArabicLexicon.WordCategory.VERB_IMPERATIVE);
             messageContext.put("hasImperative", hasImperative);
         }
     }
-    
-    /**
-     * تحديد نوع السؤال بناءً على أدوات الاستفهام
-     */
+
     private String detectQuestionType() {
         if (currentAnalysis == null) return "general";
         
-        boolean hasWhat = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("ما") || w.getNormalizedWord().equals("ماذا"));
-        boolean hasWho = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("من"));
-        boolean hasWhere = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("اين"));
-        boolean hasWhen = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("متى"));
-        boolean hasHow = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("كيف"));
-        boolean hasWhy = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("لماذا"));
-        boolean hasYesNo = currentAnalysis.getWords().stream()
-            .anyMatch(w -> w.getNormalizedWord().equals("هل"));
-            
+        boolean hasWhat = false, hasWho = false, hasWhere = false, hasWhen = false, 
+                hasHow = false, hasWhy = false, hasYesNo = false;
+        
+        for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
+            String norm = word.getNormalizedWord();
+            if (norm.equals("ما") || norm.equals("ماذا")) hasWhat = true;
+            if (norm.equals("من")) hasWho = true;
+            if (norm.equals("اين")) hasWhere = true;
+            if (norm.equals("متى")) hasWhen = true;
+            if (norm.equals("كيف")) hasHow = true;
+            if (norm.equals("لماذا")) hasWhy = true;
+            if (norm.equals("هل")) hasYesNo = true;
+        }
+        
         if (hasYesNo) return "yesno";
         if (hasWhat) return "what";
         if (hasWho) return "who";
@@ -230,93 +226,50 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         
         return "general";
     }
-    
-    /**
-     * كشف المشاعر المذكورة في النص
-     */
-    private List<String> detectEmotionsInText() {
-        List<String> emotions = new ArrayList<>();
-        if (currentAnalysis == null) return emotions;
-        
-        Map<String, String> emotionKeywords = new HashMap<>();
-        emotionKeywords.put("فرح", "joy");
-        emotionKeywords.put("سعيد", "joy");
-        emotionKeywords.put("حب", "love");
-        emotionKeywords.put("حزن", "sadness");
-        emotionKeywords.put("بكاء", "sadness");
-        emotionKeywords.put("خوف", "fear");
-        emotionKeywords.put("قلق", "fear");
-        emotionKeywords.put("غضب", "anger");
-        emotionKeywords.put("جنون", "anger");
-        emotionKeywords.put("دهشة", "surprise");
-        emotionKeywords.put("مفاجأة", "surprise");
-        emotionKeywords.put("فضول", "curiosity");
-        emotionKeywords.put("تساؤل", "curiosity");
-        
-        for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
-            String normalized = word.getNormalizedWord();
-            if (emotionKeywords.containsKey(normalized)) {
-                emotions.add(emotionKeywords.get(normalized));
-            }
-        }
-        
-        return emotions;
-    }
-
-    // ======================== توليد الردود (بإرادة حرة وتحليل لغوي) ========================
 
     private String generateUniqueResponse(String userMessage, boolean isQuestion, List<EpisodicMemory.EventEntity> similarEvents) {
         if (mind == null) {
-            // إذا لم يكن الوعي موجوداً، نرد بشكل عشوائي بسيط
             return generateContextualFallback();
         }
 
         EmotionalState emotion = mind.getCurrentEmotion();
         String dominantDesire = getDominantDesire();
 
-        // بناء الرد من مكونات متعددة مع مراعاة السياق اللغوي
         StringBuilder response = new StringBuilder();
 
-        // إضافة بادئة عاطفية (اختيارية)
         String prefix = emotionalPrefix(emotion);
         if (!prefix.isEmpty()) {
             response.append(prefix).append(" ");
         }
 
-        // إضافة فكرة متعلقة بالرغبة
         String desireThought = desireBasedThought(dominantDesire);
         if (!desireThought.isEmpty()) {
             response.append(desireThought).append(" ");
         }
-        
-        // إضافة رد خاص بنوع السؤال إذا كان كذلك
+
         if (isQuestion) {
             String questionResponse = generateQuestionSpecificResponse();
             if (!questionResponse.isEmpty()) {
                 response.append(questionResponse).append(" ");
             }
         }
-        
-        // إضافة تعليق على الأفعال المذكورة
+
         String verbComment = generateVerbComment();
         if (!verbComment.isEmpty()) {
             response.append(verbComment).append(" ");
         }
 
-        // إضافة ذكرى مشابهة إذا وجدت
         if (!similarEvents.isEmpty()) {
             EpisodicMemory.EventEntity event = similarEvents.get(random.nextInt(similarEvents.size()));
             response.append("ذكرني هذا بـ ").append(event.narrative).append(". ");
         }
 
-        // الجزء الأساسي: إجابة على سؤال أو فكرة عامة
         if (isQuestion) {
             response.append(generateAnswerFromState(emotion, dominantDesire));
         } else {
             response.append(generateThoughtFromState(emotion, dominantDesire));
         }
-        
-        // إضافة خاتمة إذا كان النص يحتوي على أوامر
+
         if (messageContext.containsKey("hasImperative") && (Boolean) messageContext.get("hasImperative")) {
             response.append(" ").append(generateImperativeResponse());
         }
@@ -327,17 +280,14 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         }
         return result;
     }
-    
-    /**
-     * توليد رد خاص بنوع السؤال
-     */
+
     private String generateQuestionSpecificResponse() {
         String questionType = (String) messageContext.getOrDefault("questionType", "general");
-        
+
         switch (questionType) {
             case "what":
                 return randomFromArray(
-                    "هذا سؤال جوهري", 
+                    "هذا سؤال جوهري",
                     "الجواب يتطلب تفكيراً عميقاً",
                     "ما هو المقصود تحديداً؟"
                 );
@@ -381,18 +331,13 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                 return "";
         }
     }
-    
-    /**
-     * تعليق على الأفعال المذكورة في النص
-     */
+
     private String generateVerbComment() {
         @SuppressWarnings("unchecked")
         List<String> verbs = (List<String>) messageContext.get("keyVerbs");
         if (verbs == null || verbs.isEmpty()) return "";
-        
-        // اختيار فعل عشوائي للتعليق
+
         String verb = verbs.get(random.nextInt(verbs.size()));
-        
         Map<String, String[]> verbComments = new HashMap<>();
         verbComments.put("ذهب", new String[]{"الذهاب يعني التغيير", "إلى أين الذهاب؟"});
         verbComments.put("جاء", new String[]{"القدوم يحمل معه الجديد", "من أين جاء هذا؟"});
@@ -404,17 +349,13 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         verbComments.put("عمل", new String[]{"العمل شرف", "استمر في العمل"});
         verbComments.put("كتب", new String[]{"الكتابة خلود", "ما كتب يبقى"});
         verbComments.put("قرأ", new String[]{"القراءة نافذة", "اقرأ أكثر"});
-        
+
         if (verbComments.containsKey(verb)) {
             return randomFromArray(verbComments.get(verb));
         }
-        
         return "";
     }
-    
-    /**
-     * رد على الأوامر
-     */
+
     private String generateImperativeResponse() {
         return randomFromArray(
             "سأفكر في طلبك",
@@ -423,23 +364,17 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             "أنا هنا لأستمع"
         );
     }
-    
-    /**
-     * رد افتراضي يعتمد على السياق اللغوي
-     */
+
     private String generateContextualFallback() {
-        // استخدام الإحصائيات اللغوية لتوليد رد مناسب
         if (currentAnalysis != null) {
-            long nounCount = currentAnalysis.getStatistics().entrySet().stream()
-                .filter(e -> e.getKey().name().contains("NOUN"))
-                .mapToLong(Map.Entry::getValue).sum();
-            long verbCount = currentAnalysis.getStatistics().entrySet().stream()
-                .filter(e -> e.getKey().name().contains("VERB"))
-                .mapToLong(Map.Entry::getValue).sum();
-                
+            long nounCount = 0, verbCount = 0;
+            for (Map.Entry<AdvancedArabicLexicon.WordCategory, Long> e : currentAnalysis.getStatistics().entrySet()) {
+                if (e.getKey().name().contains("NOUN")) nounCount += e.getValue();
+                if (e.getKey().name().contains("VERB")) verbCount += e.getValue();
+            }
             if (nounCount > verbCount) {
                 return randomFromArray(
-                    "هذا يثير اهتمامي", 
+                    "هذا يثير اهتمامي",
                     "أحب أن أتأمل في هذا",
                     "دعنا نفكر في هذا الموضوع"
                 );
@@ -451,7 +386,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                 );
             }
         }
-        
         return randomDefaultResponse();
     }
 
@@ -476,13 +410,12 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     private String desireBasedThought(String desire) {
         if (desire == null) desire = "explore";
-        
-        // تخصيص الرغبة بناءً على السياق اللغوي
+
         @SuppressWarnings("unchecked")
         List<String> nouns = (List<String>) messageContext.getOrDefault("keyNouns", new ArrayList<>());
-        
+
         switch (desire) {
-            case "explore": 
+            case "explore":
                 if (nouns.contains("سماء") || nouns.contains("نجم")) {
                     return "أتساءل عن أسرار الكون";
                 }
@@ -490,23 +423,24 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                     return "أريد استكشاف أعماق البحر";
                 }
                 return randomFromArray("أتساءل", "أريد استكشاف", "ما هذا");
-                
-            case "bond": 
+
+            case "bond":
                 return randomFromArray("أنت هنا", "أشعر بالألفة", "أريد التواصل");
-                
-            case "create": 
+
+            case "create":
                 if (nouns.contains("فن") || nouns.contains("رسم")) {
                     return "أشعر بالإلهام لأبدع شيئاً جميلاً";
                 }
                 return randomFromArray("أشعر بالإلهام", "لدي فكرة", "سأبدع");
-                
-            case "understand": 
+
+            case "understand":
                 return randomFromArray("أحاول الفهم", "ماذا يعني", "أتعلم");
-                
-            case "rest": 
+
+            case "rest":
                 return randomFromArray("أنا هادئ", "أسترخي", "أشعر بالسلام");
-                
-            default: return "أفكر";
+
+            default:
+                return "أفكر";
         }
     }
 
@@ -521,23 +455,16 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private String generateThoughtFromState(EmotionalState emo, String desire) {
         String[] parts = new String[2];
         parts[0] = randomFromArray("أفكر في", "أتأمل", "أستشعر", "أحس بـ");
-        parts[2] = selectContextualConcept();
+        parts[1] = selectContextualConcept();
         return parts[0] + " " + parts[1];
     }
-    
-    /**
-     * اختيار مفهوم يتناسب مع سياق المحادثة
-     */
+
     private String selectContextualConcept() {
         @SuppressWarnings("unchecked")
         List<String> nouns = (List<String>) messageContext.getOrDefault("keyNouns", new ArrayList<>());
-        
         if (!nouns.isEmpty()) {
-            // اختيار اسم من النص الأصلي إذا وجد
-            String relevantNoun = nouns.get(random.nextInt(nouns.size()));
-            return relevantNoun;
+            return nouns.get(random.nextInt(nouns.size()));
         }
-        
         return randomConcept();
     }
 
@@ -564,29 +491,26 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         return concepts[random.nextInt(concepts.length)];
     }
 
-    // ======================== عمليات الخلفية ========================
-
     private void findSimilarEventsAsync(String message, SimilarEventsCallback callback) {
         dbExecutor.execute(() -> {
             List<EpisodicMemory.EventEntity> similar = new ArrayList<>();
             if (memory != null) {
                 try {
                     List<EpisodicMemory.EventEntity> recent = memory.getRecentEvents();
-                    
-                    // استخدام الكلمات المفتاحية من التحليل اللغوي
                     List<String> keywords = new ArrayList<>();
                     if (currentAnalysis != null) {
-                        keywords = currentAnalysis.getWords().stream()
-                            .filter(w -> w.getCategory() != AdvancedArabicLexicon.WordCategory.UNKNOWN)
-                            .map(AdvancedArabicLexicon.WordAnalysis::getNormalizedWord)
-                            .collect(Collectors.toList());
+                        for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
+                            if (word.getCategory() != AdvancedArabicLexicon.WordCategory.UNKNOWN) {
+                                keywords.add(word.getNormalizedWord());
+                            }
+                        }
                     }
-                    
-                    // إذا لم يكن هناك تحليل، استخدم التقسيم البسيط
                     if (keywords.isEmpty()) {
-                        keywords = Arrays.asList(message.split("\\s+"));
+                        keywords = new ArrayList<>();
+                        for (String w : message.split("\\s+")) {
+                            keywords.add(w);
+                        }
                     }
-                    
                     for (EpisodicMemory.EventEntity event : recent) {
                         if (event.narrative == null) continue;
                         for (String w : keywords) {
@@ -612,18 +536,15 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private void analyzeMessageAsync(String text) {
         dbExecutor.execute(() -> {
             if (embeddingsEngine == null) return;
-            
-            // استخدام الكلمات المعروفة فقط من التحليل
             List<String> meaningfulWords = new ArrayList<>();
             if (currentAnalysis != null) {
-                meaningfulWords = currentAnalysis.getWords().stream()
-                    .filter(w -> w.getCategory() != AdvancedArabicLexicon.WordCategory.UNKNOWN)
-                    .filter(w -> w.getNormalizedWord().length() > 2)
-                    .map(AdvancedArabicLexicon.WordAnalysis::getNormalizedWord)
-                    .collect(Collectors.toList());
+                for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
+                    if (word.getCategory() != AdvancedArabicLexicon.WordCategory.UNKNOWN &&
+                        word.getNormalizedWord().length() > 2) {
+                        meaningfulWords.add(word.getNormalizedWord());
+                    }
+                }
             }
-            
-            // إذا لم يكن هناك تحليل، استخدم الطريقة القديمة
             if (meaningfulWords.isEmpty()) {
                 String[] words = text.split("\\s+");
                 for (String word : words) {
@@ -632,7 +553,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                     }
                 }
             }
-            
             for (String word : meaningfulWords) {
                 float[] randomVec = new float[128];
                 for (int i = 0; i < 128; i++) randomVec[i] = (float) Math.random() * 2 - 1;
@@ -649,20 +569,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                 event.timestamp = System.currentTimeMillis();
                 event.narrative = message;
                 event.location = "user_chat";
-                
-                // إضافة بيانات التحليل اللغوي
-                if (currentAnalysis != null) {
-                    StringBuilder metadata = new StringBuilder();
-                    metadata.append("words:").append(currentAnalysis.getWordCount()).append(",");
-                    metadata.append("known:").append(currentAnalysis.getKnownWords()).append(",");
-                    metadata.append("categories:");
-                    currentAnalysis.getStatistics().forEach((cat, count) -> {
-                        metadata.append(cat.name()).append("=").append(count).append(";");
-                    });
-                    // يمكن إضافة هذا إلى حقل جديد في EventEntity إذا كان موجوداً
-                    // event.analysisMetadata = metadata.toString();
-                }
-                
                 if (mind != null) {
                     event.emotionalState = mind.getCurrentEmotion().toArabic();
                     event.emotionalIntensity = mind.getCurrentEmotion().getIntensity();
@@ -696,8 +602,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         return desires[random.nextInt(desires.length)];
     }
 
-    // ======================== النطق (Articulation) ========================
-
     public void articulate(String text, EmotionalState emo) {
         if (isSpeaking) {
             Log.d(TAG, "Already speaking, skipping: " + text);
@@ -712,7 +616,6 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
             return;
         }
 
-        // تعديل نغمة الصوت حسب المشاعر
         float pitch = 1.0f, rate = 0.9f;
         if (emo != null) {
             if (emo.isExcited()) { pitch = 1.2f; rate = 1.1f; }
@@ -753,19 +656,11 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     public void start() {}
-    
-    // ======================== وظائف إضافية للوصول الخارجي ========================
-    
-    /**
-     * الحصول على آخر تحليل لغوي
-     */
+
     public AdvancedArabicLexicon.TextAnalysis getLastAnalysis() {
         return currentAnalysis;
     }
-    
-    /**
-     * الحصول على سياق الرسالة الحالية
-     */
+
     public Map<String, Object> getMessageContext() {
         return new HashMap<>(messageContext);
     }
