@@ -40,6 +40,7 @@ public interface MemoryDao {
         return getImportantEvents(minImportance, 50);
     }
 
+    // ✅ دالة getEmotionalEvents موجودة كما هي
     @Query("SELECT * FROM events WHERE emotionalIntensity > :threshold ORDER BY emotionalIntensity DESC, timestamp DESC LIMIT :limit")
     List<EpisodicMemory.EventEntity> getEmotionalEvents(float threshold, int limit);
 
@@ -120,6 +121,11 @@ public interface MemoryDao {
 
     @Query("SELECT * FROM visual_memories ORDER BY timestamp DESC LIMIT :limit")
     List<VisualMemory> getRecentVisualMemories(int limit);
+
+    // ✅ دالة إضافية للتوافق مع التسمية المستخدمة في ConsciousnessCore
+    default List<VisualMemory> getRecentVisualMemories() {
+        return getRecentVisualMemories(50);
+    }
 
     @Query("SELECT * FROM visual_memories WHERE concept = :concept ORDER BY timestamp DESC LIMIT :limit")
     List<VisualMemory> getVisualMemoriesByConcept(String concept, int limit);
