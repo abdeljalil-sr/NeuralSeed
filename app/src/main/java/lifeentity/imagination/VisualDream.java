@@ -3,6 +3,7 @@ package com.lifeentity.imagination;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 
+import com.lifeentity.core.EmotionalState;
 import com.lifeentity.memory.VisualMemory;
 import com.lifeentity.memory.VisualMemoryDao;
 
@@ -50,6 +51,11 @@ public class VisualDream {
         VisualMemory mem1 = visualMemoryDao.getRandom();
         VisualMemory mem2 = visualMemoryDao.getRandom();
         VisualMemory mem3 = visualMemoryDao.getRandom();
+
+        // تحديث retrievalCount للذكريات المختارة (اختياري)
+        if (mem1 != null && mem1.retrievalCount >= 0) mem1.retrievalCount++;
+        if (mem2 != null && mem2.retrievalCount >= 0) mem2.retrievalCount++;
+        if (mem3 != null && mem3.retrievalCount >= 0) mem3.retrievalCount++;
 
         // دمج المتجهات الكامنة (latent vectors) مع أوزان عشوائية
         float[] latent1 = (mem1 != null && mem1.latentVector != null) ? mem1.latentVector : null;
