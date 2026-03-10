@@ -116,6 +116,13 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         // لا نستخدمها حالياً
     }
 
+    // ✅ إضافة الدالة المفقودة من واجهة ConsciousnessObserver
+    @Override
+    public void onVerbalExpression(String text, float intensity) {
+        // يمكن استخدامها للتعليق على التعبير اللفظي، لكننا لا نحتاجها حالياً
+        Log.d(TAG, "onVerbalExpression: " + text + " (intensity=" + intensity + ")");
+    }
+
     public void hearUser(String text, boolean isQuestion) {
         Log.d(TAG, "hearUser: " + text + " (isQuestion=" + isQuestion + ")");
 
