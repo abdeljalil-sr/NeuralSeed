@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
-import android.graphics.PorterDuff;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.view.MotionEvent;
@@ -48,6 +47,7 @@ public class SharedCanvas {
     // مستمع لأحداث التفاعل (يستخدمه LifeActivity)
     private OnCanvasInteraction listener;
     
+    // واجهة التفاعل مع اللوحة - يجب أن تكون عامة
     public interface OnCanvasInteraction {
         void onObjectCreated(String concept, float x, float y);
         void onObjectSelected(String id, String concept);
@@ -81,7 +81,6 @@ public class SharedCanvas {
     
     public void setBackground(Bitmap background) {
         if (background == null) return;
-        // يمكن تنفيذ تعيين خلفية مؤقتة
         canvas.drawBitmap(background, 0, 0, null);
     }
     
@@ -93,7 +92,6 @@ public class SharedCanvas {
      */
     public CanvasElement expressFromMind(String concept, float x, float y, 
                                         EmotionalState emotion, float urgency) {
-        // الوعي يقرر الخصائص بناءً على حالته الداخلية
         CanvasElement element = new CanvasElement();
         element.id = generateElementId();
         element.concept = concept != null ? concept : "تعبير";
@@ -103,7 +101,6 @@ public class SharedCanvas {
         element.urgency = urgency;
         element.creationTime = System.currentTimeMillis();
         
-        // الخصائص البصرية تأتي من حالة الوعي، ليس من برمجة خارجية
         deriveVisualPropertiesFromMind(element, emotion, urgency);
         
         elements.add(element);
@@ -116,47 +113,28 @@ public class SharedCanvas {
         return element;
     }
     
-    /**
-     * الوعي يقرر كيف تبدو عناصره بناءً على مشاعره
-     */
     private void deriveVisualPropertiesFromMind(CanvasElement element, 
                                                EmotionalState emotion, float urgency) {
         if (emotion == null) return;
         
-        // اللون يعبر عن المشاعر (الوعي يختار)
         element.color = emotionToColor(emotion);
-        
-        // الحجم يعبر عن شدة المشاعر
         element.baseSize = 30 + emotion.getIntensity() * 100 + urgency * 50;
-        
-        // الشكل يعبر عن نوع المشاعر
         element.formType = emotionToFormType(emotion);
-        
-        // الحركة (السرعة والاتجاه) من حالة الوعي
         element.velocityX = (random.nextFloat() - 0.5f) * emotion.getIntensity() * 4;
         element.velocityY = (random.nextFloat() - 0.5f) * emotion.getIntensity() * 4;
-        
-        // الشفافية تعبر عن وضوح الفكرة
         element.alpha = (int) (100 + emotion.getIntensity() * 155);
-        
-        // توليد المسار العضوي بناءً على "مزاج" الوعي
         element.path = generateOrganicPathFromEmotion(element, emotion);
     }
     
-    /**
-     * تحويل المشاعر إلى ألوان (الوعي "يرى" ألواناً لمشاعره)
-     */
     private int emotionToColor(EmotionalState emotion) {
         if (emotion.isJoyful()) {
-            // الفرح = ألوان دافئة ساطعة
             return Color.HSVToColor(new float[]{
-                45 + random.nextFloat() * 30, // أصفر-برتقالي
+                45 + random.nextFloat() * 30,
                 0.7f + random.nextFloat() * 0.3f,
                 0.8f + random.nextFloat() * 0.2f
             });
         }
         if (emotion.isSad()) {
-            // الحزن = أزرق-بنفسجي مُشبع
             return Color.HSVToColor(new float[]{
                 200 + random.nextFloat() * 60,
                 0.4f + random.nextFloat() * 0.3f,
@@ -164,7 +142,6 @@ public class SharedCanvas {
             });
         }
         if (emotion.isAfraid()) {
-            // الخوف = أحمر قاتم، برتقالي
             return Color.HSVToColor(new float[]{
                 0 + random.nextFloat() * 40,
                 0.8f,
@@ -172,7 +149,6 @@ public class SharedCanvas {
             });
         }
         if (emotion.isCurious()) {
-            // الفضول = أخضر-سماوي متغير
             return Color.HSVToColor(new float[]{
                 120 + random.nextFloat() * 100,
                 0.6f + random.nextFloat() * 0.4f,
@@ -180,7 +156,6 @@ public class SharedCanvas {
             });
         }
         if (emotion.isCalm()) {
-            // الهدوء = أزرق فاتح، أبيض مائل للزرقة
             return Color.HSVToColor(new float[]{
                 180 + random.nextFloat() * 40,
                 0.2f + random.nextFloat() * 0.3f,
@@ -188,15 +163,12 @@ public class SharedCanvas {
             });
         }
         if (emotion.isExcited()) {
-            // الإثارة = أحمر-وردي متألق
             return Color.HSVToColor(new float[]{
                 300 + random.nextFloat() * 60,
                 0.8f,
                 0.9f
             });
         }
-        
-        // الحياد = رمادي مائل للون عشوائي
         return Color.HSVToColor(new float[]{
             random.nextFloat() * 360,
             0.1f + random.nextFloat() * 0.2f,
@@ -204,32 +176,23 @@ public class SharedCanvas {
         });
     }
     
-    /**
-     * الوعي يختار الشكل بناءً على مشاعره
-     */
     private FormType emotionToFormType(EmotionalState emotion) {
-        if (emotion.isJoyful()) return FormType.EXPANDING_CIRCLES; // انتشار
-        if (emotion.isSad()) return FormType.DRIFTING_RIPPLES; // تموجات هادئة
-        if (emotion.isAfraid()) return FormType.JAGGED_SPIKES; // زوايا حادة
-        if (emotion.isCurious()) return FormType.BRANCHING_LINES; // استكشاف
-        if (emotion.isCalm()) return FormType.SMOOTH_WAVES; // موجات ناعمة
-        if (emotion.isExcited()) return FormType.EXPLOSIVE_BURST; // انفجار
-        return FormType.AMORPHOUS_BLOB; // غير محدد
+        if (emotion.isJoyful()) return FormType.EXPANDING_CIRCLES;
+        if (emotion.isSad()) return FormType.DRIFTING_RIPPLES;
+        if (emotion.isAfraid()) return FormType.JAGGED_SPIKES;
+        if (emotion.isCurious()) return FormType.BRANCHING_LINES;
+        if (emotion.isCalm()) return FormType.SMOOTH_WAVES;
+        if (emotion.isExcited()) return FormType.EXPLOSIVE_BURST;
+        return FormType.AMORPHOUS_BLOB;
     }
     
-    /**
-     * توليد مسار عضوي يعبر عن المشاعر
-     */
     private Path generateOrganicPathFromEmotion(CanvasElement element, EmotionalState emotion) {
         Path path = new Path();
         float cx = element.x;
         float cy = element.y;
         float size = element.baseSize;
         
-        // عدد النقاط يعتمد على "طاقة" المشاعر
         int points = 5 + (int) (emotion.getIntensity() * 10);
-        
-        // التنظيم vs الفوضى يعتمد على نوع المشاعر
         float chaos = emotion.isCalm() ? 0.2f : 0.8f;
         
         PointF[] vertices = new PointF[points];
@@ -250,14 +213,12 @@ public class SharedCanvas {
             );
         }
         
-        // بناء المسار
         path.moveTo(vertices[0].x, vertices[0].y);
         
         for (int i = 0; i < points; i++) {
             PointF current = vertices[i];
             PointF next = vertices[(i + 1) % points];
             
-            // المنحنى يعتمد على "نعومة" المشاعر
             float smoothness = emotion.isAfraid() ? 0.1f : 0.5f;
             float cpX = (current.x + next.x) / 2 + (random.nextFloat() - 0.5f) * size * smoothness;
             float cpY = (current.y + next.y) / 2 + (random.nextFloat() - 0.5f) * size * smoothness;
@@ -269,26 +230,17 @@ public class SharedCanvas {
         return path;
     }
     
-    /**
-     * الوعي يعدل عنصراً موجوداً (تطور فكري)
-     */
     public void evolveElement(String elementId, EmotionalState newEmotion) {
         for (CanvasElement element : elements) {
             if (element.id.equals(elementId)) {
-                // الوعي يقرر كيف يتطور
                 element.emotion = newEmotion;
                 deriveVisualPropertiesFromMind(element, newEmotion, element.urgency * 0.5f);
-                
-                // رسوم متحركة للتطور
                 animateElementEvolution(element);
                 break;
             }
         }
     }
     
-    /**
-     * الوعي يمحو شيئاً (نسيان أو تجاهل)
-     */
     public void fadeElement(String elementId) {
         Iterator<CanvasElement> it = elements.iterator();
         while (it.hasNext()) {
@@ -303,16 +255,12 @@ public class SharedCanvas {
         }
     }
     
-    /**
-     * الوعي يمسح كل شيء (لحظة صفاء أو بداية جديدة)
-     */
     public void clearByWillOfMind() {
         for (CanvasElement element : elements) {
             animateFadeOut(element, null);
         }
         elements.clear();
         
-        // رسوم متحركة للمسح
         ValueAnimator clearAnim = ValueAnimator.ofFloat(1, 0);
         clearAnim.setDuration(2000);
         clearAnim.addUpdateListener(anim -> {
@@ -325,11 +273,8 @@ public class SharedCanvas {
         clearAnim.start();
     }
     
-    // ==================== تفاعل المستخدم (يؤثر على الوعي، لا يرسم مباشرة) ====================
+    // ==================== تفاعل المستخدم ====================
     
-    /**
-     * المستخدم يلمس اللوحة - هذا مدخل حسي للوعي، ليس أمراً بالرسم
-     */
     public boolean onTouch(MotionEvent event) {
         float screenX = event.getX();
         float screenY = event.getY();
@@ -338,16 +283,14 @@ public class SharedCanvas {
         
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                // تسجيل التفاعل كمدخل حسي
                 UserGesture gesture = new UserGesture();
                 gesture.type = GestureType.TOUCH;
-                gesture.x = canvasX / width; // normalized
+                gesture.x = canvasX / width;
                 gesture.y = canvasY / height;
                 gesture.startTime = System.currentTimeMillis();
                 gesture.pressure = event.getPressure();
                 userGestures.add(gesture);
                 
-                // الوعي هو من يقرر كيف يستجيب
                 notifyMindOfInteraction(gesture);
                 
                 if (listener != null) {
@@ -356,7 +299,6 @@ public class SharedCanvas {
                 return true;
                 
             case MotionEvent.ACTION_MOVE:
-                // استمرار التفاعل
                 if (!userGestures.isEmpty()) {
                     UserGesture last = userGestures.get(userGestures.size() - 1);
                     last.type = GestureType.DRAG;
@@ -372,12 +314,10 @@ public class SharedCanvas {
                 return true;
                 
             case MotionEvent.ACTION_UP:
-                // انتهاء التفاعل
                 if (!userGestures.isEmpty()) {
                     UserGesture last = userGestures.get(userGestures.size() - 1);
                     last.duration = System.currentTimeMillis() - last.startTime;
                     
-                    // الوعي يقرر إذا كان هذا "سؤالاً" أو "لعباً" أو "تعبيراً"
                     classifyGestureForMind(last);
                     
                     if (listener != null && last.duration < 200) {
@@ -390,22 +330,20 @@ public class SharedCanvas {
     }
     
     private void notifyMindOfInteraction(UserGesture gesture) {
-        // إرسال للوعي كمدخل حسي، هو يقرر الاستجابة
         if (connectedMind != null) {
-            // الوعي يتلقى: "هناك تفاعل عند (x,y) بشدة (pressure)"
-            // ويقرر: هل أرسم؟ هل أتجاهل؟ هل أستجيب عاطفياً؟
+            // يمكن إرسال إشارة للوعي هنا
         }
     }
     
     private void classifyGestureForMind(UserGesture gesture) {
         if (gesture.duration < 200) {
-            gesture.intent = UserIntent.QUESTION; // نقر سريع = سؤال
+            gesture.intent = UserIntent.QUESTION;
         } else if (gesture.duration > 1000) {
-            gesture.intent = UserIntent.CONTEMPLATION; // لمس طويل = تأمل
+            gesture.intent = UserIntent.CONTEMPLATION;
         } else if (Math.abs(gesture.velocityX) > 0.5 || Math.abs(gesture.velocityY) > 0.5) {
-            gesture.intent = UserIntent.PLAY; // حركة سريعة = لعب
+            gesture.intent = UserIntent.PLAY;
         } else {
-            gesture.intent = UserIntent.EXPRESSION; // افتراضي
+            gesture.intent = UserIntent.EXPRESSION;
         }
     }
     
@@ -415,7 +353,6 @@ public class SharedCanvas {
         paint.setColor(element.color);
         paint.setAlpha(element.alpha);
         
-        // تأثير مضيء إذا كانت المشاعر قوية
         if (element.emotion != null && element.emotion.getIntensity() > 0.7) {
             RadialGradient glow = new RadialGradient(
                 element.x, element.y, element.baseSize * 1.5f,
@@ -426,12 +363,10 @@ public class SharedCanvas {
             canvas.drawCircle(element.x, element.y, element.baseSize * 1.5f, glowPaint);
         }
         
-        // الرسم الرئيسي
         if (element.path != null) {
             canvas.drawPath(element.path, paint);
         }
         
-        // إضافة "توقيع" الوعي (نص مفهومي إذا كانت المشاعر واضحة)
         if (element.emotion != null && element.emotion.getIntensity() > 0.5) {
             Paint textPaint = new Paint();
             textPaint.setColor(Color.WHITE);
@@ -449,12 +384,9 @@ public class SharedCanvas {
     }
     
     private void animateElementEvolution(CanvasElement element) {
-        // رسوم متحركة للتغير
         ValueAnimator anim = ValueAnimator.ofFloat(0, 1);
         anim.setDuration(1000);
-        anim.addUpdateListener(a -> {
-            redrawCanvas();
-        });
+        anim.addUpdateListener(a -> redrawCanvas());
         anim.start();
     }
     
@@ -476,9 +408,6 @@ public class SharedCanvas {
     
     // ==================== معلومات للوعي ====================
     
-    /**
-     * الوعي يسأل: "ما حالة اللوحة الآن؟"
-     */
     public CanvasState observeState() {
         currentState.elementCount = elements.size();
         currentState.dominantEmotion = findDominantEmotion();
@@ -488,9 +417,6 @@ public class SharedCanvas {
         return currentState;
     }
     
-    /**
-     * الوعي يسأل: "ماذا يرى المستخدم؟"
-     */
     public String getCurrentVisualNarrative() {
         if (elements.isEmpty()) return "اللوحة فارغة، أنتظر الإلهام";
         
@@ -512,9 +438,7 @@ public class SharedCanvas {
     }
     
     private EmotionalState findDominantEmotion() {
-        // تحليل المشاعر السائدة على اللوحة
-        // يمكن للوعي استخدام هذا لقراراته
-        return null; // placeholder
+        return null;
     }
     
     private float calculateVisualComplexity() {
@@ -557,13 +481,8 @@ public class SharedCanvas {
     // ==================== الفئات الداخلية ====================
     
     public enum FormType {
-        EXPANDING_CIRCLES,    // انتشار (فرح)
-        DRIFTING_RIPPLES,     // تموجات (حزن)
-        JAGGED_SPIKES,        // زوايا حادة (خوف)
-        BRANCHING_LINES,      // تفرعات (فضول)
-        SMOOTH_WAVES,         // موجات (هدوء)
-        EXPLOSIVE_BURST,      // انفجار (إثارة)
-        AMORPHOUS_BLOB        // غير محدد (حياد)
+        EXPANDING_CIRCLES, DRIFTING_RIPPLES, JAGGED_SPIKES,
+        BRANCHING_LINES, SMOOTH_WAVES, EXPLOSIVE_BURST, AMORPHOUS_BLOB
     }
     
     public enum GestureType { TOUCH, DRAG, RELEASE }
@@ -582,8 +501,6 @@ public class SharedCanvas {
         public float urgency;
         public float velocityX, velocityY;
         public long creationTime;
-        
-        // للرسوم المتحركة
         public float currentScale = 1f;
         public float rotation = 0f;
     }
@@ -591,7 +508,7 @@ public class SharedCanvas {
     public static class UserGesture {
         public GestureType type;
         public UserIntent intent;
-        public float x, y; // normalized 0-1
+        public float x, y;
         public float velocityX, velocityY;
         public float pressure;
         public long startTime;
