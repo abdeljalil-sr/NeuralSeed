@@ -26,15 +26,29 @@ public class ConsciousMoment implements Cloneable {
     public Anticipation anticipation;    // توقع بسيط للمستقبل القريب
     public ExpressiveImpulse expressiveImpulse; // دافع للتعبير (بصري، صوتي، حركي)
 
+    // متغيرات التشابك والفوضى (مضافة من HomeostasisSystem)
+    public float[][] entanglementMatrix; // مصفوفة التشابك (9x9)
+    public float chaosLevel;             // مستوى الفوضى الحالي (0-1)
+
     public ConsciousMoment() {
         this.timestamp = System.currentTimeMillis();
         this.deltaTime = 0.1; // 100ms (قيمة افتراضية)
+        this.entanglementMatrix = new float[9][9]; // سيتم ملؤها لاحقاً
+        this.chaosLevel = 0.5f;
     }
 
     @Override
     public ConsciousMoment clone() {
         try {
-            return (ConsciousMoment) super.clone();
+            ConsciousMoment cloned = (ConsciousMoment) super.clone();
+            // نسخ المصفوفة يدوياً (لأن clone() لا ينسخ المصفوفات داخلياً)
+            if (this.entanglementMatrix != null) {
+                cloned.entanglementMatrix = new float[this.entanglementMatrix.length][];
+                for (int i = 0; i < this.entanglementMatrix.length; i++) {
+                    cloned.entanglementMatrix[i] = this.entanglementMatrix[i].clone();
+                }
+            }
+            return cloned;
         } catch (CloneNotSupportedException e) {
             return new ConsciousMoment();
         }
