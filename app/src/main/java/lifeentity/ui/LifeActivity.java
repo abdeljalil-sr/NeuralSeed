@@ -427,16 +427,7 @@ public class LifeActivity extends AppCompatActivity {
         cloud = new FirebaseSync(deviceId);
         cloud.setListener(new FirebaseSync.SyncListener() {
             @Override
-            public void onConnectionStatusChanged(boolean connected) {
-                Log.d(TAG, "Cloud: " + (connected ? "connected" : "disconnected"));
-                if (connected) {
-                    logEvent("متصل بالسحابة");
-                    addInternalThought("أشعر بتواصل مع أشياء أخرى");
-                }
-            }
-
-            @Override
-            public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event) {
+            public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event, String thumbnailBase64) {
                 logEvent("ذكرى من جهاز آخر");
                 addInternalThought("شعرت بشيء من " + source);
                 if (voice != null) {
@@ -445,12 +436,18 @@ public class LifeActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onIdentityLearnedFromOtherDevice(String name, String desc) {
+            public void onIdentityLearnedFromOtherDevice(String name, String desc, FaceIdentitySystem.IdentityProfile mergedProfile) {
                 logEvent("تعلم شخصاً من جهاز آخر: " + name);
                 addInternalThought("عرفتُ " + name + " من تجربة أخرى");
                 if (voice != null) {
                     voice.articulate("عرفتُ " + name + " من تجربة أخرى", new EmotionalState());
                 }
+            }
+
+            @Override
+            public void onIdentityConflictDetected(String faceHash, List<FaceIdentitySystem.IdentityProfile> conflictingProfiles) {
+                logEvent("تعارض في الهوية");
+                addInternalThought("هناك أكثر من تعريف لهذا الوجه");
             }
 
             @Override
@@ -460,6 +457,20 @@ public class LifeActivity extends AppCompatActivity {
                     addInternalThought("تزامنت مع " + items + " ذكرى");
                     runOnUiThread(() -> statusText.setText("تمت مزامنة " + items + " ذكريات"));
                 }
+            }
+
+            @Override
+            public void onConnectionStatusChanged(boolean connected) {
+                Log.d(TAG, "Cloud: " + (connected ? "connected" : "disconnected"));
+                if (connected) {
+                    logEvent("متصل بالسحابة");
+                    addInternalThought("أشعر بتواصل مع أشياء أخرى");
+                }
+            }
+
+            @Override
+            public void onThumbnailDownloaded(String memoryId, Bitmap thumbnail) {
+                // يمكن استخدامها لاحقاً
             }
         });
     }
@@ -533,6 +544,17 @@ public class LifeActivity extends AppCompatActivity {
                         addInternalThought(description);
                     });
                 }
+            }
+
+            @Override
+            public void onDeepThinkingInsight(String insight, List<EpisodicMemory.EventEntity> connectedMemories) {
+                logEvent("بصيرة: " + insight);
+                addInternalThought("أدركت: " + insight);
+            }
+
+            @Override
+            public void onVerbalExpression(String text, float intensity) {
+                // لا نستخدمها حالياً
             }
 
             @Override
