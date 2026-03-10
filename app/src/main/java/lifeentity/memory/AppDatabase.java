@@ -1,4 +1,3 @@
-// ====================== memory/AppDatabase.java (مع تحديث قائمة entities) ======================
 package com.lifeentity.memory;
 
 import android.content.Context;
@@ -11,9 +10,10 @@ import androidx.room.TypeConverters;
 @Database(entities = {
     EpisodicMemory.EventEntity.class,
     IdentityMemory.class,
-    SemanticEmbeddings.EmbeddingEntity.class,  // ✅ تم التعديل
-    VisualMemory.class
-}, version = 2, exportSchema = false)
+    SemanticEmbeddings.EmbeddingEntity.class,
+    VisualMemory.class,
+    ConceptEmbedding.class      // ✅ تمت إضافة ConceptEmbedding للتوافق (يمكن دمجه لاحقاً)
+}, version = 3, exportSchema = false)  // تم رفع الإصدار إلى 3
 @TypeConverters({Converters.class})
 public abstract class AppDatabase extends RoomDatabase {
 
@@ -31,7 +31,7 @@ public abstract class AppDatabase extends RoomDatabase {
                         AppDatabase.class,
                         "life_entity_brain.db"
                     )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration() // ✅ يسمح بالترحيل التلقائي مع حذف البيانات القديمة
                     .build();
                 }
             }
