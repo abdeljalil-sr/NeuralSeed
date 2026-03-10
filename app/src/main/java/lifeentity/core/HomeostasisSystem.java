@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 /**
  * نظام الاتزان الداخلي المتقدم - الكيمياء الحية الديناميكية للكائن
  * يدعم التكيف المستمر، تأثيرات الأحلام، والتعلم من التجارب.
+ * مع إضافة مصفوفة التشابك (entanglement matrix) لخلق فوضى منتظمة.
  */
 public class HomeostasisSystem {
     private static final String TAG = "HomeostasisSystem";
@@ -48,6 +49,22 @@ public class HomeostasisSystem {
     private int experienceCount = 0;
     private double accumulatedStress = 0;
     private double accumulatedJoy = 0;
+    
+    // مصفوفة التشابك (Entanglement Matrix) - 9 متغيرات
+    private float[][] entanglementMatrix;
+    private float chaosLevel;
+    private static final int NUM_VARS = 9; // energy, arousal, stress, curiosity, attachment, dopamine, cortisol, serotonin, oxytocin
+    
+    // أسماء المتغيرات للوصول بالمصفوفة
+    private static final int IDX_ENERGY = 0;
+    private static final int IDX_AROUSAL = 1;
+    private static final int IDX_STRESS = 2;
+    private static final int IDX_CURIOSITY = 3;
+    private static final int IDX_ATTACHMENT = 4;
+    private static final int IDX_DOPAMINE = 5;
+    private static final int IDX_CORTISOL = 6;
+    private static final int IDX_SEROTONIN = 7;
+    private static final int IDX_OXYTOCIN = 8;
 
     public HomeostasisSystem() {
         this(null, null);
@@ -62,9 +79,29 @@ public class HomeostasisSystem {
         this.random = new Random();
         this.dbExecutor = Executors.newSingleThreadExecutor();
         
+        // تهيئة مصفوفة التشابك
+        this.entanglementMatrix = new float[NUM_VARS][NUM_VARS];
+        initializeEntanglementMatrix();
+        this.chaosLevel = 0.5f; // مستوى فوضوي معتدل
+        
         initializeParameters();
         initializeChemistry();
         loadPersistedState();
+    }
+    
+    /**
+     * تهيئة مصفوفة التشابك بقيم عشوائية أولية
+     */
+    private void initializeEntanglementMatrix() {
+        for (int i = 0; i < NUM_VARS; i++) {
+            for (int j = 0; j < NUM_VARS; j++) {
+                if (i == j) {
+                    entanglementMatrix[i][j] = 0.1f; // تأثير الذات على الذات ضعيف
+                } else {
+                    entanglementMatrix[i][j] = random.nextFloat() * 0.3f; // 0-0.3
+                }
+            }
+        }
     }
     
     /**
@@ -77,7 +114,6 @@ public class HomeostasisSystem {
             // تحميل المعاملات المحفوظة أو إنشاء قيم فريدة
             baselineEnergy = prefs.getFloat("baseline_energy", -1f);
             if (baselineEnergy < 0) {
-                // قيمة أولية عشوائية فريدة لهذا الكائن
                 baselineEnergy = 0.2 + random.nextDouble() * 0.6;
                 saveParameter("baseline_energy", baselineEnergy);
             }
@@ -142,8 +178,6 @@ public class HomeostasisSystem {
         
         dbExecutor.execute(() -> {
             try {
-                // يمكن إضافة جدول للكيمياء في AppDatabase لاحقاً
-                // حالياً نعتمد على SharedPreferences
                 Log.d(TAG, "Database persistence ready for future implementation");
             } catch (Exception e) {
                 Log.e(TAG, "Error loading persisted state", e);
@@ -152,48 +186,60 @@ public class HomeostasisSystem {
     }
 
     /**
-     * تحديث الحالة الداخلية مع ديناميكية غير خطية
+     * تحديث الحالة الداخلية مع ديناميكية غير خطية ومصفوفة تشابك
      */
     public void update(double deltaTime) {
         experienceCount++;
         
+        // تخزين القيم القديمة
+        double[] oldVars = new double[NUM_VARS];
+        oldVars[IDX_ENERGY] = chemistry.get("energy");
+        oldVars[IDX_AROUSAL] = chemistry.get("arousal");
+        oldVars[IDX_STRESS] = chemistry.get("stress");
+        oldVars[IDX_CURIOSITY] = chemistry.get("curiosity");
+        oldVars[IDX_ATTACHMENT] = chemistry.get("attachment");
+        oldVars[IDX_DOPAMINE] = chemistry.get("dopamine");
+        oldVars[IDX_CORTISOL] = chemistry.get("cortisol");
+        oldVars[IDX_SEROTONIN] = chemistry.get("serotonin");
+        oldVars[IDX_OXYTOCIN] = chemistry.get("oxytocin");
+        
         // دالة استهلاك الطاقة غير خطية (تتسارع مع الإثارة العالية)
-        double arousalFactor = sigmoid(chemistry.get("arousal") * 2 - 1);
-        double stressFactor = tanh(chemistry.get("stress") * 3);
+        double arousalFactor = sigmoid(oldVars[IDX_AROUSAL] * 2 - 1);
+        double stressFactor = tanh(oldVars[IDX_STRESS] * 3);
         double energyDrain = arousalFactor * 0.015 
                            + stressFactor * 0.025 
                            + gaussianNoise() * 0.005;
         
         // استعادة الطاقة مع تكيف البنية الأساسية
         double adaptiveBaseline = baselineTrends.get("energy");
-        double energyRecovery = (adaptiveBaseline - chemistry.get("energy")) * recoveryRate;
+        double energyRecovery = (adaptiveBaseline - oldVars[IDX_ENERGY]) * recoveryRate;
         setDerivative("energy", energyRecovery - energyDrain + gaussianNoise() * 0.001);
         
         // الإثارة: دالة تناقص غير خطية
-        double arousalDecay = chemistry.get("arousal") * (0.08 + chemistry.get("serotonin") * 0.05);
+        double arousalDecay = oldVars[IDX_AROUSAL] * (0.08 + oldVars[IDX_SEROTONIN] * 0.05);
         setDerivative("arousal", -arousalDecay + gaussianNoise() * 0.002);
         
         // التوتر: تأثير الأوكسيتوسين غير الخطي
-        double oxytocinEffect = sigmoid(chemistry.get("oxytocin") * 4 - 2) * 0.08;
+        double oxytocinEffect = sigmoid(oldVars[IDX_OXYTOCIN] * 4 - 2) * 0.08;
         double stressDecay = oxytocinEffect + random.nextDouble() * 0.008;
         setDerivative("stress", -stressDecay);
         
         // الفضول: دالة سينية للتذبذب الطبيعي
         double time = System.currentTimeMillis() / 1000.0;
         double circadianRhythm = Math.sin(time / 86400 * 2 * Math.PI) * 0.1;
-        double noveltySeeking = sigmoid((1 - chemistry.get("curiosity")) * 2) * 0.012 
+        double noveltySeeking = sigmoid((1 - oldVars[IDX_CURIOSITY]) * 2) * 0.012 
                               + circadianRhythm * 0.005;
         setDerivative("curiosity", noveltySeeking);
         
         // التعلق: تلاشٍ بطيء مع تعزيز عند التفاعل
-        double attachmentDecay = chemistry.get("attachment") * 0.0008;
+        double attachmentDecay = oldVars[IDX_ATTACHMENT] * 0.0008;
         setDerivative("attachment", -attachmentDecay + gaussianNoise() * 0.0003);
         
         // تحديث النواقل العصبية المتقدم
-        updateAdvancedHormones(deltaTime);
+        updateAdvancedHormones(deltaTime, oldVars);
         
-        // تكامل التغيرات
-        integrate(deltaTime);
+        // تكامل التغيرات مع تأثير مصفوفة التشابك
+        integrateWithEntanglement(deltaTime, oldVars);
         
         // ضمان النطاق مع smooth clipping
         smoothClampAll();
@@ -210,18 +256,18 @@ public class HomeostasisSystem {
     /**
      * تحديث النواقل العصبية مع ديناميكية معقدة
      */
-    private void updateAdvancedHormones(double deltaTime) {
+    private void updateAdvancedHormones(double deltaTime, double[] oldVars) {
         // الدوبامين: نظام مكافأة متكيف
-        double rewardSignal = chemistry.get("curiosity") * 0.25 
-                            + (chemistry.get("energy") > 0.7 ? 0.15 : 0)
-                            + (chemistry.get("attachment") > 0.5 ? 0.1 : 0);
+        double rewardSignal = oldVars[IDX_CURIOSITY] * 0.25 
+                            + (oldVars[IDX_ENERGY] > 0.7 ? 0.15 : 0)
+                            + (oldVars[IDX_ATTACHMENT] > 0.5 ? 0.1 : 0);
         double dopamineTarget = sigmoid(rewardSignal * 3);
         double dopaminePlasticity = 0.1 + adaptability * 0.2;
-        setDerivative("dopamine", (dopamineTarget - chemistry.get("dopamine")) * dopaminePlasticity);
+        setDerivative("dopamine", (dopamineTarget - oldVars[IDX_DOPAMINE]) * dopaminePlasticity);
         
         // الكورتيزول: نظام إجهاد متكيف
-        double stressInput = chemistry.get("stress") * 0.9 
-                           + (1 - chemistry.get("energy")) * 0.2;
+        double stressInput = oldVars[IDX_STRESS] * 0.9 
+                           + (1 - oldVars[IDX_ENERGY]) * 0.2;
         double cortisolTarget = tanh(stressInput * 2);
         
         // تأثير الأحلام على الكورتيزول
@@ -229,11 +275,11 @@ public class HomeostasisSystem {
             cortisolTarget *= (1 - DREAM_CORTISOL_REDUCTION);
         }
         
-        setDerivative("cortisol", (cortisolTarget - chemistry.get("cortisol")) * 0.04);
+        setDerivative("cortisol", (cortisolTarget - oldVars[IDX_CORTISOL]) * 0.04);
         
         // السيروتونين: نظام مزاج مع تأثيرات الأحلام
-        double serotoninBase = 1 - chemistry.get("cortisol") * 0.8 
-                               - chemistry.get("arousal") * 0.3;
+        double serotoninBase = 1 - oldVars[IDX_CORTISOL] * 0.8 
+                               - oldVars[IDX_AROUSAL] * 0.3;
         double serotoninTarget = sigmoid(serotoninBase * 2 - 1);
         
         // تعزيز السيروتونين أثناء الأحلام
@@ -241,12 +287,101 @@ public class HomeostasisSystem {
             serotoninTarget = Math.min(1.0, serotoninTarget + DREAM_SEROTONIN_BOOST);
         }
         
-        setDerivative("serotonin", (serotoninTarget - chemistry.get("serotonin")) * 0.06);
+        setDerivative("serotonin", (serotoninTarget - oldVars[IDX_SEROTONIN]) * 0.06);
         
         // الأوكسيتوسين: رابطة اجتماعية ديناميكية
-        double socialBonding = chemistry.get("attachment") * chemistry.get("serotonin");
+        double socialBonding = oldVars[IDX_ATTACHMENT] * oldVars[IDX_SEROTONIN];
         double oxytocinTarget = sigmoid(socialBonding * 3 - 1.5) * 0.7 + 0.3;
-        setDerivative("oxytocin", (oxytocinTarget - chemistry.get("oxytocin")) * 0.04);
+        setDerivative("oxytocin", (oxytocinTarget - oldVars[IDX_OXYTOCIN]) * 0.04);
+    }
+    
+    /**
+     * تكامل التغيرات مع مصفوفة التشابك
+     */
+    private void integrateWithEntanglement(double dt, double[] oldVars) {
+        double[] newVars = new double[NUM_VARS];
+        double[] deltas = new double[NUM_VARS];
+        
+        // حساب التغيرات الأساسية من المشتقات
+        deltas[IDX_ENERGY] = derivatives.getOrDefault("energy", 0.0) * dt;
+        deltas[IDX_AROUSAL] = derivatives.getOrDefault("arousal", 0.0) * dt;
+        deltas[IDX_STRESS] = derivatives.getOrDefault("stress", 0.0) * dt;
+        deltas[IDX_CURIOSITY] = derivatives.getOrDefault("curiosity", 0.0) * dt;
+        deltas[IDX_ATTACHMENT] = derivatives.getOrDefault("attachment", 0.0) * dt;
+        deltas[IDX_DOPAMINE] = derivatives.getOrDefault("dopamine", 0.0) * dt;
+        deltas[IDX_CORTISOL] = derivatives.getOrDefault("cortisol", 0.0) * dt;
+        deltas[IDX_SEROTONIN] = derivatives.getOrDefault("serotonin", 0.0) * dt;
+        deltas[IDX_OXYTOCIN] = derivatives.getOrDefault("oxytocin", 0.0) * dt;
+        
+        // تطبيق تأثير التشابك: كل متغير يتأثر بتغيرات المتغيرات الأخرى
+        for (int i = 0; i < NUM_VARS; i++) {
+            double entangledDelta = deltas[i];
+            for (int j = 0; j < NUM_VARS; j++) {
+                if (i != j) {
+                    entangledDelta += deltas[j] * entanglementMatrix[i][j];
+                }
+            }
+            // إضافة تأثير عشوائي فوضوي
+            entangledDelta += (random.nextGaussian() * 0.01) * chaosLevel;
+            newVars[i] = oldVars[i] + entangledDelta;
+        }
+        
+        // تحديث الخريطة
+        chemistry.put("energy", newVars[IDX_ENERGY]);
+        chemistry.put("arousal", newVars[IDX_AROUSAL]);
+        chemistry.put("stress", newVars[IDX_STRESS]);
+        chemistry.put("curiosity", newVars[IDX_CURIOSITY]);
+        chemistry.put("attachment", newVars[IDX_ATTACHMENT]);
+        chemistry.put("dopamine", newVars[IDX_DOPAMINE]);
+        chemistry.put("cortisol", newVars[IDX_CORTISOL]);
+        chemistry.put("serotonin", newVars[IDX_SEROTONIN]);
+        chemistry.put("oxytocin", newVars[IDX_OXYTOCIN]);
+        
+        // تحديث مصفوفة التشابك بناءً على الارتباطات الفعلية (Hebbian-like learning)
+        updateEntanglementMatrix(oldVars, newVars);
+        
+        // تحديث مستوى الفوضى
+        updateChaosLevel(newVars);
+    }
+    
+    /**
+     * تحديث مصفوفة التشابك بناءً على التغيرات المتزامنة
+     */
+    private void updateEntanglementMatrix(double[] oldVars, double[] newVars) {
+        double[] actualDeltas = new double[NUM_VARS];
+        for (int i = 0; i < NUM_VARS; i++) {
+            actualDeltas[i] = newVars[i] - oldVars[i];
+        }
+        
+        float learningRate = 0.01f;
+        for (int i = 0; i < NUM_VARS; i++) {
+            for (int j = 0; j < NUM_VARS; j++) {
+                if (i != j) {
+                    // إذا تحرك المتغيران معاً، نعزز الارتباط
+                    float correlation = (float) (actualDeltas[i] * actualDeltas[j]);
+                    entanglementMatrix[i][j] += learningRate * correlation;
+                    // قص القيم لتبقى ضمن نطاق معقول
+                    if (entanglementMatrix[i][j] > 0.5f) entanglementMatrix[i][j] = 0.5f;
+                    if (entanglementMatrix[i][j] < -0.5f) entanglementMatrix[i][j] = -0.5f;
+                }
+            }
+        }
+    }
+    
+    /**
+     * تحديث مستوى الفوضى بناءً على تباين المتغيرات
+     */
+    private void updateChaosLevel(double[] vars) {
+        double mean = 0;
+        for (double v : vars) mean += v;
+        mean /= NUM_VARS;
+        
+        double variance = 0;
+        for (double v : vars) variance += (v - mean) * (v - mean);
+        variance /= NUM_VARS;
+        
+        // مستوى الفوضى يتناسب مع التباين
+        chaosLevel = (float) Math.min(1.0, variance * 4);
     }
     
     /**
@@ -408,6 +543,20 @@ public class HomeostasisSystem {
     }
     
     /**
+     * الحصول على مصفوفة التشابك (للمراقبة)
+     */
+    public float[][] getEntanglementMatrix() {
+        return entanglementMatrix.clone();
+    }
+    
+    /**
+     * الحصول على مستوى الفوضى الحالي
+     */
+    public float getChaosLevel() {
+        return chaosLevel;
+    }
+    
+    /**
      * الحصول على المعاملات الحالية (للمراقبة والتعديل الخارجي)
      */
     public Map<String, Double> getParameters() {
@@ -461,13 +610,6 @@ public class HomeostasisSystem {
         for (String key : chemistry.keySet()) {
             double val = chemistry.get(key);
             chemistry.put(key, smoothClamp(val));
-        }
-    }
-    
-    private void integrate(double dt) {
-        for (String key : chemistry.keySet()) {
-            double val = chemistry.get(key) + derivatives.getOrDefault(key, 0.0) * dt;
-            chemistry.put(key, val);
         }
     }
     
