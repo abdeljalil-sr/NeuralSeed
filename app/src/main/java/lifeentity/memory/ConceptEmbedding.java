@@ -1,5 +1,6 @@
 package com.lifeentity.memory;
 
+import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.TypeConverters;
@@ -15,6 +16,7 @@ import androidx.room.TypeConverters;
 @TypeConverters(Converters.class)
 public class ConceptEmbedding {
     @PrimaryKey
+    @NonNull
     public String concept;          // المفهوم (كلمة)
     public float[] vector;           // المتجه الدلالي (128 بعداً)
     public long learnedAt;           // وقت التعلم
@@ -22,14 +24,14 @@ public class ConceptEmbedding {
 
     public ConceptEmbedding() {}
 
-    public ConceptEmbedding(String concept, float[] vector) {
+    public ConceptEmbedding(@NonNull String concept, float[] vector) {
         this.concept = concept;
         this.vector = vector;
         this.learnedAt = System.currentTimeMillis();
         this.source = "local";
     }
 
-    public ConceptEmbedding(String concept, float[] vector, String source) {
+    public ConceptEmbedding(@NonNull String concept, float[] vector, String source) {
         this.concept = concept;
         this.vector = vector;
         this.learnedAt = System.currentTimeMillis();
