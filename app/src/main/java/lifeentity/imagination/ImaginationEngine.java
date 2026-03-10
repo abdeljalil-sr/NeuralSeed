@@ -166,9 +166,11 @@ public class ImaginationEngine {
         float[] result = new float[LATENT_SIZE];
         float totalWeight = 0;
         
-        // normalize weights
+        // حساب مجموع الأوزان للتطبيع
         float weightSum = 0;
-        for (WeightedMemory wm : memories) weightSum += wm.weight;
+        for (WeightedMemory wm : memories) {
+            weightSum += wm.weight;
+        }
         
         for (WeightedMemory wm : memories) {
             float normalizedWeight = wm.weight / weightSum;
@@ -219,7 +221,7 @@ public class ImaginationEngine {
         float[] latent = new float[LATENT_SIZE];
         
         if (fullRandom) {
-            // توليد عشوائي بحت - تم التصحيح: تحويل nextGaussian إلى float
+            // توليد عشوائي بحت
             for (int i = 0; i < LATENT_SIZE; i++) {
                 latent[i] = (float) random.nextGaussian() * 0.5f;
             }
@@ -227,7 +229,6 @@ public class ImaginationEngine {
             // توليع مبني على الحالة العاطفية (conditional generation)
             float[] seed = affectVector != null ? affectVector : new float[4];
             for (int i = 0; i < LATENT_SIZE; i++) {
-                // استخدام الحالة العاطفية لتوجيه التوليد
                 float emotionalBias = (i < seed.length) ? seed[i] * 0.3f : 0;
                 latent[i] = (float) random.nextGaussian() * 0.4f + emotionalBias;
             }
@@ -243,9 +244,7 @@ public class ImaginationEngine {
     private void addCreativeNoise(float[] vector) {
         float noiseAmplitude = creativityLevel * 0.4f;
         
-        // Perlin noise مبسط للبنية الطبيعية
         for (int i = 0; i < LATENT_SIZE; i++) {
-            // تم التصحيح: تحويل nextGaussian إلى float
             float noise = (float) random.nextGaussian() * noiseAmplitude;
             
             // تقليل الضوضاء في الأبعاد المهمة (الأولى)
@@ -263,7 +262,6 @@ public class ImaginationEngine {
         
         refreshCacheIfNeeded();
         
-        // البحث الفعال باستخدام البنية المخزنة مؤقتاً
         VisualMemory best = findNearestNeighbor(latent);
         
         if (best == null) {
@@ -272,14 +270,15 @@ public class ImaginationEngine {
         
         float distance = euclideanDistance(latent, best.latentVector);
         
+        // تحديث إحصائيات الاسترجاع (زيادة retrievalCount)
+        if (best.retrievalCount >= 0) {
+            best.retrievalCount++;
+            // يمكن تحديث قاعدة البيانات هنا إذا أردنا (اختياري)
+        }
+        
         // إذا كان البعد كبيراً والإبداع عالياً، قم بتوليد جديد
         if (distance > 0.5f && creativityLevel > 0.6f) {
             return generateNewImage(latent, best);
-        }
-        
-        // تحديث إحصائيات الاسترجاع - تم التصحيح: استخدام retrievalCount
-        if (best.retrievalCount >= 0) {
-            best.retrievalCount++;
         }
         
         // إذا كان البعد متوسطاً، استخدم interpolation
@@ -291,7 +290,7 @@ public class ImaginationEngine {
     }
 
     /**
-     * البحث عن أقرب جار باستخدام البنية المخزنة مؤقتاً
+     * البحث عن أقرب جار
      */
     private VisualMemory findNearestNeighbor(float[] latent) {
         if (memoryCache.isEmpty()) return null;
@@ -299,7 +298,6 @@ public class ImaginationEngine {
         VisualMemory best = null;
         float bestDist = Float.MAX_VALUE;
         
-        // بحث خطي محسّن مع early termination
         for (VisualMemory mem : memoryCache) {
             if (mem.latentVector == null) continue;
             
@@ -308,7 +306,6 @@ public class ImaginationEngine {
                 bestDist = dist;
                 best = mem;
                 
-                // early termination إذا وجدنا تطابقاً جيداً جداً
                 if (bestDist < 0.1f) break;
             }
         }
@@ -317,11 +314,10 @@ public class ImaginationEngine {
     }
 
     /**
-     * تقدير سريع للمسافة (باستخدام عينة من الأبعاد)
+     * تقدير سريع للمسافة
      */
     private float quickDistanceEstimate(float[] a, float[] b) {
         float sum = 0;
-        // فحص 32 بعداً موزعة بالتساوي
         int step = LATENT_SIZE / 32;
         for (int i = 0; i < LATENT_SIZE; i += step) {
             float d = a[i] - b[i];
@@ -334,26 +330,19 @@ public class ImaginationEngine {
      * توليد صورة جديدة باستخدام interpolation متقدم
      */
     private byte[] generateNewImage(float[] targetLatent, VisualMemory baseMemory) {
-        // في تطبيق حقيقي، هنا يتم استخدام VAE decoder أو GAN
-        // حالياً نستخدم interpolation مع عدة جيران
-        
         List<VisualMemory> neighbors = findKNearestNeighbors(targetLatent, 3);
         if (neighbors.size() < 2) {
             return baseMemory.thumbnail;
         }
         
-        // إنشاء latent مزيج
         float[] blended = multiPointInterpolation(
             neighbors.stream().map(m -> new WeightedMemory(m, 1.0f)).toList()
         );
         
-        // إضافة creativity للحصول على شيء جديد
         addCreativeNoise(blended);
         
-        // في الإصدار الكامل، هنا يتم decode المتجه إلى صورة
-        // حالياً نعيد الصورة الأقرب مع علامة أنها "مولدة"
         Log.d(TAG, "Generated new image via advanced interpolation");
-        return baseMemory.thumbnail; // placeholder للتوليد الحقيقي
+        return baseMemory.thumbnail; // placeholder
     }
 
     /**
@@ -373,7 +362,7 @@ public class ImaginationEngine {
         
         List<VisualMemory> result = new ArrayList<>();
         while (!heap.isEmpty()) result.add(heap.poll().memory);
-        Collections.reverse(result); // الأقرب أولاً
+        Collections.reverse(result);
         return result;
     }
 
@@ -384,8 +373,6 @@ public class ImaginationEngine {
         float similarity = 1.0f - Math.min(1.0f, euclideanDistance(target, nearest.latentVector));
         float blendFactor = similarity * (1 - creativityLevel * 0.3f);
         
-        // في التطبيق الكامل، هنا يتم blend الصور pixel-wise
-        // أو استخدام VAE decoder على المتجه الممزوج
         Log.d(TAG, "Interpolating with blend factor: " + blendFactor);
         return nearest.thumbnail;
     }
@@ -394,15 +381,13 @@ public class ImaginationEngine {
      * تحويل مفهوم إلى متجه كامن مع دعم centroids المخزنة
      */
     public float[] conceptToLatent(String concept) {
-        // التحقق من centroids المخزنة
         if (conceptCentroids.containsKey(concept)) {
             float[] centroid = conceptCentroids.get(concept);
             float[] result = centroid.clone();
-            addCreativeNoise(result); // إضافة تنوع
+            addCreativeNoise(result);
             return clampVector(result);
         }
         
-        // حساب centroid إذا لم يكن مخزناً
         List<VisualMemory> memories = visualMemoryDao.getByConcept(concept);
         if (memories.isEmpty()) {
             return generateNovelLatent(null, true);
@@ -446,7 +431,6 @@ public class ImaginationEngine {
     private float computeConceptSimilarity(String concept1, String concept2) {
         if (concept1.equalsIgnoreCase(concept2)) return 1.0f;
         
-        // تطابق جزئي بسيط
         String[] words1 = concept1.toLowerCase().split("\\s+");
         String[] words2 = concept2.toLowerCase().split("\\s+");
         
@@ -510,16 +494,10 @@ public class ImaginationEngine {
         return visualMemoryDao.getRandomConcept();
     }
 
-    /**
-     * الحصول على مستوى الإبداع الحالي (للمراقبة)
-     */
     public float getCreativityLevel() {
         return creativityLevel;
     }
 
-    /**
-     * تعيين مستوى الإبداع يدوياً (للتخصيص)
-     */
     public void setCreativityLevel(float level) {
         this.creativityLevel = Math.max(0, Math.min(1, level));
     }
