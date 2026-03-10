@@ -19,14 +19,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FaceIdentitySystem {
     private static final String TAG = "FaceIdentitySystem";
     
-    // إعدادات النظام المتقدمة
     private static final int EMBEDDING_SIZE = 128;
     private static final float BASE_SIMILARITY_THRESHOLD = 0.60f;
     private static final float STRICT_THRESHOLD = 0.75f;
     private static final float MIN_CONFIDENCE_FOR_LEARNING = 0.45f;
     private static final int MIN_SAMPLES_FOR_CONFIDENCE = 3;
     
-    // عوامل التعلم العاطفي
     private static final float POSITIVE_EMOTION_BOOST = 0.08f;
     private static final float NEGATIVE_EMOTION_PENALTY = 0.03f;
     private static final float FAMILIARITY_DECAY_RATE = 0.001f;
