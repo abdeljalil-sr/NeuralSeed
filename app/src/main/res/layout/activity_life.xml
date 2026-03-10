@@ -22,7 +22,23 @@
         android:scaleType="centerCrop"
         android:contentDescription="لوحة الخيال" />
 
-    <!-- طبقة المحادثة (تظهر فوق الصورة) -->
+    <!-- طبقة الأفكار الداخلية (تظهر فوق الصورة في الأعلى) -->
+    <TextView
+        android:id="@+id/thoughtsTextView"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_gravity="top"
+        android:layout_marginTop="50dp"
+        android:layout_marginHorizontal="16dp"
+        android:background="#AA000000"
+        android:textColor="#88FFAA"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        android:padding="8dp"
+        android:scrollbars="vertical"
+        android:visibility="invisible" />
+
+    <!-- طبقة المحادثة (تظهر فوق الصورة في الأسفل) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -31,17 +47,16 @@
         android:padding="8dp"
         android:background="#AA000000">
 
-        <!-- عرض المحادثة -->
-        <TextView
-            android:id="@+id/chatTextView"
+        <!-- عرض المحادثة باستخدام ListView -->
+        <ListView
+            android:id="@+id/chatListView"
             android:layout_width="match_parent"
             android:layout_height="150dp"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:scrollbars="vertical"
-            android:padding="4dp"
-            android:background="#55000000"
-            android:gravity="bottom" />
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:stackFromBottom="true"
+            android:transcriptMode="alwaysScroll"
+            android:background="#55000000" />
 
         <!-- صف الإدخال والإرسال -->
         <LinearLayout
@@ -73,7 +88,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- سجل الأحداث الداخلية -->
+    <!-- سجل الأحداث الداخلية (فوق الأفكار) -->
     <TextView
         android:id="@+id/eventLogText"
         android:layout_width="match_parent"
@@ -97,7 +112,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="50dp"
+        android:layout_marginTop="10dp"
         android:text="المس الشاشة • تحدث معي • حرك الهاتف"
         android:textColor="#44ffffff"
         android:textSize="11sp"
