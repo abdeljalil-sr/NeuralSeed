@@ -28,6 +28,7 @@ import com.lifeentity.R;
 import com.lifeentity.core.ConsciousnessCore;
 import com.lifeentity.core.ConsciousMoment;
 import com.lifeentity.core.EmotionalState;
+import com.lifeentity.core.HomeostasisSystem;
 import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualImagination;
 import com.lifeentity.language.ArabicDialogue;
@@ -237,8 +238,8 @@ public class LifeActivity extends AppCompatActivity {
             thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
         }
 
-        // يمكن إضافة المزيد من المعلومات إذا أردنا
-        // لكننا لا نملك access إلى ConsciousMoment الكامل هنا
+        // إضافة مستوى الفوضى إذا كان متاحاً (من HomeostasisSystem)
+        // لا يمكن الوصول إلى HomeostasisSystem مباشرة، لكن يمكن إضافته عبر واجهة لاحقاً
 
         final String finalThoughts = thoughts.toString();
         runOnUiThread(() -> {
@@ -255,6 +256,7 @@ public class LifeActivity extends AppCompatActivity {
             case "understand": return "أفهم";
             case "rest": return "أسترخي";
             case "play": return "ألعب";
+            case "reflect": return "أتأمل";
             default: return desire;
         }
     }
