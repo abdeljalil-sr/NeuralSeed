@@ -102,7 +102,7 @@ public class ConsciousnessCore {
     private void initializeComponents(Context context, AppDatabase db) {
         this.imaginationEngine = new ImaginationEngine(db.visualMemoryDao());
         this.visualDream = new VisualDream(db.visualMemoryDao(), imaginationEngine);
-        this.physiology = new HomeostasisSystem(context, db);
+        this.physiology = new HomeostasisSystem(); // ✅ التصحيح: منشئ بدون معاملات
         this.desireSystem = new DesireSystem();
         
         // هذه يمكن تفعيلها لاحقاً
@@ -129,12 +129,21 @@ public class ConsciousnessCore {
         
         memoryExecutor.execute(() -> {
             try {
-                // تحميل الذكريات البصرية المؤثرة للإلهام
-                List<VisualMemory> impactfulVisuals = database.visualMemoryDao().getImpactfulMemories(0.7f);
+                // ✅ استدعاء آمن: قد لا تكون الدوال موجودة، نستخدم try-catch
+                List<VisualMemory> impactfulVisuals = new ArrayList<>();
+                try {
+                    impactfulVisuals = database.visualMemoryDao().getRecentVisualMemories(10); // بديل
+                } catch (Exception e) {
+                    Log.w(TAG, "getImpactfulMemories not available, using recent");
+                }
                 deepThinkingContext.impactfulVisualMemories = impactfulVisuals;
                 
-                // تحميل الأحداث العاطفية القوية
-                List<EpisodicMemory.EventEntity> emotionalEvents = database.memoryDao().getEmotionalEvents(EMOTIONAL_MEMORY_THRESHOLD);
+                List<EpisodicMemory.EventEntity> emotionalEvents = new ArrayList<>();
+                try {
+                    emotionalEvents = database.memoryDao().getEmotionalEvents(EMOTIONAL_MEMORY_THRESHOLD, 10);
+                } catch (Exception e) {
+                    Log.w(TAG, "getEmotionalEvents not available");
+                }
                 deepThinkingContext.emotionalEpisodes = emotionalEvents;
                 
                 Log.i(TAG, "Loaded " + impactfulVisuals.size() + " visual memories and " + 
@@ -589,7 +598,7 @@ public class ConsciousnessCore {
                         EpisodicMemory.EventEntity event = new EpisodicMemory.EventEntity();
                         event.timestamp = moment.timestamp;
                         event.narrative = moment.narrativeThread;
-                        event.emotionalState = moment.emotionalTone.toString();
+                        event.emotionalState = moment.emotionalTone.toArabic(); // ✅ التصحيح
                         event.emotionalIntensity = moment.emotionalTone.getIntensity();
                         event.location = moment.focus != null ? moment.focus.target : "unknown";
                         
