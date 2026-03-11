@@ -28,7 +28,6 @@ import com.lifeentity.R;
 import com.lifeentity.core.ConsciousnessCore;
 import com.lifeentity.core.ConsciousMoment;
 import com.lifeentity.core.EmotionalState;
-import com.lifeentity.core.HomeostasisSystem;
 import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualImagination;
 import com.lifeentity.language.ArabicDialogue;
@@ -103,6 +102,10 @@ public class LifeActivity extends AppCompatActivity {
     private long lastEventTime = 0;
     private ConcurrentLinkedQueue<String> pendingChatMessages = new ConcurrentLinkedQueue<>();
 
+    // متغير لتتبع ما إذا كان المستخدم يمرر يدويًا
+    private boolean userScrolling = false;
+    private Runnable scrollResetRunnable;
+
     /**
      * تمثيل رسالة دردشة منظمة
      */
@@ -159,6 +162,30 @@ public class LifeActivity extends AppCompatActivity {
 
         thoughtsTextView.setMovementMethod(new ScrollingMovementMethod());
         thoughtsTextView.setVisibility(View.INVISIBLE);
+
+        // تعطيل التمرير التلقائي القسري
+        chatListView.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
+        
+        // مراقبة لمسات المستخدم على ListView
+        chatListView.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_MOVE:
+                    userScrolling = true;
+                    // إلغاء أي مؤقت لإعادة التمرير التلقائي
+                    if (scrollResetRunnable != null) {
+                        uiHandler.removeCallbacks(scrollResetRunnable);
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // بعد رفع الإصبع، ننتظر فترة ثم نسمح بالتمرير التلقائي مجددًا
+                    scrollResetRunnable = () -> userScrolling = false;
+                    uiHandler.postDelayed(scrollResetRunnable, 3000); // 3 ثوانٍ
+                    break;
+            }
+            return false; // نترك الحدث يمر للمعالجة العادية
+        });
     }
 
     private void setupChatAdapter() {
@@ -184,7 +211,6 @@ public class LifeActivity extends AppCompatActivity {
         };
         
         chatListView.setAdapter(chatAdapter);
-        chatListView.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
     }
 
     private void setupSendButton() {
@@ -238,8 +264,8 @@ public class LifeActivity extends AppCompatActivity {
             thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
         }
 
-        // إضافة مستوى الفوضى إذا كان متاحاً (من HomeostasisSystem)
-        // لا يمكن الوصول إلى HomeostasisSystem مباشرة، لكن يمكن إضافته عبر واجهة لاحقاً
+        // يمكن إضافة المزيد من المعلومات إذا أردنا
+        // لكننا لا نملك access إلى ConsciousMoment الكامل هنا
 
         final String finalThoughts = thoughts.toString();
         runOnUiThread(() -> {
@@ -283,9 +309,12 @@ public class LifeActivity extends AppCompatActivity {
         chatAdapter.notifyDataSetChanged();
         pendingChatMessages.clear();
         
-        chatListView.post(() -> {
-            chatListView.setSelection(chatAdapter.getCount() - 1);
-        });
+        // التمرير إلى آخر عنصر فقط إذا لم يكن المستخدم يمرر حاليًا
+        if (!userScrolling) {
+            chatListView.post(() -> {
+                chatListView.setSelection(chatAdapter.getCount() - 1);
+            });
+        }
     }
 
     private void addInternalThought(String thought) {
@@ -749,6 +778,9 @@ public class LifeActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         uiHandler.removeCallbacks(thoughtsUpdater);
+        if (scrollResetRunnable != null) {
+            uiHandler.removeCallbacks(scrollResetRunnable);
+        }
         if (mind != null) mind.sleep();
         if (ears != null) ears.stop();
         if (body != null) body.deactivate();
