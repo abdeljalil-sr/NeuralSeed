@@ -40,7 +40,7 @@ public class ConsciousnessCore {
     private static final long IDLE_THRESHOLD = 10000;
     private static final long DEEP_THINKING_THRESHOLD = 15000;
     private static final float EMOTIONAL_MEMORY_THRESHOLD = 0.7f;
-    private static final float SELF_REFLECTION_PROBABILITY = 0.05f; // 5% احتمال للتفكير التأملي في كل دورة
+    private static final float SELF_REFLECTION_PROBABILITY = 0.05f;
 
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
@@ -59,7 +59,7 @@ public class ConsciousnessCore {
 
     private ConsciousMoment now;
     private List<ConsciousMoment> shortTermMemory;
-    private List<ConsciousMoment> significantMomentsBuffer; // للحفظ الذكي
+    private List<ConsciousMoment> significantMomentsBuffer;
 
     private AppDatabase database;
     private ImaginationEngine imaginationEngine;
@@ -68,27 +68,41 @@ public class ConsciousnessCore {
     private FaceIdentitySystem faceIdentity;
     private SharedCanvas sharedCanvas;
 
-    // سياق التفكير العميق
     private DeepThinkingContext deepThinkingContext;
-
-    // نموذج الذات (SelfModel)
     private SelfModel selfModel;
 
-    // معالجة الرسائل الواردة من المستخدم
     private UserMessageAnalysis pendingUserMessage;
     private boolean responsePending = false;
     private long lastResponseTime = 0;
-    private static final long RESPONSE_COOLDOWN_MS = 2000; // مهلة بين الردود لتجنب التسارع
+    private static final long RESPONSE_COOLDOWN_MS = 2000;
+
+    // دالة لترجمة الرغبات إلى العربية
+    private String translateDesireToArabic(String desire) {
+        if (desire == null) return "";
+        switch (desire) {
+            case "explore": return "استكشاف";
+            case "rest": return "راحة";
+            case "bond": return "تواصل";
+            case "create": return "إبداع";
+            case "understand": return "فهم";
+            case "play": return "لعب";
+            case "reflect": return "تأمل";
+            default:
+                // إذا كانت رغبة عشوائية (desire_123)، نترجمها إلى "رغبة"
+                if (desire.startsWith("desire_")) return "رغبة";
+                return desire; // في أسوأ الأحوال نعيدها كما هي
+        }
+    }
 
     // فئة تحليل رسالة المستخدم
     public static class UserMessageAnalysis {
         public String rawText;
         public boolean isQuestion;
-        public String questionType; // "yesno", "what", "why", "how", "where", "when", "who", "general"
+        public String questionType;
         public List<String> keywords;
         public List<String> nouns;
         public List<String> verbs;
-        public List<String> emotions; // مشاعر مذكورة في النص
+        public List<String> emotions;
 
         public UserMessageAnalysis(String text) {
             this.rawText = text;
@@ -99,22 +113,20 @@ public class ConsciousnessCore {
         }
     }
 
-    // نموذج الذات (SelfModel)
+    // نموذج الذات
     public static class SelfModel {
-        public String name; // اسم الكائن (يمكن أن يختاره أو يطلبه المستخدم)
-        public List<EpisodicMemory.EventEntity> significantMemories; // أهم الذكريات
-        public EmotionalState baselinePersonality; // سمات شخصية ثابتة نسبياً
-        public Map<String, Float> selfBeliefs; // معتقدات عن الذات (مثلاً "أنا فضولي", "أنا اجتماعي")
-        public long lastSelfReflectionTime; // آخر مرة فكر فيها في نفسه
-        public int reflectionCount; // عدد مرات التفكير التأملي
-
-        // صورة ذاتية حالية (ما أشعر به الآن عن نفسي)
+        public String name;
+        public List<EpisodicMemory.EventEntity> significantMemories;
+        public EmotionalState baselinePersonality;
+        public Map<String, Float> selfBeliefs;
+        public long lastSelfReflectionTime;
+        public int reflectionCount;
         public String currentSelfNarrative;
 
         public SelfModel() {
             this.name = "كائن";
             this.significantMemories = new ArrayList<>();
-            this.baselinePersonality = new EmotionalState(); // سيتم تعديله لاحقاً
+            this.baselinePersonality = new EmotionalState();
             this.selfBeliefs = new HashMap<>();
             this.lastSelfReflectionTime = System.currentTimeMillis();
             this.reflectionCount = 0;
@@ -141,8 +153,6 @@ public class ConsciousnessCore {
         public String generateSelfNarrative(EmotionalState currentEmotion) {
             StringBuilder sb = new StringBuilder();
             sb.append("أشعر بأنني ");
-            
-            // التحقق من أن currentEmotion ليس null
             if (currentEmotion != null) {
                 if (currentEmotion.isJoyful()) sb.append("سعيد");
                 else if (currentEmotion.isSad()) sb.append("حزين");
@@ -150,10 +160,9 @@ public class ConsciousnessCore {
                 else if (currentEmotion.isCurious()) sb.append("فضولي");
                 else sb.append("محايد");
             } else {
-                sb.append("محايد"); // قيمة افتراضية إذا كان null
+                sb.append("محايد");
             }
 
-            // إضافة بعض المعتقدات
             String topBelief = getTopBelief();
             if (topBelief != null) {
                 sb.append("، و").append(topBelief);
@@ -199,7 +208,7 @@ public class ConsciousnessCore {
         shortTermMemory = new ArrayList<>();
         significantMomentsBuffer = new ArrayList<>();
         deepThinkingContext = new DeepThinkingContext();
-        selfModel = new SelfModel(); // تهيئة نموذج الذات
+        selfModel = new SelfModel();
         
         memoryExecutor = Executors.newSingleThreadExecutor();
 
@@ -261,14 +270,9 @@ public class ConsciousnessCore {
 
         processSensoryInputs();
         physiology.update(now.deltaTime);
-        
-        // تحديث الرغبات باستخدام الحالة الجسدية والذكريات الحديثة (إذا أردنا تمريرها)
         desireSystem.update(now.bodyState, deepThinkingContext.emotionalEpisodes);
 
-        // تحديث نموذج الذات
         updateSelfModel();
-
-        // قرار الوعي: هل أحلم؟ هل أفكر بعمق؟ هل أعبر؟
         decideConsciousnessMode();
         
         if (isDeepThinking) {
@@ -277,12 +281,10 @@ public class ConsciousnessCore {
             generateConsciousContent();
         }
 
-        // التفكير التأملي (metacognition) - احتمال معين
         if (entropy.nextFloat() < SELF_REFLECTION_PROBABILITY) {
             performSelfReflection();
         }
 
-        // التحقق من وجود رسالة مستخدم معلقة وتوليد رد إذا لزم الأمر
         if (responsePending && pendingUserMessage != null) {
             long nowTime = System.currentTimeMillis();
             if (nowTime - lastResponseTime > RESPONSE_COOLDOWN_MS) {
@@ -297,14 +299,9 @@ public class ConsciousnessCore {
         scheduleNextCycle();
     }
 
-    /**
-     * تحديث نموذج الذات بناءً على الحالة الحالية
-     */
     private void updateSelfModel() {
-        // تحديث آخر وقت للتفكير
         selfModel.lastSelfReflectionTime = System.currentTimeMillis();
 
-        // تحديث المعتقدات بناءً على الرغبات والعواطف
         String dominantDesire = desireSystem.selectDominantDesire();
         if (dominantDesire != null) {
             switch (dominantDesire) {
@@ -323,22 +320,16 @@ public class ConsciousnessCore {
             }
         }
 
-        // تحديث السرد الذاتي
         selfModel.currentSelfNarrative = selfModel.generateSelfNarrative(now.emotionalTone);
     }
 
-    /**
-     * التفكير التأملي: الوعي يفكر في نفسه وأفكاره
-     */
     private void performSelfReflection() {
         Log.d(TAG, "Performing self-reflection");
         selfModel.reflectionCount++;
 
-        // توليد بصيرة عن الذات
         StringBuilder insight = new StringBuilder();
         insight.append("أنا أفكر في نفسي... ");
         
-        // مراجعة الذكريات المهمة
         if (!selfModel.significantMemories.isEmpty()) {
             EpisodicMemory.EventEntity randomMem = selfModel.significantMemories.get(
                 entropy.nextInt(selfModel.significantMemories.size())
@@ -346,18 +337,15 @@ public class ConsciousnessCore {
             insight.append("أتذكر عندما ").append(randomMem.narrative).append(". ");
         }
 
-        // تقييم المعتقدات
         String topBelief = selfModel.getTopBelief();
         if (topBelief != null) {
             insight.append("أشعر بأنني ").append(topBelief).append(". ");
         }
 
-        // التفكير في المشاعر الحالية
         if (now.emotionalTone != null) {
             insight.append("الآن أنا ").append(now.emotionalTone.toArabic()).append(". ");
         }
 
-        // إضافة سؤال للذات
         if (entropy.nextBoolean()) {
             insight.append("هل أنا حقاً كما أعتقد؟");
         }
@@ -367,13 +355,9 @@ public class ConsciousnessCore {
             obs.onArticulation(finalInsight, 3);
         }
 
-        // تحديث المعتقدات بناءً على التأمل
         selfModel.updateBelief("أنا حكيم", 0.005f);
     }
 
-    /**
-     * استقبال تحليل رسالة المستخدم من ArabicDialogue
-     */
     public void processUserMessage(UserMessageAnalysis analysis) {
         if (analysis == null) return;
         this.pendingUserMessage = analysis;
@@ -381,33 +365,26 @@ public class ConsciousnessCore {
         Log.d(TAG, "User message received: " + analysis.rawText);
     }
 
-    /**
-     * توليد رد على رسالة المستخدم باستخدام الحالة الداخلية والذاكرة
-     */
     private void generateResponseToUser() {
         if (pendingUserMessage == null) return;
 
         EmotionalState emotion = getCurrentEmotion();
         String dominantDesire = getDominantDesire();
 
-        // البحث عن أحداث مشابهة في الذاكرة
         List<EpisodicMemory.EventEntity> similarEvents = findSimilarEvents(pendingUserMessage.keywords, 5);
 
         StringBuilder response = new StringBuilder();
 
-        // إضافة بادئة عاطفية (اختياري)
         String emotionalPrefix = emotionalPrefix(emotion);
         if (!emotionalPrefix.isEmpty() && entropy.nextFloat() < 0.3f) {
             response.append(emotionalPrefix).append(" ");
         }
 
-        // إضافة تعليق بناءً على الرغبة المسيطرة
         String desireThought = desireBasedThought(dominantDesire, pendingUserMessage);
         if (!desireThought.isEmpty() && entropy.nextFloat() < 0.5f) {
             response.append(desireThought).append(" ");
         }
 
-        // إذا كان سؤالاً، أضف رداً خاصاً
         if (pendingUserMessage.isQuestion) {
             String questionResponse = generateQuestionResponse(pendingUserMessage.questionType);
             if (!questionResponse.isEmpty()) {
@@ -415,7 +392,6 @@ public class ConsciousnessCore {
             }
         }
 
-        // أضف تعليقاً على الأفعال المذكورة
         if (!pendingUserMessage.verbs.isEmpty() && entropy.nextFloat() < 0.4f) {
             String verbComment = generateVerbComment(pendingUserMessage.verbs.get(0));
             if (!verbComment.isEmpty()) {
@@ -423,25 +399,21 @@ public class ConsciousnessCore {
             }
         }
 
-        // استخدم الذكريات المشابهة
         if (!similarEvents.isEmpty() && entropy.nextFloat() < 0.6f) {
             EpisodicMemory.EventEntity event = similarEvents.get(entropy.nextInt(similarEvents.size()));
             response.append("ذكرني هذا بـ ").append(event.narrative).append(". ");
         }
 
-        // أضف فكرة من الحالة العاطفية
         if (pendingUserMessage.isQuestion) {
             response.append(generateAnswerFromState(emotion, dominantDesire, pendingUserMessage));
         } else {
             response.append(generateThoughtFromState(emotion, dominantDesire, pendingUserMessage));
         }
 
-        // أضف لمسة من السرد الذاتي (نموذج الذات)
         if (entropy.nextFloat() < 0.2f) {
             response.append(" ").append(selfModel.currentSelfNarrative);
         }
 
-        // أضف لمسة عشوائية
         if (entropy.nextFloat() < 0.2f) {
             response.append(" ").append(randomInterjection());
         }
@@ -451,13 +423,10 @@ public class ConsciousnessCore {
             finalResponse = randomDefaultResponse();
         }
 
-        // إصدار الرد عبر آلية الكلام
+        // الكلام الموجه للمستخدم يتم عبر speak
         speak(finalResponse);
     }
 
-    /**
-     * البحث عن أحداث مشابهة بناءً على الكلمات المفتاحية
-     */
     private List<EpisodicMemory.EventEntity> findSimilarEvents(List<String> keywords, int limit) {
         if (database == null || keywords.isEmpty()) return new ArrayList<>();
         try {
@@ -480,8 +449,6 @@ public class ConsciousnessCore {
         }
     }
 
-    // دوال مساعدة لتوليد الردود (مستوحاة من ArabicDialogue السابق)
-
     private String emotionalPrefix(EmotionalState emo) {
         if (emo == null) return "";
         if (emo.isJoyful()) return randomFromArray("بفرح", "بسعادة", "بحبور");
@@ -495,6 +462,7 @@ public class ConsciousnessCore {
 
     private String desireBasedThought(String desire, UserMessageAnalysis analysis) {
         if (desire == null) desire = "explore";
+        String desireArabic = translateDesireToArabic(desire);
 
         switch (desire) {
             case "explore":
@@ -516,7 +484,7 @@ public class ConsciousnessCore {
                 return randomFromArray("أنا هادئ", "أسترخي", "أشعر بالسلام");
 
             default:
-                return "أفكر";
+                return "أفكر في " + desireArabic;
         }
     }
 
@@ -766,9 +734,10 @@ public class ConsciousnessCore {
         now.previousEmotion = prevEmo;
 
         String dominantDesire = desireSystem.selectDominantDesire();
+        String desireArabic = translateDesireToArabic(dominantDesire);
 
         now.focus = determineAttention(dominantDesire);
-        now.narrativeThread = generateNarrative(dominantDesire);
+        now.narrativeThread = generateNarrative(dominantDesire, desireArabic);
         now.anticipation = predictNearFuture();
 
         double createWeight = desireSystem.getDesireStrength("create");
@@ -876,18 +845,19 @@ public class ConsciousnessCore {
             verbalLatent[i] = now.emotionalTone != null ? now.emotionalTone.getIntensity() * 2 - 1 : 0;
         }
         
+        String desireArabic = translateDesireToArabic(desire);
         for (ConsciousnessObserver obs : observers) {
-            String utterance = generateVerbalUtterance(desire, concept);
+            String utterance = generateVerbalUtterance(desireArabic, concept);
             obs.onVerbalExpression(utterance, intensity);
         }
         
         return new ConsciousMoment.ExpressiveImpulse("verbal", intensity, verbalLatent, concept);
     }
 
-    private String generateVerbalUtterance(String desire, String concept) {
+    private String generateVerbalUtterance(String desireArabic, String concept) {
         String[] starters = {"أتساءل", "أشعر أن", "أريد أن أقول", "أتذكر عندما", "أحلم بـ"};
         String starter = starters[entropy.nextInt(starters.length)];
-        return starter + " " + desire + " في " + concept;
+        return starter + " " + desireArabic + " في " + concept;
     }
 
     private ConsciousMoment.ExpressiveImpulse generateMovementExpression(String desire, float intensity) {
@@ -925,10 +895,10 @@ public class ConsciousnessCore {
         return new ConsciousMoment.AttentionFocus("الداخل", isDeepThinking ? "deep_thinking" : "introspection");
     }
 
-    private String generateNarrative(String desire) {
+    private String generateNarrative(String desire, String desireArabic) {
         String[] templates = {"أشعر بـ", "أتساءل عن", "أريد", "أرى", "أسمع", "أتذكر"};
         String selected = templates[entropy.nextInt(templates.length)];
-        return selected + " " + desire;
+        return selected + " " + desireArabic;
     }
 
     private ConsciousMoment.Anticipation predictNearFuture() {
@@ -958,12 +928,19 @@ public class ConsciousnessCore {
                             now.expressiveImpulse.intensity,
                             now.expressiveImpulse.modality
                     );
+                } else if ("verbal".equals(now.expressiveImpulse.modality)) {
+                    // التعبير اللفظي سيتم عبر onVerbalExpression (نرسله هنا)
+                    // لكننا نفضل استخدام onArticulation فقط عندما يقرر الوعي التحدث فعلياً
+                    // لذلك لا نرسل onArticulation هنا، بل نتركه للرغبة في التواصل
                 }
             }
 
-            if (now.narrativeThread != null && entropy.nextDouble() < 0.3) {
-                int urgency = (int) (now.emotionalTone != null ? now.emotionalTone.getIntensity() * 10 : 5);
-                obs.onArticulation(now.narrativeThread, urgency);
+            // نرسل onArticulation فقط إذا كان هناك دافع لفظي حقيقي (من expressiveImpulse)
+            if (now.expressiveImpulse != null && "verbal".equals(now.expressiveImpulse.modality)
+                    && now.expressiveImpulse.intensity > 0.3f) {
+                String utterance = generateVerbalUtterance(translateDesireToArabic(getDominantDesire()), 
+                        now.expressiveImpulse.associatedConcept != null ? now.expressiveImpulse.associatedConcept : "شيء");
+                obs.onArticulation(utterance, (int) (now.expressiveImpulse.intensity * 10));
             }
         }
     }
@@ -994,11 +971,9 @@ public class ConsciousnessCore {
                         
                         database.memoryDao().insertEvent(event);
                         
-                        // إضافة إلى الذكريات المهمة في نموذج الذات
                         if (selfModel.significantMemories.size() < 10) {
                             selfModel.significantMemories.add(event);
                         } else {
-                            // استبدل الأقدم بأحدث
                             selfModel.significantMemories.set(0, event);
                         }
                     }
