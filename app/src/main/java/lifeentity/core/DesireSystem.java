@@ -37,10 +37,17 @@ public class DesireSystem {
         }
     }
     
+    /**
+     * تحديث الرغبات بناءً على الحالة الجسدية فقط (بدون ذكريات)
+     */
     public void update(ConsciousMoment.BodyState bodyState) {
-        update(null); // استدعاء الدالة الأخرى بدون ذكريات
+        // استدعاء الدالة الرئيسية مع قائمة ذكريات فارغة
+        update(bodyState, null);
     }
     
+    /**
+     * تحديث الرغبات بناءً على الحالة الجسدية والذكريات الحديثة
+     */
     public void update(ConsciousMoment.BodyState bodyState, List<EpisodicMemory.EventEntity> recentMemories) {
         double energy = bodyState.energy;
         double stress = bodyState.stress;
