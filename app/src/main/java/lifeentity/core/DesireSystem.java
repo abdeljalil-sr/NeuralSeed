@@ -39,23 +39,16 @@ public class DesireSystem {
     
     /**
      * تحديث الرغبات بناءً على الحالة الجسدية فقط (بدون ذكريات)
-     * تستدعي الدالة الرئيسية مع تمرير الحالة الجسدية و null للذكريات
      */
     public void update(ConsciousMoment.BodyState bodyState) {
-        // استدعاء الدالة الرئيسية مع قائمة ذكريات فارغة (بدون تكرار)
         update(bodyState, null);
     }
     
     /**
      * تحديث الرغبات بناءً على الحالة الجسدية والذكريات الحديثة
-     * هذه هي الدالة الرئيسية التي تحتوي على كل المنطق
      */
     public void update(ConsciousMoment.BodyState bodyState, List<EpisodicMemory.EventEntity> recentMemories) {
-        // التحقق من أن bodyState ليس null (للتأكد من عدم حدوث NullPointerException)
-        if (bodyState == null) {
-            // إذا كان null، لا نقوم بالتحديث (يمكن تسجيل خطأ)
-            return;
-        }
+        if (bodyState == null) return;
         
         double energy = bodyState.energy;
         double stress = bodyState.stress;
