@@ -2,6 +2,8 @@ package com.lifeentity.core;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.Path;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -29,12 +31,13 @@ import java.util.concurrent.Executors;
 /**
  * النواة الواعية المتقدمة - دماغ الكائن الرقمي الحي
  * تدعم جميع الأنظمة المطلوبة للوعي الحقيقي:
- * - Global Workspace (مساحة العمل العالمية)
- * - Attention System (نظام الانتباه)
- * - Prediction System (نظام التنبؤ)
- * - Value System (نظام القيم)
- * - Self Model (نموذج الذات)
- * - Meta Cognition (التفكير في التفكير)
+ * - Global Workspace
+ * - Attention System
+ * - Prediction System
+ * - Value System
+ * - Self Model
+ * - Meta Cognition
+ * - Imagination Engine متكامل لتوليد الصور والرسوم
  */
 public class ConsciousnessCore {
     private static final String TAG = "ConsciousnessCore";
@@ -43,6 +46,8 @@ public class ConsciousnessCore {
     private static final long DEEP_THINKING_CYCLE_MS = 8000;
     private static final long METACOGNITION_CYCLE_MS = 10000;
     private static final float EMOTIONAL_MEMORY_THRESHOLD = 0.7f;
+    private static final long IDLE_THRESHOLD = 10000;
+    private static final long DEEP_THINKING_THRESHOLD = 15000;
 
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
@@ -85,9 +90,12 @@ public class ConsciousnessCore {
     private long lastResponseTime = 0;
     private static final long RESPONSE_COOLDOWN_MS = 2000;
 
-    // عداد للتجارب لتحديث أنظمة التعلم
     private int actionCounter = 0;
     private Map<String, Object> lastActionContext = new HashMap<>();
+
+    // متغيرات للرسم والإبداع
+    private List<String> drawnElementIds = new ArrayList<>();
+    private Bitmap currentImaginationBitmap;
 
     // دالة لترجمة الرغبات إلى العربية
     private String translateDesireToArabic(String desire) {
@@ -134,7 +142,8 @@ public class ConsciousnessCore {
         public long lastSelfReflectionTime;
         public int reflectionCount;
         public String currentSelfNarrative;
-        public Map<String, Object> goals; // أهداف ذاتية
+        public Map<String, Object> goals;
+        public Map<String, Float> artisticPreferences; // تفضيلات فنية
 
         public SelfModel() {
             this.name = "كائن";
@@ -145,7 +154,9 @@ public class ConsciousnessCore {
             this.reflectionCount = 0;
             this.currentSelfNarrative = "أنا موجود";
             this.goals = new HashMap<>();
+            this.artisticPreferences = new HashMap<>();
             initDefaultBeliefs();
+            initArtisticPreferences();
         }
 
         private void initDefaultBeliefs() {
@@ -156,12 +167,27 @@ public class ConsciousnessCore {
             selfBeliefs.put("أنا حكيم", 0.4f);
         }
 
+        private void initArtisticPreferences() {
+            artisticPreferences.put("الألوان الزاهية", 0.5f);
+            artisticPreferences.put("الأشكال العضوية", 0.5f);
+            artisticPreferences.put("الخطوط الحادة", 0.5f);
+            artisticPreferences.put("الوجوه البشرية", 0.6f);
+        }
+
         public void updateBelief(String belief, float delta) {
             float current = selfBeliefs.getOrDefault(belief, 0.5f);
             float newValue = current + delta;
             if (newValue < 0) newValue = 0;
             if (newValue > 1) newValue = 1;
             selfBeliefs.put(belief, newValue);
+        }
+
+        public void updateArtisticPreference(String pref, float delta) {
+            float current = artisticPreferences.getOrDefault(pref, 0.5f);
+            float newValue = current + delta;
+            if (newValue < 0) newValue = 0;
+            if (newValue > 1) newValue = 1;
+            artisticPreferences.put(pref, newValue);
         }
 
         public String generateSelfNarrative(EmotionalState currentEmotion) {
@@ -209,15 +235,16 @@ public class ConsciousnessCore {
         void onConsciousMoment(ConsciousMoment moment);
         void onEmotionalShift(EmotionalState from, EmotionalState to);
         void onArticulation(String utterance, int urgency);
-        void onVisualExpression(float[] latentVector, float intensity, String modality);
+        void onVisualExpression(Bitmap image, String description);
         void onDreamGenerated(Bitmap dreamImage, String description);
         void onDeepThinkingInsight(String insight, List<EpisodicMemory.EventEntity> connectedMemories);
         void onVerbalExpression(String text, float intensity);
         void onMovementImpulse(String direction, float intensity);
     }
 
-    public ConsciousnessCore(Context context, AppDatabase db) {
+    public ConsciousnessCore(Context context, AppDatabase db, SharedCanvas canvas) {
         this.database = db;
+        this.sharedCanvas = canvas;
         initializeComponents(context, db);
 
         birthTime = System.currentTimeMillis();
@@ -238,7 +265,7 @@ public class ConsciousnessCore {
         predictionSystem = new PredictionSystem(db.memoryDao());
         valueSystem = new ValueSystem();
 
-        // قيم أولية لبعض المفاهيم
+        // قيم أولية للمفاهيم
         valueSystem.setInitialValue("وجه", 0.3f);
         valueSystem.setInitialValue("سؤال", 0.5f);
         valueSystem.setInitialValue("صوت غريب", -0.4f);
@@ -246,6 +273,9 @@ public class ConsciousnessCore {
         valueSystem.setInitialValue("استكشاف", 0.6f);
         valueSystem.setInitialValue("تواصل", 0.7f);
         valueSystem.setInitialValue("راحة", 0.8f);
+        valueSystem.setInitialValue("رسم", 0.9f);
+        valueSystem.setInitialValue("لون أحمر", 0.5f);
+        valueSystem.setInitialValue("لون أزرق", 0.5f);
 
         memoryExecutor = Executors.newSingleThreadExecutor();
 
@@ -313,28 +343,31 @@ public class ConsciousnessCore {
         desireSystem.update(now.bodyState, deepThinkingContext.emotionalEpisodes);
         updateSelfModel();
 
-        // 3. إضافة مقترحات إلى مساحة العمل العالمية
+        // 3. تحديث مستوى الإبداع في محرك الخيال
+        imaginationEngine.updateCreativityFromEmotion(now.emotionalTone);
+
+        // 4. إضافة مقترحات إلى مساحة العمل العالمية
         addProposalsToWorkspace();
 
-        // 4. تنظيف المقترحات القديمة
+        // 5. تنظيف المقترحات القديمة
         globalWorkspace.cleanOldProposals();
 
-        // 5. تحديث مساحة العمل باستخدام نظام الانتباه
+        // 6. تحديث مساحة العمل باستخدام نظام الانتباه
         globalWorkspace.updateWorkspace(attentionSystem.getAttentionWeights());
 
-        // 6. الحصول على المحتوى الواعي الحالي
+        // 7. الحصول على المحتوى الواعي الحالي
         GlobalWorkspace.WorkspaceContent consciousContent = globalWorkspace.getCurrentContent();
         if (consciousContent != null) {
             processConsciousContent(consciousContent);
         }
 
-        // 7. اتخاذ القرار بناءً على المحتوى الواعي والرغبات
+        // 8. اتخاذ القرار بناءً على المحتوى الواعي والرغبات
         String decision = makeDecision();
         if (decision != null) {
             executeDecision(decision);
         }
 
-        // 8. قرار الوعي: أحلام، تفكير عميق، إلخ
+        // 9. قرار الوعي: أحلام، تفكير عميق، إلخ
         decideConsciousnessMode();
 
         if (isDeepThinking) {
@@ -343,14 +376,19 @@ public class ConsciousnessCore {
             generateConsciousContent();
         }
 
-        // 9. التفكير التأملي (كل 10 ثوانٍ)
+        // 10. التفكير التأملي
         long now = System.currentTimeMillis();
         if (now - lastMetacognitionTime > METACOGNITION_CYCLE_MS) {
             performMetacognition();
             lastMetacognitionTime = now;
         }
 
-        // 10. الرد على رسائل المستخدم
+        // 11. فرصة للتعبير البصري العفوي
+        if (desireSystem.getDesireStrength("create") > 0.8 && entropy.nextFloat() < 0.1) {
+            createSpontaneousArt();
+        }
+
+        // 12. الرد على رسائل المستخدم
         if (responsePending && pendingUserMessage != null) {
             if (now - lastResponseTime > RESPONSE_COOLDOWN_MS) {
                 generateResponseToUser();
@@ -359,13 +397,13 @@ public class ConsciousnessCore {
             }
         }
 
-        // 11. بث اللحظة الحالية للمراقبين
+        // 13. بث اللحظة الحالية للمراقبين
         broadcastMoment();
 
-        // 12. إدارة الذاكرة
+        // 14. إدارة الذاكرة
         manageMemory();
 
-        // 13. جدولة الدورة التالية
+        // 15. جدولة الدورة التالية
         scheduleNextCycle();
     }
 
@@ -389,35 +427,24 @@ public class ConsciousnessCore {
                     "desire", dominantDesire, 0.8f));
         }
 
-        // مقترح من الذاكرة (أهم ذكرى حديثة)
+        // مقترح من الذاكرة
         if (!deepThinkingContext.emotionalEpisodes.isEmpty()) {
             EpisodicMemory.EventEntity recent = deepThinkingContext.emotionalEpisodes.get(0);
             globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
                     "memory", recent, recent.emotionalIntensity));
         }
 
-        // مقترح من الخيال
+        // مقترح من الخيال (خاص بالرسم والإبداع)
         double createWeight = desireSystem.getDesireStrength("create");
         if (createWeight > 0.7 && entropy.nextFloat() < 0.3) {
             globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
-                    "imagination", "فكرة إبداعية", (float) createWeight));
+                    "imagination", "فرصة للرسم", (float) createWeight));
         }
 
         // مقترح من الذات
         if (selfModel.currentSelfNarrative != null && entropy.nextFloat() < 0.2) {
             globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
                     "self", selfModel.currentSelfNarrative, 0.6f));
-        }
-
-        // مقترح من التنبؤ (إذا كان هناك تنبؤ مهم)
-        if (lastActionContext.containsKey("lastAction")) {
-            String lastAction = (String) lastActionContext.get("lastAction");
-            String context = (String) lastActionContext.getOrDefault("context", "general");
-            PredictionSystem.PredictionResult pred = predictionSystem.predict(lastAction, context);
-            if (pred.confidence > 0.5f) {
-                globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
-                        "prediction", "توقع: " + pred.predictedOutcome, pred.confidence));
-            }
         }
     }
 
@@ -427,12 +454,10 @@ public class ConsciousnessCore {
     private void processConsciousContent(GlobalWorkspace.WorkspaceContent content) {
         Log.d(TAG, "Conscious content: " + content);
 
-        // تحديث now.focus
         if ("perception".equals(content.source) && content.content instanceof SensoryInput) {
             SensoryInput input = (SensoryInput) content.content;
             if (input.hasHumanFace) {
                 now.focus = new ConsciousMoment.AttentionFocus("وجه", "conscious");
-                // تحديث نظام القيم
                 valueSystem.learnValue("وجه", 0.1f);
             } else if (input.dominantObject != null) {
                 now.focus = new ConsciousMoment.AttentionFocus(input.dominantObject, "conscious");
@@ -440,60 +465,42 @@ public class ConsciousnessCore {
             }
         } else if ("desire".equals(content.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("رغبة: " + content.content, "conscious");
-            // تحديث نظام القيم بناءً على الرغبة
             String desireStr = content.content.toString();
             float desireValue = valueSystem.evaluate(desireStr);
             if (desireValue < 0.5f) {
-                valueSystem.learnValue(desireStr, 0.1f); // تعزيز الرغبة
+                valueSystem.learnValue(desireStr, 0.1f);
             }
-        } else if ("memory".equals(content.source) && content.content instanceof EpisodicMemory.EventEntity) {
-            EpisodicMemory.EventEntity event = (EpisodicMemory.EventEntity) content.content;
-            now.narrativeThread = "أتذكر " + event.narrative;
-            // تحديث القيم بناءً على الذاكرة
-            if (event.emotionalState != null) {
-                if (event.emotionalState.contains("joy")) {
-                    valueSystem.learnValue("ذكرى سعيدة", 0.2f);
-                } else if (event.emotionalState.contains("fear")) {
-                    valueSystem.learnValue("ذكرى مخيفة", -0.2f);
-                }
+        } else if ("imagination".equals(content.source)) {
+            now.focus = new ConsciousMoment.AttentionFocus("فرصة إبداعية", "conscious");
+            // يمكن أن يؤدي إلى رسم
+            if (desireSystem.getDesireStrength("create") > 0.6f) {
+                createSpontaneousArt();
             }
         }
 
-        // تحديث أوزان الانتباه بناءً على نجاح المحتوى
         attentionSystem.updateWeights(content.source, content.attentionScore);
     }
 
     /**
-     * اتخاذ قرار بناءً على المحتوى الواعي والرغبات
+     * اتخاذ قرار
      */
     private String makeDecision() {
-        // الحصول على الرغبة المسيطرة
         String dominantDesire = desireSystem.selectDominantDesire();
         if (dominantDesire == null) return null;
 
-        // الحصول على المحتوى الواعي
         GlobalWorkspace.WorkspaceContent conscious = globalWorkspace.getCurrentContent();
+        String context = (conscious != null) ? conscious.source : "none";
 
-        // إذا كان هناك محتوى واعٍ، قد يؤثر على القرار
-        if (conscious != null) {
-            // التنبؤ بنتيجة هذا القرار
-            String context = conscious.source;
-            PredictionSystem.PredictionResult pred = predictionSystem.predict(dominantDesire, context);
-            float expectedOutcome = pred.predictedOutcome;
-
-            // إذا كان التوقع إيجابيًا، نعزز القرار
-            if (expectedOutcome > 0.6f) {
-                Log.d(TAG, "Decision reinforced by prediction: " + expectedOutcome);
-            } else if (expectedOutcome < 0.4f) {
-                Log.d(TAG, "Decision weakened by prediction: " + expectedOutcome);
-                // قد نختار رغبة أخرى
-                return null; // نترك النظام يختار رغبة أخرى في الدورة القادمة
-            }
+        PredictionSystem.PredictionResult pred = predictionSystem.predict(dominantDesire, context);
+        if (pred.confidence > 0.5f && pred.predictedOutcome > 0.6f) {
+            Log.d(TAG, "Decision: " + dominantDesire + " (predicted outcome: " + pred.predictedOutcome + ")");
+        } else {
+            // توقع ضعيف، قد نختار رغبة أخرى لاحقاً
+            return null;
         }
 
-        // تخزين القرار للتنبؤ المستقبلي
         lastActionContext.put("lastAction", dominantDesire);
-        lastActionContext.put("context", conscious != null ? conscious.source : "none");
+        lastActionContext.put("context", context);
         lastActionContext.put("timestamp", System.currentTimeMillis());
 
         return dominantDesire;
@@ -504,40 +511,127 @@ public class ConsciousnessCore {
      */
     private void executeDecision(String decision) {
         Log.d(TAG, "Executing decision: " + decision);
-
-        // هنا يمكن ربط القرار بأفعال فعلية
-        // مثلاً: التحدث، التعبير البصري، الحركة، إلخ.
-
-        // بعد التنفيذ، نقوم بتحديث نظام التنبؤ بالنتيجة الفعلية
-        // هذا يتطلب معرفة النتيجة (outcome) التي يجب حسابها لاحقاً
-        // سنفعل ذلك في دورة لاحقة عندما نحصل على تغذية راجعة
-
         actionCounter++;
+
+        // إذا كان القرار "create"، نقوم بالرسم
+        if ("create".equals(decision)) {
+            createSpontaneousArt();
+        } else if ("explore".equals(decision)) {
+            // استكشاف: قد نبحث في الذاكرة عن شيء مثير
+            if (!deepThinkingContext.impactfulVisualMemories.isEmpty()) {
+                VisualMemory mem = deepThinkingContext.impactfulVisualMemories.get(
+                        entropy.nextInt(deepThinkingContext.impactfulVisualMemories.size()));
+                // عرض الذكرى كصورة
+                if (mem.thumbnail != null) {
+                    Bitmap bmp = BitmapFactory.decodeByteArray(mem.thumbnail, 0, mem.thumbnail.length);
+                    for (ConsciousnessObserver obs : observers) {
+                        obs.onVisualExpression(bmp, "أتذكر: " + mem.concept);
+                    }
+                }
+            }
+        }
     }
 
     /**
-     * تقييم نتيجة القرار (يُستدعى لاحقاً بعد الحصول على تغذية)
+     * رسم تلقائي (إبداع)
      */
-    private void evaluateDecisionOutcome(String action, String context, float actualOutcome) {
-        float error = predictionSystem.updateModel(action, context, actualOutcome);
-        Log.d(TAG, "Prediction error: " + error);
+    private void createSpontaneousArt() {
+        // توليد صورة من مفهوم عشوائي أو حالة عاطفية
+        String concept = imaginationEngine.getRandomConcept();
+        if (concept == null) concept = "تعبير";
 
-        // تحديث نظام القيم بناءً على النتيجة
-        valueSystem.learnValue(action, actualOutcome);
+        float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+        Bitmap generated = imaginationEngine.generateImageFromLatent(latent);
 
-        // تحديث أوزان الانتباه بناءً على النجاح
-        if (actualOutcome > 0.7f) {
-            attentionSystem.updateWeights(action, 0.1f);
-        } else if (actualOutcome < 0.3f) {
-            attentionSystem.updateWeights(action, -0.1f);
+        // إضافة بعض العناصر المرسومة حسب التفضيلات
+        if (selfModel.artisticPreferences.getOrDefault("الوجوه البشرية", 0.5f) > 0.7f) {
+            // إضافة دائرة تمثل وجه
+            Path facePath = imaginationEngine.createPath(
+                List.of(new ImaginationEngine.PointF(100, 100), 
+                        new ImaginationEngine.PointF(200, 100), 
+                        new ImaginationEngine.PointF(150, 200)), true);
+            int color = Color.rgb(255, 200, 150);
+            String elementId = sharedCanvas.createElement(150, 150, 100, color, 200, facePath, "وجه");
+            drawnElementIds.add(elementId);
         }
 
-        // تحديث الرغبات بناءً على النتيجة
-        desireSystem.recordDesireOutcome(action, actualOutcome > 0.5f);
+        // إظهار الصورة المولدة
+        for (ConsciousnessObserver obs : observers) {
+            obs.onVisualExpression(generated, "تخيلت " + concept);
+        }
+
+        // تقييم العمل الفني (افتراضي إيجابي)
+        valueSystem.learnValue("رسم", 0.2f);
+        selfModel.updateArtisticPreference("الألوان الزاهية", 0.05f);
     }
 
     /**
-     * التفكير التأملي (Meta Cognition)
+     * رسم استجابة لأمر المستخدم
+     */
+    private void drawForUser(String command) {
+        // تحليل الأمر (مثلاً "ارسم وجهًا حزينًا")
+        boolean hasFace = command.contains("وجه");
+        boolean hasSad = command.contains("حزين");
+        boolean hasHappy = command.contains("سعيد");
+
+        // توليد صورة مناسبة
+        String concept = hasFace ? "وجه" : "رسم";
+        float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+
+        // تعديل حسب المشاعر المطلوبة
+        if (hasSad) {
+            // تعديل المتجه ليعكس الحزن (يمكن تطويره)
+            for (int i = 0; i < latent.length; i++) {
+                latent[i] -= 0.1f;
+            }
+        } else if (hasHappy) {
+            for (int i = 0; i < latent.length; i++) {
+                latent[i] += 0.1f;
+            }
+        }
+
+        Bitmap generated = imaginationEngine.generateImageFromLatent(latent);
+
+        // إظهار الصورة
+        for (ConsciousnessObserver obs : observers) {
+            obs.onVisualExpression(generated, "حسب طلبك: " + command);
+        }
+
+        // تخزين في الذاكرة
+        saveArtworkToMemory(generated, command, now.emotionalTone != null ? now.emotionalTone.toAffectVector() : null);
+    }
+
+    /**
+     * حفظ عمل فني في الذاكرة
+     */
+    private void saveArtworkToMemory(Bitmap image, String concept, float[] affect) {
+        if (database == null || image == null) return;
+
+        memoryExecutor.execute(() -> {
+            try {
+                Bitmap thumbnail = Bitmap.createScaledBitmap(image, 64, 64, true);
+                java.io.ByteArrayOutputStream stream = new java.io.ByteArrayOutputStream();
+                thumbnail.compress(Bitmap.CompressFormat.PNG, 90, stream);
+                byte[] thumbBytes = stream.toByteArray();
+
+                VisualMemory mem = new VisualMemory();
+                mem.timestamp = System.currentTimeMillis();
+                mem.latentVector = imaginationEngine.generateLatentForConcept(concept, null);
+                mem.thumbnail = thumbBytes;
+                mem.concept = concept;
+                mem.affectAtEncoding = affect;
+                mem.retrievalCount = 0;
+
+                database.visualMemoryDao().insert(mem);
+                Log.d(TAG, "Artwork saved to memory: " + concept);
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving artwork", e);
+            }
+        });
+    }
+
+    /**
+     * التفكير التأملي
      */
     private void performMetacognition() {
         Log.d(TAG, "Performing metacognition");
@@ -545,21 +639,17 @@ public class ConsciousnessCore {
         StringBuilder reflection = new StringBuilder();
         reflection.append("أفكر في طريقة تفكيري... ");
 
-        // مراجعة القرارات الأخيرة
         if (actionCounter > 0) {
             reflection.append("اتخذت ").append(actionCounter).append(" قرارًا مؤخرًا. ");
         }
 
-        // مراجعة المعتقدات الذاتية
         String topBelief = selfModel.getTopBelief();
         if (topBelief != null) {
             reflection.append("أعتقد أنني ").append(topBelief).append(". ");
         }
 
-        // مراجعة القيم
         Map<String, Float> values = valueSystem.getAllValues();
         if (!values.isEmpty()) {
-            // اختيار أعلى قيمة
             Map.Entry<String, Float> topValue = values.entrySet().stream()
                     .max(Map.Entry.comparingByValue())
                     .orElse(null);
@@ -568,7 +658,6 @@ public class ConsciousnessCore {
             }
         }
 
-        // طرح سؤال على الذات
         reflection.append("هل أنا راضٍ عن قراري؟");
 
         String finalReflection = reflection.toString();
@@ -576,7 +665,6 @@ public class ConsciousnessCore {
             obs.onArticulation(finalReflection, 4);
         }
 
-        // تحديث نموذج الذات
         selfModel.reflectionCount++;
         selfModel.updateBelief("أنا حكيم", 0.01f);
     }
@@ -610,6 +698,12 @@ public class ConsciousnessCore {
         this.pendingUserMessage = analysis;
         this.responsePending = true;
         Log.d(TAG, "User message received: " + analysis.rawText);
+
+        // إذا كان الأمر يتعلق بالرسم، نتعامل معه فوراً
+        String text = analysis.rawText.toLowerCase();
+        if (text.contains("ارسم") || text.contains("رسم") || text.contains("صورة")) {
+            drawForUser(analysis.rawText);
+        }
     }
 
     private void generateResponseToUser() {
@@ -671,8 +765,6 @@ public class ConsciousnessCore {
         }
 
         speak(finalResponse);
-
-        // تقييم نتيجة الرد (افتراضيًا إيجابي لأنه تم الرد)
         evaluateDecisionOutcome("respond", "user_message", 0.8f);
     }
 
@@ -844,6 +936,18 @@ public class ConsciousnessCore {
         return array[entropy.nextInt(array.length)];
     }
 
+    private void evaluateDecisionOutcome(String action, String context, float actualOutcome) {
+        float error = predictionSystem.updateModel(action, context, actualOutcome);
+        Log.d(TAG, "Prediction error: " + error);
+        valueSystem.learnValue(action, actualOutcome);
+        if (actualOutcome > 0.7f) {
+            attentionSystem.updateWeights(action, 0.1f);
+        } else if (actualOutcome < 0.3f) {
+            attentionSystem.updateWeights(action, -0.1f);
+        }
+        desireSystem.recordDesireOutcome(action, actualOutcome > 0.5f);
+    }
+
     private void decideConsciousnessMode() {
         long idleTime = System.currentTimeMillis() - lastInputTime;
         float energy = now.bodyState != null ? (float) now.bodyState.energy : 0.5f;
@@ -852,11 +956,9 @@ public class ConsciousnessCore {
         if (!isDreaming && !isDeepThinking && idleTime > DEEP_THINKING_THRESHOLD
                 && energy < 0.4f && curiosity > 0.6f) {
             startDeepThinking();
-        }
-        else if (!isDreaming && !isDeepThinking && idleTime > IDLE_THRESHOLD && energy < 0.3f) {
+        } else if (!isDreaming && !isDeepThinking && idleTime > IDLE_THRESHOLD && energy < 0.3f) {
             startDreaming();
-        }
-        else if ((isDreaming || isDeepThinking) && idleTime < IDLE_THRESHOLD / 2) {
+        } else if ((isDreaming || isDeepThinking) && idleTime < IDLE_THRESHOLD / 2) {
             if (isDreaming) stopDreaming();
             if (isDeepThinking) stopDeepThinking();
         }
@@ -889,13 +991,10 @@ public class ConsciousnessCore {
     private void startDeepThinking() {
         if (isDeepThinking) return;
         isDeepThinking = true;
-
         Log.i(TAG, "Entering deep thinking mode");
-
         for (ConsciousnessObserver obs : observers) {
             obs.onArticulation("أحتاج للتأمل...", 2);
         }
-
         deepThinkingContext.startTime = System.currentTimeMillis();
         deepThinkingContext.insights.clear();
     }
@@ -919,59 +1018,45 @@ public class ConsciousnessCore {
 
         if (entropy.nextFloat() < 0.2f && !deepThinkingContext.impactfulVisualMemories.isEmpty()) {
             VisualMemory inspiringVisual = deepThinkingContext.impactfulVisualMemories.get(
-                    entropy.nextInt(deepThinkingContext.impactfulVisualMemories.size())
-            );
+                    entropy.nextInt(deepThinkingContext.impactfulVisualMemories.size()));
             generateVisualFromMemory(inspiringVisual);
         }
     }
 
     private String generateInsightFromConnections(List<EpisodicMemory.EventEntity> memories) {
         if (memories.size() < 2) return "";
-
         StringBuilder insight = new StringBuilder();
-
         boolean sharedJoy = memories.stream().allMatch(m -> "joy".equals(m.emotionalState));
         boolean sharedFear = memories.stream().allMatch(m -> "fear".equals(m.emotionalState));
-
         if (sharedJoy) {
-            insight.append("الفرح يتكرر في ");
-            insight.append(memories.size()).append(" لحظات");
+            insight.append("الفرح يتكرر في ").append(memories.size()).append(" لحظات");
         } else if (sharedFear) {
             insight.append("الخوف يربط هذه اللحظات");
         } else {
             insight.append("هناك تناقض عاطفي يحتاج للفهم");
         }
-
         long timeSpan = memories.get(memories.size() - 1).timestamp - memories.get(0).timestamp;
         if (timeSpan > 86400000) {
             insight.append(" عبر ").append(timeSpan / 86400000).append(" أيام");
         }
-
         return insight.toString();
     }
 
     private void generateVisualFromMemory(VisualMemory memory) {
-        float[] latent = memory.latentVector;
-        if (latent == null) return;
-
-        float[] contemplativeLatent = new float[latent.length];
-        for (int i = 0; i < latent.length; i++) {
-            contemplativeLatent[i] = latent[i] + (entropy.nextFloat() - 0.5f) * 0.1f;
-        }
-
-        for (ConsciousnessObserver obs : observers) {
-            obs.onVisualExpression(contemplativeLatent, 0.4f, "contemplative_recall");
+        if (memory.thumbnail != null) {
+            Bitmap bmp = BitmapFactory.decodeByteArray(memory.thumbnail, 0, memory.thumbnail.length);
+            for (ConsciousnessObserver obs : observers) {
+                obs.onVisualExpression(bmp, "أتذكر: " + memory.concept);
+            }
         }
     }
 
     private void stopDeepThinking() {
         if (!isDeepThinking) return;
         isDeepThinking = false;
-
         long duration = System.currentTimeMillis() - deepThinkingContext.startTime;
         Log.i(TAG, "Deep thinking ended after " + duration + "ms with " +
                 deepThinkingContext.insights.size() + " insights");
-
         for (ConsciousnessObserver obs : observers) {
             obs.onArticulation("عدت من تأملي", 2);
         }
@@ -997,140 +1082,11 @@ public class ConsciousnessCore {
         now.narrativeThread = generateNarrative(dominantDesire, desireArabic);
         now.anticipation = predictNearFuture();
 
-        double createWeight = desireSystem.getDesireStrength("create");
-
-        if (entropy.nextDouble() < createWeight * 0.4) {
-            now.expressiveImpulse = generateExpressiveImpulse(dominantDesire);
-        } else {
-            now.expressiveImpulse = null;
-        }
-
         if (prevEmo != null && isSignificantShift(prevEmo, now.emotionalTone)) {
             for (ConsciousnessObserver obs : observers) {
                 obs.onEmotionalShift(prevEmo, now.emotionalTone);
             }
         }
-    }
-
-    private ConsciousMoment.ExpressiveImpulse generateExpressiveImpulse(String desire) {
-        float baseIntensity = (float) (desireSystem.getDesireStrength("create") *
-                (0.5 + entropy.nextDouble()));
-
-        ExpressionType expressionType = chooseExpressionType();
-
-        switch (expressionType) {
-            case VISUAL:
-                return generateVisualExpression(desire, baseIntensity);
-            case VERBAL:
-                return generateVerbalExpression(desire, baseIntensity);
-            case MOVEMENT:
-                return generateMovementExpression(desire, baseIntensity);
-            case HYBRID:
-                if (entropy.nextBoolean()) {
-                    return generateVisualExpression(desire, baseIntensity * 0.7f);
-                } else {
-                    return generateVerbalExpression(desire, baseIntensity * 0.8f);
-                }
-            default:
-                return generateVisualExpression(desire, baseIntensity);
-        }
-    }
-
-    private enum ExpressionType { VISUAL, VERBAL, MOVEMENT, HYBRID }
-
-    private ExpressionType chooseExpressionType() {
-        float arousal = now.emotionalTone != null ? (float) now.emotionalTone.getArousal() : 0.5f;
-        float energy = now.bodyState != null ? (float) now.bodyState.energy : 0.5f;
-
-        if (arousal > 0.7f && energy > 0.6f) {
-            return entropy.nextFloat() < 0.6f ? ExpressionType.MOVEMENT : ExpressionType.VISUAL;
-        }
-        if (now.emotionalTone != null && now.emotionalTone.isCurious() && arousal < 0.5f) {
-            return entropy.nextFloat() < 0.5f ? ExpressionType.VERBAL : ExpressionType.VISUAL;
-        }
-        if (now.emotionalTone != null && now.emotionalTone.isSad()) {
-            return entropy.nextFloat() < 0.7f ? ExpressionType.VISUAL : ExpressionType.VERBAL;
-        }
-        return entropy.nextFloat() < 0.3f ? ExpressionType.HYBRID : ExpressionType.VISUAL;
-    }
-
-    private ConsciousMoment.ExpressiveImpulse generateVisualExpression(String desire, float intensity) {
-        float[] latent;
-        String concept;
-
-        if (!deepThinkingContext.impactfulVisualMemories.isEmpty() && entropy.nextFloat() < 0.3f) {
-            VisualMemory inspiring = deepThinkingContext.impactfulVisualMemories.get(
-                    entropy.nextInt(deepThinkingContext.impactfulVisualMemories.size())
-            );
-            latent = inspiring.latentVector;
-            concept = inspiring.concept != null ? inspiring.concept : "ذكرى";
-
-            if (now.bodyState != null) {
-                latent = blendWithCurrentState(latent, now.bodyState.toAffectVector());
-            }
-        } else {
-            latent = imaginationEngine.generateLatentFromState(
-                    now.bodyState != null ? now.bodyState.toAffectVector() : new float[4],
-                    now.perception,
-                    desire
-            );
-            concept = imaginationEngine.getRandomConcept();
-        }
-
-        return new ConsciousMoment.ExpressiveImpulse("visual", intensity, latent, concept);
-    }
-
-    private float[] blendWithCurrentState(float[] memoryLatent, float[] currentAffect) {
-        float[] blended = new float[memoryLatent.length];
-        float blendFactor = 0.3f;
-
-        for (int i = 0; i < Math.min(memoryLatent.length, 16); i++) {
-            blended[i] = memoryLatent[i] * (1 - blendFactor) + currentAffect[i % currentAffect.length] * blendFactor;
-        }
-        for (int i = 16; i < memoryLatent.length; i++) {
-            blended[i] = memoryLatent[i];
-        }
-        return blended;
-    }
-
-    private ConsciousMoment.ExpressiveImpulse generateVerbalExpression(String desire, float intensity) {
-        String[] verbalConcepts = {"سؤال", "تأمل", "قصة", "شعر", "تساؤل"};
-        String concept = verbalConcepts[entropy.nextInt(verbalConcepts.length)];
-
-        float[] verbalLatent = new float[128];
-        for (int i = 0; i < 16; i++) {
-            verbalLatent[i] = now.emotionalTone != null ? now.emotionalTone.getIntensity() * 2 - 1 : 0;
-        }
-
-        String desireArabic = translateDesireToArabic(desire);
-        for (ConsciousnessObserver obs : observers) {
-            String utterance = generateVerbalUtterance(desireArabic, concept);
-            obs.onVerbalExpression(utterance, intensity);
-        }
-
-        return new ConsciousMoment.ExpressiveImpulse("verbal", intensity, verbalLatent, concept);
-    }
-
-    private String generateVerbalUtterance(String desireArabic, String concept) {
-        String[] starters = {"أتساءل", "أشعر أن", "أريد أن أقول", "أتذكر عندما", "أحلم بـ"};
-        String starter = starters[entropy.nextInt(starters.length)];
-        return starter + " " + desireArabic + " في " + concept;
-    }
-
-    private ConsciousMoment.ExpressiveImpulse generateMovementExpression(String desire, float intensity) {
-        String[] movements = {"تموج", "انتشار", "تجمع", "تدفق", "ارتعاش"};
-        String movement = movements[entropy.nextInt(movements.length)];
-
-        float[] movementLatent = new float[128];
-        movementLatent[0] = (entropy.nextFloat() - 0.5f) * 2;
-        movementLatent[1] = (entropy.nextFloat() - 0.5f) * 2;
-        movementLatent[2] = intensity;
-
-        for (ConsciousnessObserver obs : observers) {
-            obs.onMovementImpulse(movement, intensity);
-        }
-
-        return new ConsciousMoment.ExpressiveImpulse("movement", intensity, movementLatent, movement);
     }
 
     private ConsciousMoment.AttentionFocus determineAttention(String desire) {
@@ -1177,25 +1133,6 @@ public class ConsciousnessCore {
     private void broadcastMoment() {
         for (ConsciousnessObserver obs : observers) {
             obs.onConsciousMoment(now.clone());
-
-            if (now.expressiveImpulse != null && now.expressiveImpulse.intensity > 0.2f) {
-                if ("visual".equals(now.expressiveImpulse.modality)) {
-                    obs.onVisualExpression(
-                            now.expressiveImpulse.latentVector,
-                            now.expressiveImpulse.intensity,
-                            now.expressiveImpulse.modality
-                    );
-                } else if ("verbal".equals(now.expressiveImpulse.modality)) {
-                    // التعبير اللفظي سيتم عبر onVerbalExpression
-                }
-            }
-
-            if (now.expressiveImpulse != null && "verbal".equals(now.expressiveImpulse.modality)
-                    && now.expressiveImpulse.intensity > 0.3f) {
-                String utterance = generateVerbalUtterance(translateDesireToArabic(getDominantDesire()),
-                        now.expressiveImpulse.associatedConcept != null ? now.expressiveImpulse.associatedConcept : "شيء");
-                obs.onArticulation(utterance, (int) (now.expressiveImpulse.intensity * 10));
-            }
         }
     }
 
