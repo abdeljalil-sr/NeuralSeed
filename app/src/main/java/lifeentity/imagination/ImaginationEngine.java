@@ -273,7 +273,6 @@ public class ImaginationEngine {
         // تحديث إحصائيات الاسترجاع (زيادة retrievalCount)
         if (best.retrievalCount >= 0) {
             best.retrievalCount++;
-            // يمكن تحديث قاعدة البيانات هنا إذا أردنا (اختياري)
         }
         
         // إذا كان البعد كبيراً والإبداع عالياً، قم بتوليد جديد
