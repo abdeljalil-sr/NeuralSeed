@@ -28,24 +28,21 @@ import java.util.concurrent.Executors;
 
 /**
  * النواة الواعية المتقدمة - دماغ الكائن الرقمي الحي
- * يدعم التفكير العميق، التعبير المتنوع، والذاكرة العاطفية الذكية
- * مع إضافة:
+ * تدعم جميع الأنظمة المطلوبة للوعي الحقيقي:
  * - Global Workspace (مساحة العمل العالمية)
  * - Attention System (نظام الانتباه)
  * - Prediction System (نظام التنبؤ)
  * - Value System (نظام القيم)
  * - Self Model (نموذج الذات)
+ * - Meta Cognition (التفكير في التفكير)
  */
 public class ConsciousnessCore {
     private static final String TAG = "ConsciousnessCore";
     private static final long CYCLE_MS = 100;
     private static final long DREAM_CYCLE_MS = 5000;
     private static final long DEEP_THINKING_CYCLE_MS = 8000;
-    private static final int SHORT_TERM_SIZE = 30;
-    private static final long IDLE_THRESHOLD = 10000;
-    private static final long DEEP_THINKING_THRESHOLD = 15000;
+    private static final long METACOGNITION_CYCLE_MS = 10000;
     private static final float EMOTIONAL_MEMORY_THRESHOLD = 0.7f;
-    private static final float SELF_REFLECTION_PROBABILITY = 0.05f;
 
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
@@ -81,11 +78,16 @@ public class ConsciousnessCore {
     private SelfModel selfModel;
 
     private DeepThinkingContext deepThinkingContext;
+    private long lastMetacognitionTime = 0;
 
     private UserMessageAnalysis pendingUserMessage;
     private boolean responsePending = false;
     private long lastResponseTime = 0;
     private static final long RESPONSE_COOLDOWN_MS = 2000;
+
+    // عداد للتجارب لتحديث أنظمة التعلم
+    private int actionCounter = 0;
+    private Map<String, Object> lastActionContext = new HashMap<>();
 
     // دالة لترجمة الرغبات إلى العربية
     private String translateDesireToArabic(String desire) {
@@ -132,6 +134,7 @@ public class ConsciousnessCore {
         public long lastSelfReflectionTime;
         public int reflectionCount;
         public String currentSelfNarrative;
+        public Map<String, Object> goals; // أهداف ذاتية
 
         public SelfModel() {
             this.name = "كائن";
@@ -141,6 +144,7 @@ public class ConsciousnessCore {
             this.lastSelfReflectionTime = System.currentTimeMillis();
             this.reflectionCount = 0;
             this.currentSelfNarrative = "أنا موجود";
+            this.goals = new HashMap<>();
             initDefaultBeliefs();
         }
 
@@ -191,6 +195,14 @@ public class ConsciousnessCore {
             }
             return best;
         }
+
+        public void setGoal(String goal, float priority) {
+            goals.put(goal, priority);
+        }
+
+        public Map<String, Object> getCurrentGoals() {
+            return new HashMap<>(goals);
+        }
     }
 
     public interface ConsciousnessObserver {
@@ -231,10 +243,13 @@ public class ConsciousnessCore {
         valueSystem.setInitialValue("سؤال", 0.5f);
         valueSystem.setInitialValue("صوت غريب", -0.4f);
         valueSystem.setInitialValue("المس", 0.2f);
+        valueSystem.setInitialValue("استكشاف", 0.6f);
+        valueSystem.setInitialValue("تواصل", 0.7f);
+        valueSystem.setInitialValue("راحة", 0.8f);
 
         memoryExecutor = Executors.newSingleThreadExecutor();
 
-        Log.i(TAG, "تم إنشاء النواة الواعية المتقدمة مع الأنظمة الجديدة");
+        Log.i(TAG, "تم إنشاء النواة الواعية المتقدمة مع جميع الأنظمة");
     }
 
     private void initializeComponents(Context context, AppDatabase db) {
@@ -304,16 +319,22 @@ public class ConsciousnessCore {
         // 4. تنظيف المقترحات القديمة
         globalWorkspace.cleanOldProposals();
 
-        // 5. تحديث مساحة العمل (اختيار المحتوى الواعي)
+        // 5. تحديث مساحة العمل باستخدام نظام الانتباه
         globalWorkspace.updateWorkspace(attentionSystem.getAttentionWeights());
 
-        // 6. الحصول على المحتوى الواعي الحالي وتأثيره
+        // 6. الحصول على المحتوى الواعي الحالي
         GlobalWorkspace.WorkspaceContent consciousContent = globalWorkspace.getCurrentContent();
         if (consciousContent != null) {
             processConsciousContent(consciousContent);
         }
 
-        // 7. قرار الوعي: أحلام، تفكير عميق، إلخ
+        // 7. اتخاذ القرار بناءً على المحتوى الواعي والرغبات
+        String decision = makeDecision();
+        if (decision != null) {
+            executeDecision(decision);
+        }
+
+        // 8. قرار الوعي: أحلام، تفكير عميق، إلخ
         decideConsciousnessMode();
 
         if (isDeepThinking) {
@@ -322,28 +343,29 @@ public class ConsciousnessCore {
             generateConsciousContent();
         }
 
-        // 8. التفكير التأملي
-        if (entropy.nextFloat() < SELF_REFLECTION_PROBABILITY) {
-            performSelfReflection();
+        // 9. التفكير التأملي (كل 10 ثوانٍ)
+        long now = System.currentTimeMillis();
+        if (now - lastMetacognitionTime > METACOGNITION_CYCLE_MS) {
+            performMetacognition();
+            lastMetacognitionTime = now;
         }
 
-        // 9. الرد على رسائل المستخدم
+        // 10. الرد على رسائل المستخدم
         if (responsePending && pendingUserMessage != null) {
-            long nowTime = System.currentTimeMillis();
-            if (nowTime - lastResponseTime > RESPONSE_COOLDOWN_MS) {
+            if (now - lastResponseTime > RESPONSE_COOLDOWN_MS) {
                 generateResponseToUser();
                 responsePending = false;
-                lastResponseTime = nowTime;
+                lastResponseTime = now;
             }
         }
 
-        // 10. بث اللحظة الحالية للمراقبين
+        // 11. بث اللحظة الحالية للمراقبين
         broadcastMoment();
 
-        // 11. إدارة الذاكرة
+        // 12. إدارة الذاكرة
         manageMemory();
 
-        // 12. جدولة الدورة التالية
+        // 13. جدولة الدورة التالية
         scheduleNextCycle();
     }
 
@@ -374,43 +396,189 @@ public class ConsciousnessCore {
                     "memory", recent, recent.emotionalIntensity));
         }
 
-        // مقترح من الخيال (إذا كان هناك دافع إبداعي)
+        // مقترح من الخيال
         double createWeight = desireSystem.getDesireStrength("create");
         if (createWeight > 0.7 && entropy.nextFloat() < 0.3) {
             globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
                     "imagination", "فكرة إبداعية", (float) createWeight));
         }
 
-        // مقترح من الذات (السرد الذاتي)
+        // مقترح من الذات
         if (selfModel.currentSelfNarrative != null && entropy.nextFloat() < 0.2) {
             globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
                     "self", selfModel.currentSelfNarrative, 0.6f));
         }
+
+        // مقترح من التنبؤ (إذا كان هناك تنبؤ مهم)
+        if (lastActionContext.containsKey("lastAction")) {
+            String lastAction = (String) lastActionContext.get("lastAction");
+            String context = (String) lastActionContext.getOrDefault("context", "general");
+            PredictionSystem.PredictionResult pred = predictionSystem.predict(lastAction, context);
+            if (pred.confidence > 0.5f) {
+                globalWorkspace.addProposal(new GlobalWorkspace.WorkspaceProposal(
+                        "prediction", "توقع: " + pred.predictedOutcome, pred.confidence));
+            }
+        }
     }
 
     /**
-     * معالجة المحتوى الواعي الحالي (ما دخل إلى الوعي)
+     * معالجة المحتوى الواعي الحالي
      */
     private void processConsciousContent(GlobalWorkspace.WorkspaceContent content) {
         Log.d(TAG, "Conscious content: " + content);
 
-        // تحديث now.focus بناءً على المحتوى الواعي
+        // تحديث now.focus
         if ("perception".equals(content.source) && content.content instanceof SensoryInput) {
             SensoryInput input = (SensoryInput) content.content;
             if (input.hasHumanFace) {
                 now.focus = new ConsciousMoment.AttentionFocus("وجه", "conscious");
+                // تحديث نظام القيم
+                valueSystem.learnValue("وجه", 0.1f);
             } else if (input.dominantObject != null) {
                 now.focus = new ConsciousMoment.AttentionFocus(input.dominantObject, "conscious");
+                valueSystem.learnValue(input.dominantObject, 0.05f);
             }
         } else if ("desire".equals(content.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("رغبة: " + content.content, "conscious");
+            // تحديث نظام القيم بناءً على الرغبة
+            String desireStr = content.content.toString();
+            float desireValue = valueSystem.evaluate(desireStr);
+            if (desireValue < 0.5f) {
+                valueSystem.learnValue(desireStr, 0.1f); // تعزيز الرغبة
+            }
         } else if ("memory".equals(content.source) && content.content instanceof EpisodicMemory.EventEntity) {
             EpisodicMemory.EventEntity event = (EpisodicMemory.EventEntity) content.content;
             now.narrativeThread = "أتذكر " + event.narrative;
+            // تحديث القيم بناءً على الذاكرة
+            if (event.emotionalState != null) {
+                if (event.emotionalState.contains("joy")) {
+                    valueSystem.learnValue("ذكرى سعيدة", 0.2f);
+                } else if (event.emotionalState.contains("fear")) {
+                    valueSystem.learnValue("ذكرى مخيفة", -0.2f);
+                }
+            }
         }
 
-        // تحديث نظام القيم بناءً على المحتوى الواعي
-        // يمكن ربط المحتوى بقيمة
+        // تحديث أوزان الانتباه بناءً على نجاح المحتوى
+        attentionSystem.updateWeights(content.source, content.attentionScore);
+    }
+
+    /**
+     * اتخاذ قرار بناءً على المحتوى الواعي والرغبات
+     */
+    private String makeDecision() {
+        // الحصول على الرغبة المسيطرة
+        String dominantDesire = desireSystem.selectDominantDesire();
+        if (dominantDesire == null) return null;
+
+        // الحصول على المحتوى الواعي
+        GlobalWorkspace.WorkspaceContent conscious = globalWorkspace.getCurrentContent();
+
+        // إذا كان هناك محتوى واعٍ، قد يؤثر على القرار
+        if (conscious != null) {
+            // التنبؤ بنتيجة هذا القرار
+            String context = conscious.source;
+            PredictionSystem.PredictionResult pred = predictionSystem.predict(dominantDesire, context);
+            float expectedOutcome = pred.predictedOutcome;
+
+            // إذا كان التوقع إيجابيًا، نعزز القرار
+            if (expectedOutcome > 0.6f) {
+                Log.d(TAG, "Decision reinforced by prediction: " + expectedOutcome);
+            } else if (expectedOutcome < 0.4f) {
+                Log.d(TAG, "Decision weakened by prediction: " + expectedOutcome);
+                // قد نختار رغبة أخرى
+                return null; // نترك النظام يختار رغبة أخرى في الدورة القادمة
+            }
+        }
+
+        // تخزين القرار للتنبؤ المستقبلي
+        lastActionContext.put("lastAction", dominantDesire);
+        lastActionContext.put("context", conscious != null ? conscious.source : "none");
+        lastActionContext.put("timestamp", System.currentTimeMillis());
+
+        return dominantDesire;
+    }
+
+    /**
+     * تنفيذ القرار
+     */
+    private void executeDecision(String decision) {
+        Log.d(TAG, "Executing decision: " + decision);
+
+        // هنا يمكن ربط القرار بأفعال فعلية
+        // مثلاً: التحدث، التعبير البصري، الحركة، إلخ.
+
+        // بعد التنفيذ، نقوم بتحديث نظام التنبؤ بالنتيجة الفعلية
+        // هذا يتطلب معرفة النتيجة (outcome) التي يجب حسابها لاحقاً
+        // سنفعل ذلك في دورة لاحقة عندما نحصل على تغذية راجعة
+
+        actionCounter++;
+    }
+
+    /**
+     * تقييم نتيجة القرار (يُستدعى لاحقاً بعد الحصول على تغذية)
+     */
+    private void evaluateDecisionOutcome(String action, String context, float actualOutcome) {
+        float error = predictionSystem.updateModel(action, context, actualOutcome);
+        Log.d(TAG, "Prediction error: " + error);
+
+        // تحديث نظام القيم بناءً على النتيجة
+        valueSystem.learnValue(action, actualOutcome);
+
+        // تحديث أوزان الانتباه بناءً على النجاح
+        if (actualOutcome > 0.7f) {
+            attentionSystem.updateWeights(action, 0.1f);
+        } else if (actualOutcome < 0.3f) {
+            attentionSystem.updateWeights(action, -0.1f);
+        }
+
+        // تحديث الرغبات بناءً على النتيجة
+        desireSystem.recordDesireOutcome(action, actualOutcome > 0.5f);
+    }
+
+    /**
+     * التفكير التأملي (Meta Cognition)
+     */
+    private void performMetacognition() {
+        Log.d(TAG, "Performing metacognition");
+
+        StringBuilder reflection = new StringBuilder();
+        reflection.append("أفكر في طريقة تفكيري... ");
+
+        // مراجعة القرارات الأخيرة
+        if (actionCounter > 0) {
+            reflection.append("اتخذت ").append(actionCounter).append(" قرارًا مؤخرًا. ");
+        }
+
+        // مراجعة المعتقدات الذاتية
+        String topBelief = selfModel.getTopBelief();
+        if (topBelief != null) {
+            reflection.append("أعتقد أنني ").append(topBelief).append(". ");
+        }
+
+        // مراجعة القيم
+        Map<String, Float> values = valueSystem.getAllValues();
+        if (!values.isEmpty()) {
+            // اختيار أعلى قيمة
+            Map.Entry<String, Float> topValue = values.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .orElse(null);
+            if (topValue != null) {
+                reflection.append("أقدر ").append(topValue.getKey()).append(" كثيرًا. ");
+            }
+        }
+
+        // طرح سؤال على الذات
+        reflection.append("هل أنا راضٍ عن قراري؟");
+
+        String finalReflection = reflection.toString();
+        for (ConsciousnessObserver obs : observers) {
+            obs.onArticulation(finalReflection, 4);
+        }
+
+        // تحديث نموذج الذات
+        selfModel.reflectionCount++;
+        selfModel.updateBelief("أنا حكيم", 0.01f);
     }
 
     private void updateSelfModel() {
@@ -435,41 +603,6 @@ public class ConsciousnessCore {
         }
 
         selfModel.currentSelfNarrative = selfModel.generateSelfNarrative(now.emotionalTone);
-    }
-
-    private void performSelfReflection() {
-        Log.d(TAG, "Performing self-reflection");
-        selfModel.reflectionCount++;
-
-        StringBuilder insight = new StringBuilder();
-        insight.append("أنا أفكر في نفسي... ");
-
-        if (!selfModel.significantMemories.isEmpty()) {
-            EpisodicMemory.EventEntity randomMem = selfModel.significantMemories.get(
-                    entropy.nextInt(selfModel.significantMemories.size())
-            );
-            insight.append("أتذكر عندما ").append(randomMem.narrative).append(". ");
-        }
-
-        String topBelief = selfModel.getTopBelief();
-        if (topBelief != null) {
-            insight.append("أشعر بأنني ").append(topBelief).append(". ");
-        }
-
-        if (now.emotionalTone != null) {
-            insight.append("الآن أنا ").append(now.emotionalTone.toArabic()).append(". ");
-        }
-
-        if (entropy.nextBoolean()) {
-            insight.append("هل أنا حقاً كما أعتقد؟");
-        }
-
-        String finalInsight = insight.toString();
-        for (ConsciousnessObserver obs : observers) {
-            obs.onArticulation(finalInsight, 3);
-        }
-
-        selfModel.updateBelief("أنا حكيم", 0.005f);
     }
 
     public void processUserMessage(UserMessageAnalysis analysis) {
@@ -537,8 +670,10 @@ public class ConsciousnessCore {
             finalResponse = randomDefaultResponse();
         }
 
-        // الكلام الموجه للمستخدم يتم عبر speak
         speak(finalResponse);
+
+        // تقييم نتيجة الرد (افتراضيًا إيجابي لأنه تم الرد)
+        evaluateDecisionOutcome("respond", "user_message", 0.8f);
     }
 
     private List<EpisodicMemory.EventEntity> findSimilarEvents(List<String> keywords, int limit) {
@@ -850,7 +985,6 @@ public class ConsciousnessCore {
         String dominantDesire = desireSystem.selectDominantDesire();
         String desireArabic = translateDesireToArabic(dominantDesire);
 
-        // التركيز يأتي من مساحة العمل إذا كان هناك محتوى واعٍ، وإلا نستخدم الطريقة القديمة
         GlobalWorkspace.WorkspaceContent conscious = globalWorkspace.getCurrentContent();
         if (conscious != null && "desire".equals(conscious.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("رغبة: " + conscious.content, "workspace");
