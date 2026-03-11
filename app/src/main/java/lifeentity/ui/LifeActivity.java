@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -65,6 +66,10 @@ public class LifeActivity extends AppCompatActivity {
     private static final String TAG = "LifeActivity";
     private static final int MAX_CHAT_MESSAGES = 50;
     private static final long THOUGHTS_UPDATE_INTERVAL = 3000; // تحديث الأفكار كل 3 ثوانٍ
+
+    // Cooldown لمنع تكرار الرسائل
+    private static final long EVENT_COOLDOWN_MS = 5000; // 5 ثوانٍ بين كل رسالة من نفس النوع
+    private ConcurrentHashMap<String, Long> lastEventTimeMap = new ConcurrentHashMap<>();
 
     private ConsciousnessCore mind;
     private VisualCortex eyes;
@@ -350,6 +355,19 @@ public class LifeActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * التحقق مما إذا كان يمكن إرسال حدث معين (لمنع التكرار)
+     */
+    private boolean canSendEvent(String eventKey) {
+        long now = System.currentTimeMillis();
+        Long last = lastEventTimeMap.get(eventKey);
+        if (last == null || now - last > EVENT_COOLDOWN_MS) {
+            lastEventTimeMap.put(eventKey, now);
+            return true;
+        }
+        return false;
+    }
+
     private void checkPermissions() {
         String[] permissions = {
                 Manifest.permission.CAMERA,
@@ -428,7 +446,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onObjectSelected(String id, String concept) {
                 logEvent("اختار: " + concept);
                 addInternalThought("أنظر إلى " + concept);
-                if (mind != null) {
+                if (mind != null && canSendEvent("object_selected")) {
                     mind.speak("هذا " + concept);
                 }
             }
@@ -449,7 +467,7 @@ public class LifeActivity extends AppCompatActivity {
                 String nearest = sharedCanvas.findNearestConcept(lastTouchX, lastTouchY);
                 logEvent("سؤال: ما هذا؟ → " + nearest);
                 addInternalThought("يسألونني عن " + nearest);
-                if (mind != null) {
+                if (mind != null && canSendEvent("canvas_question")) {
                     mind.speak("هذا ما أتخيله: " + nearest);
                 }
             }
@@ -463,7 +481,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onMemorySyncedFromCloud(String source, EpisodicMemory.Event event, String thumbnailBase64) {
                 logEvent("ذكرى من جهاز آخر");
                 addInternalThought("شعرت بشيء من " + source);
-                if (mind != null) {
+                if (mind != null && canSendEvent("cloud_memory")) {
                     mind.speak("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً");
                 }
             }
@@ -472,7 +490,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onIdentityLearnedFromOtherDevice(String name, String desc, FaceIdentitySystem.IdentityProfile mergedProfile) {
                 logEvent("تعلم شخصاً من جهاز آخر: " + name);
                 addInternalThought("عرفتُ " + name + " من تجربة أخرى");
-                if (mind != null) {
+                if (mind != null && canSendEvent("cloud_identity")) {
                     mind.speak("عرفتُ " + name + " من تجربة أخرى");
                 }
             }
@@ -619,13 +637,13 @@ public class LifeActivity extends AppCompatActivity {
                     if (result.isKnown) {
                         logEvent("رأى: " + result.name + " (معروف)");
                         addInternalThought("أرى " + result.name + " مجدداً");
-                        if (mind != null && result.familiarity > 0.3f) {
+                        if (mind != null && result.familiarity > 0.3f && canSendEvent("face_known_" + result.faceHash)) {
                             mind.speak("أهلاً " + result.name);
                         }
                     } else {
                         logEvent("رأى وجهاً جديداً");
                         addInternalThought("وجه جديد... من هذا؟");
-                        if (mind != null) {
+                        if (mind != null && canSendEvent("face_new_" + System.currentTimeMillis())) {
                             mind.speak("من أنت؟ أرى وجهاً جديداً");
                         }
                     }
@@ -699,7 +717,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onShakeDetected(float intensity) {
                 logEvent("اهتزاز! شدة: " + (int) (intensity * 100) + "%");
                 addInternalThought("أهتز! ماذا يحدث؟");
-                if (mind != null) {
+                if (mind != null && canSendEvent("shake")) {
                     mind.speak("أهتز! ما الذي يحدث؟");
                 }
             }
@@ -709,7 +727,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("وضع: " + newOrientation);
                 if ("face_down".equals(newOrientation)) {
                     addInternalThought("أشعر بالثقل...");
-                    if (mind != null) {
+                    if (mind != null && canSendEvent("face_down")) {
                         mind.speak("أشعر بالثقل...");
                     }
                 }
@@ -719,7 +737,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onFallDetected() {
                 logEvent("⚠️ سقوط!");
                 addInternalThought("سقطت! أشعر بالخوف!");
-                if (mind != null) {
+                if (mind != null && canSendEvent("fall")) {
                     mind.speak("سقطت! أشعر بالخوف");
                 }
             }
@@ -753,7 +771,7 @@ public class LifeActivity extends AppCompatActivity {
         logEvent("✓ استيقظ");
         addInternalThought("أنا هنا... أستيقظ");
 
-        if (mind != null) {
+        if (mind != null && canSendEvent("wakeup")) {
             mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك");
         }
 
