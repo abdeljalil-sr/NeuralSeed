@@ -33,6 +33,18 @@ public interface MemoryDao {
         return getEmotionalEvents(threshold, 100);
     }
 
+    @Query("SELECT * FROM events WHERE importance > :minImportance ORDER BY timestamp DESC LIMIT :limit")
+    List<EpisodicMemory.EventEntity> getImportantEvents(float minImportance, int limit);
+
+    @Query("SELECT * FROM events WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
+    List<EpisodicMemory.EventEntity> getEventsInTimeRange(long startTime, long endTime);
+
+    @Query("SELECT * FROM events WHERE narrative LIKE '%' || :keyword || '%' ORDER BY timestamp DESC LIMIT :limit")
+    List<EpisodicMemory.EventEntity> searchEventsByKeyword(String keyword, int limit);
+
+    @Query("SELECT COUNT(*) FROM events")
+    int getEventCount();
+
     // ========================== الذاكرة البصرية (VisualMemory) ==========================
     
     @Insert
@@ -48,7 +60,6 @@ public interface MemoryDao {
     @Query("SELECT * FROM visual_memories WHERE concept = :concept ORDER BY timestamp DESC LIMIT :limit")
     List<VisualMemory> getVisualMemoriesByConcept(String concept, int limit);
 
-    // استعلامات متعلقة بـ retrievalCount (مفعلة الآن)
     @Query("SELECT * FROM visual_memories WHERE retrievalCount > :minCount ORDER BY retrievalCount DESC LIMIT :limit")
     List<VisualMemory> getImpactfulMemories(int minCount, int limit);
 
@@ -81,6 +92,25 @@ public interface MemoryDao {
     default List<IdentityMemory> getAllIdentities() {
         return getAllIdentities(1000);
     }
+
+    @Query("SELECT * FROM identities WHERE familiarity > :minFamiliarity ORDER BY familiarity DESC")
+    List<IdentityMemory> getFamiliarIdentities(float minFamiliarity);
+
+    @Query("UPDATE identities SET familiarity = familiarity + :increment, lastSeen = :currentTime WHERE faceHash = :hash")
+    void incrementFamiliarity(String hash, float increment, long currentTime);
+
+    default void incrementFamiliarity(String hash, float increment) {
+        incrementFamiliarity(hash, increment, System.currentTimeMillis());
+    }
+
+    @Query("UPDATE identities SET emotionalAssociation = :emotion WHERE faceHash = :hash")
+    void updateIdentityEmotion(String hash, String emotion);
+
+    @Query("DELETE FROM identities WHERE faceHash = :hash")
+    void deleteIdentity(String hash);
+
+    @Query("SELECT * FROM identities WHERE lastSeen > :since ORDER BY lastSeen DESC")
+    List<IdentityMemory> getRecentlySeenIdentities(long since);
 
     // ========================== التضمينات الدلالية ==========================
     
