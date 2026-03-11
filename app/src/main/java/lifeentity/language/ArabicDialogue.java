@@ -46,6 +46,9 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     private AdvancedArabicLexicon.TextAnalysis currentAnalysis;
     private Map<String, Object> messageContext;
 
+    // مؤشر إذا كان TTS جاهزًا
+    private boolean ttsReady = false;
+
     public ArabicDialogue(Context context, AppDatabase db, EmbeddingsEngine embeddings, ConsciousnessCore core) {
         this.context = context.getApplicationContext();
         if (db != null) this.memory = db.memoryDao();
@@ -66,12 +69,21 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
                 int result = tts.setLanguage(new Locale("ar"));
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Log.e(TAG, "Arabic not supported, will not speak");
+                    ttsReady = false;
                 } else {
                     tts.setPitch(1.0f);
                     tts.setSpeechRate(0.9f);
+                    ttsReady = true;
+                    Log.i(TAG, "TTS initialized successfully");
+                    
+                    // اختبار نطق عند بدء التشغيل
+                    mainHandler.postDelayed(() -> {
+                        performTTS("مرحباً، أنا هنا", null);
+                    }, 2000);
                 }
             } else {
                 Log.e(TAG, "TTS initialization failed");
+                ttsReady = false;
             }
         });
     }
@@ -90,6 +102,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
 
     @Override
     public void onArticulation(String utterance, int urgency) {
+        Log.d(TAG, "onArticulation received: " + utterance);
         // الوعي يريد التحدث - نقوم بتشغيل الصوت
         performTTS(utterance, mind != null ? mind.getCurrentEmotion() : null);
     }
@@ -178,6 +191,9 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         // إرسال التحليل إلى الوعي
         if (mind != null) {
             mind.processUserMessage(analysis);
+            Log.d(TAG, "User message analysis sent to ConsciousnessCore");
+        } else {
+            Log.e(TAG, "mind is null, cannot process message");
         }
     }
 
@@ -254,6 +270,10 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     // ==================== تشغيل الصوت ====================
 
     private void performTTS(String text, EmotionalState emo) {
+        if (!ttsReady) {
+            Log.e(TAG, "TTS not ready, cannot speak: " + text);
+            return;
+        }
         if (isSpeaking) {
             Log.d(TAG, "Already speaking, skipping TTS: " + text);
             return;
@@ -278,7 +298,7 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
         tts.setSpeechRate(rate);
 
         isSpeaking = true;
-        Log.d(TAG, "Speaking: " + text);
+        Log.i(TAG, "Speaking: " + text);
 
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speech");
         tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
