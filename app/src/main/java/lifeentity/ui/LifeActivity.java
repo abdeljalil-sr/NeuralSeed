@@ -49,6 +49,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * النشاط الرئيسي - واجهة التفاعل مع الكائن الواعي
@@ -92,7 +93,8 @@ public class LifeActivity extends AppCompatActivity {
 
     // محولات وقوائم للشات
     private ArrayAdapter<String> chatAdapter;
-    private List<ChatMessage> chatMessages;
+    // استخدام CopyOnWriteArrayList لتجنب ConcurrentModificationException
+    private List<ChatMessage> chatMessages = new CopyOnWriteArrayList<>();
     private Handler uiHandler;
     private Runnable thoughtsUpdater;
 
@@ -141,7 +143,6 @@ public class LifeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_life);
 
         uiHandler = new Handler(Looper.getMainLooper());
-        chatMessages = new ArrayList<>();
 
         initViews();
         setupChatAdapter();
@@ -197,7 +198,7 @@ public class LifeActivity extends AppCompatActivity {
                 View view = super.getView(position, convertView, parent);
                 TextView textView = (TextView) view;
                 
-                ChatMessage msg = chatMessages.get(position);
+                ChatMessage msg = chatMessages.get(position); // CopyOnWriteArrayList آمن للتكرار
                 if (msg.isUser) {
                     textView.setTextColor(getResources().getColor(android.R.color.holo_blue_light));
                     textView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
@@ -264,9 +265,6 @@ public class LifeActivity extends AppCompatActivity {
             thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
         }
 
-        // يمكن إضافة المزيد من المعلومات إذا أردنا
-        // لكننا لا نملك access إلى ConsciousMoment الكامل هنا
-
         final String finalThoughts = thoughts.toString();
         runOnUiThread(() -> {
             thoughtsTextView.setText(finalThoughts);
@@ -289,10 +287,10 @@ public class LifeActivity extends AppCompatActivity {
 
     private void addChatMessage(String sender, String content, boolean isUser) {
         ChatMessage message = new ChatMessage(sender, content, isUser);
-        chatMessages.add(message);
         
+        chatMessages.add(message);
         if (chatMessages.size() > MAX_CHAT_MESSAGES) {
-            chatMessages.remove(0);
+            chatMessages.remove(0); // CopyOnWriteArrayList يدعم الإزالة أيضًا
         }
         
         pendingChatMessages.add(message.toString());
@@ -302,10 +300,14 @@ public class LifeActivity extends AppCompatActivity {
     private void flushChatUpdates() {
         if (pendingChatMessages.isEmpty()) return;
         
-        chatAdapter.clear();
+        // CopyOnWriteArrayList آمن للتكرار، فلا حاجة للمزامنة
+        List<String> messagesToAdd = new ArrayList<>();
         for (ChatMessage msg : chatMessages) {
-            chatAdapter.add(msg.toString());
+            messagesToAdd.add(msg.toString());
         }
+        
+        chatAdapter.clear();
+        chatAdapter.addAll(messagesToAdd);
         chatAdapter.notifyDataSetChanged();
         pendingChatMessages.clear();
         
