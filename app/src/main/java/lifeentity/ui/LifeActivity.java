@@ -392,7 +392,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("اختار: " + concept);
                 addInternalThought("أنظر إلى " + concept);
                 if (mind != null && canSendEvent("object_selected")) {
-                    mind.speak("هذا " + concept);
+                    mind.speak("هذا " + concept, 5);
                 }
             }
 
@@ -413,7 +413,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("سؤال: ما هذا؟ → " + nearest);
                 addInternalThought("يسألونني عن " + nearest);
                 if (mind != null && canSendEvent("canvas_question")) {
-                    mind.speak("هذا ما أتخيله: " + nearest);
+                    mind.speak("هذا ما أتخيله: " + nearest, 5);
                 }
             }
         });
@@ -427,7 +427,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("ذكرى من جهاز آخر");
                 addInternalThought("شعرت بشيء من " + source);
                 if (mind != null && canSendEvent("cloud_memory")) {
-                    mind.speak("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً");
+                    mind.speak("شعرت بشيء من جهاز آخر... كأنني أشارك حلماً", 5);
                 }
             }
 
@@ -436,7 +436,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("تعلم شخصاً من جهاز آخر: " + name);
                 addInternalThought("عرفتُ " + name + " من تجربة أخرى");
                 if (mind != null && canSendEvent("cloud_identity")) {
-                    mind.speak("عرفتُ " + name + " من تجربة أخرى");
+                    mind.speak("عرفتُ " + name + " من تجربة أخرى", 5);
                 }
             }
 
@@ -565,13 +565,13 @@ public class LifeActivity extends AppCompatActivity {
                         logEvent("رأى: " + result.name + " (معروف)");
                         addInternalThought("أرى " + result.name + " مجدداً");
                         if (mind != null && result.familiarity > 0.3f && canSendEvent("face_known_" + result.faceHash)) {
-                            mind.speak("أهلاً " + result.name);
+                            mind.speak("أهلاً " + result.name, 5);
                         }
                     } else {
                         logEvent("رأى وجهاً جديداً");
                         addInternalThought("وجه جديد... من هذا؟");
                         if (mind != null && canSendEvent("face_new_" + System.currentTimeMillis())) {
-                            mind.speak("من أنت؟ أرى وجهاً جديداً");
+                            mind.speak("من أنت؟ أرى وجهاً جديداً", 5);
                         }
                     }
                 }
