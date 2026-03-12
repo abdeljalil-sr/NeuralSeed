@@ -58,7 +58,7 @@ public class VisualImagination {
             return generateRandomImage(c, intensity, "random");
         }
 
-        // 1. استرجاع أقرب صورة من الذاكرة (thumbnail)
+        // 1. استرجاع أقرب صورة من الذاكرة (thumbnail) باستخدام الدالة الموجودة في engine
         byte[] thumbBytes = engine.latentToThumbnail(latentVector);
         Bitmap thumbnail = null;
         if (thumbBytes != null) {
@@ -144,7 +144,6 @@ public class VisualImagination {
             return generateRandomImage(new Canvas(canvas), intensity, "null");
         }
     }
-
 
     public enum ImaginationMode {
         PERCEPTUAL,    // مستوحى من الإدراك الحالي
