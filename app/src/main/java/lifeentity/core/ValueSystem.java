@@ -185,7 +185,8 @@ public class ValueSystem {
      * @param concept المفهوم المتعلق
      */
     public void associateWithEmotion(EmotionalState emotion, String concept) {
-        float emotionalValence = emotion.getDopamine() - emotion.getCortisol(); // من -1 إلى 1 تقريباً
+        // تصحيح التحويل من double إلى float
+        float emotionalValence = (float)(emotion.getDopamine() - emotion.getCortisol());
         learnValue(concept, emotionalValence * 0.2f);
     }
     
