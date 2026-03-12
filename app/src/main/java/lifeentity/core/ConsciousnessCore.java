@@ -48,6 +48,7 @@ public class ConsciousnessCore {
     private static final float EMOTIONAL_MEMORY_THRESHOLD = 0.7f;
     private static final long IDLE_THRESHOLD = 10000;
     private static final long DEEP_THINKING_THRESHOLD = 15000;
+    
 
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
@@ -562,6 +563,8 @@ public class ConsciousnessCore {
 
         // تقييم العمل الفني (افتراضي إيجابي)
         valueSystem.learnValue("رسم", 0.2f);
+        valueSystem.learnValue("إبداع", 0.1f);
+        
         selfModel.updateArtisticPreference("الألوان الزاهية", 0.05f);
     }
 
