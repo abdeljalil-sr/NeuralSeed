@@ -594,7 +594,10 @@ public class LifeActivity extends AppCompatActivity {
 
                 // إرسال إلى نظام التعلم
                 if (learningCore != null) {
-                    String visualConcept = perception.dominantObject;
+                    String visualConcept = null;
+                    if (!perception.objects.isEmpty()) {
+                        visualConcept = perception.objects.get(0).label;
+                    }
                     float[] affect = mind.getCurrentEmotion().toAffectVector();
                     learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, affect);
                 }
