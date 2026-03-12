@@ -22,6 +22,16 @@ public class EmotionalState {
         dimensions.put("serotonin", 0.5);
         dimensions.put("oxytocin", 0.0);
     }
+    // أضف هذه الدوال داخل كلاس EmotionalState:
+
+    public boolean isAngry() {
+        return getArousal() > 0.7 && getCortisol() > 0.5 && getDopamine() < 0.3;
+    }
+
+
+    public boolean isHopeful() {
+        return getDopamine() > 0.5 && getCortisol() < 0.3 && getCuriosity() > 0.4;
+    }
 
     public EmotionalState(Map<String, Double> chemistry) {
         this.dimensions = new HashMap<>(chemistry);
