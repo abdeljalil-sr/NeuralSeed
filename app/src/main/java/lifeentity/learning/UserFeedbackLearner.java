@@ -138,6 +138,9 @@ public class UserFeedbackLearner {
             return (emotion.getDopamine() - emotion.getCortisol()) * 0.3f;
         }
 
+        float emotionalValence = (float)(emotion.getDopamine() - emotion.getCortisol());
+
+        return emotionalValence * 0.3f;
         return 0;
     }
 
