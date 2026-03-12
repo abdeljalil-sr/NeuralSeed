@@ -53,9 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * النشاط الرئيسي - واجهة التفاعل مع الكائن الواعي
- */
 public class LifeActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
@@ -328,7 +325,6 @@ public class LifeActivity extends AppCompatActivity {
         database = AppDatabase.getDatabase(this);
         memoryDao = database.memoryDao();
 
-        // تهيئة نظام التعلم (يجب أن يكون بعد database)
         learningCore = new CompetitiveLearningCore(this, database);
         learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
             @Override
@@ -371,11 +367,9 @@ public class LifeActivity extends AppCompatActivity {
 
             imagination = new VisualImagination(w, h, database.visualMemoryDao());
 
-            // تهيئة الوعي بعد الحصول على sharedCanvas
             mind = new ConsciousnessCore(this, database, sharedCanvas);
             voice = new ArabicDialogue(this, database, embeddings, mind);
 
-            // ربط نظام التعلم بالوعي (بعد إنشاء mind)
             learningCore.setConsciousnessCore(mind);
 
             setupCloud(deviceId);
@@ -387,7 +381,7 @@ public class LifeActivity extends AppCompatActivity {
     private void setupCanvasListener() {
         sharedCanvas.setListener(new SharedCanvas.OnCanvasInteraction() {
             @Override
-            public void onObjectCreated(String concept, float x, float y) {
+            public void onObjectCreated(String id, String concept, float x, float y) {
                 logEvent("تخيل: " + concept);
                 addInternalThought("تخيلتُ " + concept);
                 runOnUiThread(() -> statusText.setText("Created: " + concept));
@@ -594,10 +588,8 @@ public class LifeActivity extends AppCompatActivity {
 
                 // إرسال إلى نظام التعلم
                 if (learningCore != null) {
-                    String visualConcept = null;
-                    if (!perception.objects.isEmpty()) {
-                        visualConcept = perception.objects.get(0).label;
-                    }
+                    // تصحيح الخطأ: استخدام objects بدلاً من dominantObject
+                    String visualConcept = perception.objects.isEmpty() ? null : perception.objects.get(0).label;
                     float[] affect = mind.getCurrentEmotion().toAffectVector();
                     learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, affect);
                 }
