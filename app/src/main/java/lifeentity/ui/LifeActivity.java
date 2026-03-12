@@ -1,6 +1,7 @@
 package com.lifeentity.ui;
 
 import android.Manifest;
+import com.lifeentity.learning.CompetitiveLearningCore;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -73,6 +74,7 @@ public class LifeActivity extends AppCompatActivity {
 
     private ConsciousnessCore mind;
     private CompetitiveLearningCore learningCore;
+    private String lastRecognizedSpeech = ""; // لتخزين آخر كلام تم التعرف عليه
     private VisualCortex eyes;
     private AuditoryCortex ears;
     private KinestheticSense body;
@@ -413,10 +415,10 @@ public class LifeActivity extends AppCompatActivity {
 
         database = AppDatabase.getDatabase(this);
         // بعد تهيئة database
-learningCore = new CompetitiveLearningCore(this, database);
-learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
-    @Override
-    public void onConceptStrengthened(String cellId, String conceptName, int occurrences, float confidence) {
+        learningCore = new CompetitiveLearningCore(this, database);
+        learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
+     @Override
+            public void onConceptStrengthened(String cellId, String conceptName, int occurrences, float confidence) {
         Log.i("Learning", "Concept " + conceptName + " (" + cellId + ") strengthened: " + occurrences + " times, confidence " + confidence);
         // يمكن عرض رسالة خفيفة في واجهة المستخدم (اختياري)
     }
@@ -445,10 +447,10 @@ learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
     public void onPrediction(String predictedConcept, float confidence) {
         Log.d("Learning", "Prediction: " + predictedConcept + " confidence: " + confidence);
     }
-});
+        });
 
 // ربطه بالوعي (اختياري، إذا أردت إرسال إشارات للوعي)
-learningCore.setConsciousnessCore(mind);
+        learningCore.setConsciousnessCore(mind);
         
         memoryDao = database.memoryDao();
 
@@ -655,6 +657,7 @@ learningCore.setConsciousnessCore(mind);
 
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
+            
             public void onPerception(VisualCortex.VisualPerception perception) {
                 SensoryInput visualInput = new SensoryInput();
                 visualInput.hasHumanFace = perception.faceCount > 0;
@@ -699,6 +702,15 @@ learningCore.setConsciousnessCore(mind);
                         sceneUnderstanding.learnScene(perception.frame, currentAffect);
                     }).start();
                 }
+                // إرسال المعلومات إلى نظام التعلم التنافسي
+                if (learningCore != null) {
+                    String visualConcept = null;
+                    if (!perception.objects.isEmpty()) {
+                        visualConcept = perception.objects.get(0).label; // أهم جسم مكتشف
+                    }
+                    float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
+                    learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, currentAffect);
+                }
             }
 
             @Override
@@ -731,6 +743,7 @@ learningCore.setConsciousnessCore(mind);
                 if (voice != null) {
                     voice.hearUser(text, false);
                 }
+                lastRecognizedSpeech = text;
             }
 
             @Override
@@ -847,6 +860,7 @@ learningCore.setConsciousnessCore(mind);
         if (cloud != null) cloud.stop();
         if (sceneUnderstanding != null) sceneUnderstanding.close();
         if (embeddings != null) embeddings.shutdown();
+        if (learningCore != null) learningCore.shutdown();
         super.onDestroy();
     }
 }
