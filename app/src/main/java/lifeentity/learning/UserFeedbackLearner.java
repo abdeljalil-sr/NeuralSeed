@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * نظام التعلم من ردود فعل المستخدم.
@@ -135,12 +134,10 @@ public class UserFeedbackLearner {
         // إذا لم نجد كلمات واضحة، نعتمد على الحالة العاطفية للكائن
         // (افتراض أن المستخدم قد يؤثر على مشاعر الكائن)
         if (emotion != null) {
-            return (emotion.getDopamine() - emotion.getCortisol()) * 0.3f;
+            float emotionalValence = (float)(emotion.getDopamine() - emotion.getCortisol());
+            return emotionalValence * 0.3f;
         }
 
-        float emotionalValence = (float)(emotion.getDopamine() - emotion.getCortisol());
-
-        return emotionalValence * 0.3f;
         return 0;
     }
 
@@ -149,9 +146,7 @@ public class UserFeedbackLearner {
      */
     private void updateValues(List<String> importantWords, float feedbackScore) {
         for (String word : importantWords) {
-            // إذا كانت الكلمة موجودة في نظام القيم، نحدثها
             float current = valueSystem.getValue(word);
-            // الهدف: إذا كان رد الفعل إيجابياً، نعزز الكلمة، وإلا نضعفها
             float delta = feedbackScore * LEARNING_RATE;
             valueSystem.learnValue(word, delta);
             Log.d(TAG, "Updated value for '" + word + "': " + current + " -> " + valueSystem.getValue(word));
