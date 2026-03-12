@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
  * - نموذج ذاتي (SelfModel)
  * - أنظمة معرفية: مساحة العمل، الانتباه، التنبؤ
  * - توليد كلام ديناميكي غير مبرمج
+ * - تعلم تنافسي (CompetitiveLearningCore)
  */
 public class ConsciousnessCore {
     private static final String TAG = "ConsciousnessCore";
@@ -99,6 +100,9 @@ public class ConsciousnessCore {
 
     // متعلم التغذية الراجعة من المستخدم
     private UserFeedbackLearner feedbackLearner;
+
+    // نظام التعلم التنافسي
+    private CompetitiveLearningCore competitiveLearning;
 
     public interface ConsciousnessObserver {
         void onConsciousMoment(ConsciousMoment moment);
@@ -229,6 +233,15 @@ public class ConsciousnessCore {
 
         // تهيئة مولد اللغة
         languageGenerator = new LanguageGenerator();
+
+        // تهيئة نظام التعلم التنافسي
+        try {
+            competitiveLearning = new CompetitiveLearningCore(context, database);
+            Log.i(TAG, "تم تهيئة نظام التعلم التنافسي بنجاح");
+        } catch (Exception e) {
+            Log.w(TAG, "CompetitiveLearningCore غير متاح، سيتم الاستمرار بدونه: " + e.getMessage());
+            competitiveLearning = null;
+        }
 
         // تهيئة متعلم التغذية الراجعة
         feedbackLearner = new UserFeedbackLearner(valueSystem, competitiveLearning, database);
@@ -556,7 +569,7 @@ public class ConsciousnessCore {
                 event.timestamp = moment.timestamp;
                 event.narrative = moment.narrativeThread;
                 event.emotionalState = moment.emotionalTone != null ? moment.emotionalTone.toArabic() : "neutral";
-                event.emotionalIntensity = moment.emotionalTone != null ? moment.emotionalTone.getIntensity() : 0.5f;
+                event.emotionalIntensity = moment.emotionalTone != null ? now.emotionalTone.getIntensity() : 0.5f;
                 event.location = "internal";
                 database.memoryDao().insertEvent(event);
             }
@@ -596,6 +609,13 @@ public class ConsciousnessCore {
 
     public String getDominantDesire() {
         return desireSystem.selectDominantDesire();
+    }
+
+    /**
+     * الحصول على نظام التعلم التنافسي (للاستخدام الخارجي إذا لزم الأمر)
+     */
+    public CompetitiveLearningCore getCompetitiveLearning() {
+        return competitiveLearning;
     }
 
     private static class DeepThinkingContext {
