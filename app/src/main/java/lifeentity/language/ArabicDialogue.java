@@ -108,24 +108,32 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     }
 
     @Override
-    public void onVisualExpression(float[] latentVector, float intensity, String modality) {
+    public void onVisualExpression(Bitmap image, String description) {
+        // لا نهتم حالياً بالصور من الوعي
+        Log.d(TAG, "Visual expression: " + description);
+    }
+
+    @Override
+    public void onDreamGenerated(Bitmap dreamImage, String description) {
+        Log.d(TAG, "Dream generated: " + description);
+    }
+
+    @Override
+    public void onMovementImpulse(String direction, float intensity) {
         // لا نهتم
     }
 
     @Override
-    public void onDreamGenerated(Bitmap dreamImage, String description) {}
-
-    @Override
-    public void onMovementImpulse(String direction, float intensity) {}
-
-    @Override
     public void onVerbalExpression(String text, float intensity) {
-        // يمكن استخدامها لكننا نعتمد على onArticulation حالياً
+        Log.d(TAG, "Verbal expression: " + text);
+        if (!isSpeaking && text != null && !text.isEmpty()) {
+            performTTS(text, mind != null ? mind.getCurrentEmotion() : null);
+        }
     }
 
     @Override
     public void onDeepThinkingInsight(String insight, List<EpisodicMemory.EventEntity> connectedMemories) {
-        // يمكن استخدامها للتعليق على البصيرة
+        Log.d(TAG, "Deep thinking insight: " + insight);
         if (!isSpeaking && insight != null && !insight.isEmpty()) {
             performTTS("أدركت: " + insight, mind != null ? mind.getCurrentEmotion() : null);
         }
