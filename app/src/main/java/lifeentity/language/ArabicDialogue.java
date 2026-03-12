@@ -142,67 +142,33 @@ public class ArabicDialogue implements ConsciousnessCore.ConsciousnessObserver {
     // ==================== استقبال رسائل المستخدم ====================
 
     public void hearUser(String text, boolean isQuestion) {
-        Log.d(TAG, "hearUser: " + text + " (isQuestion=" + isQuestion + ")");
+    Log.d(TAG, "hearUser: " + text + " (isQuestion=" + isQuestion + ")");
 
-        if (text == null || text.isEmpty()) {
-            Log.w(TAG, "Empty message, ignoring");
-            return;
-        }
+    if (text == null || text.isEmpty()) {
+        Log.w(TAG, "Empty message, ignoring");
+        return;
+    }
 
-        // تحليل النص باستخدام المعجم العربي المتقدم
-        currentAnalysis = AdvancedArabicLexicon.analyze(text);
-        updateMessageContext(text, isQuestion);
-        
-        Log.d(TAG, "Lexicon analysis: " + currentAnalysis.getWordCount() + " words, " +
-              "recognition: " + String.format("%.1f%%", currentAnalysis.getRecognitionRate() * 100));
+    // تحليل النص باستخدام المعجم العربي المتقدم (لأغراض التعلم المحلي فقط)
+    currentAnalysis = AdvancedArabicLexicon.analyze(text);
+    updateMessageContext(text, isQuestion);
+    
+    Log.d(TAG, "Lexicon analysis: " + currentAnalysis.getWordCount() + " words, " +
+          "recognition: " + String.format("%.1f%%", currentAnalysis.getRecognitionRate() * 100));
 
-        // حفظ الرسالة في الذاكرة
-        saveUserMessageAsync(text);
+    // حفظ الرسالة في الذاكرة
+    saveUserMessageAsync(text);
 
-        // تحليل النص لتعلم الارتباطات (اختياري)
-        analyzeMessageAsync(text);
+    // تحليل النص لتعلم الارتباطات (اختياري)
+    analyzeMessageAsync(text);
 
-        // إنشاء كائن تحليل الرسالة لإرساله إلى الوعي
-        ConsciousnessCore.UserMessageAnalysis analysis = new ConsciousnessCore.UserMessageAnalysis(text);
-        analysis.isQuestion = isQuestion;
-        analysis.questionType = detectQuestionType();
-
-        // استخراج الكلمات المفتاحية والأسماء والأفعال والمشاعر
-        for (AdvancedArabicLexicon.WordAnalysis word : currentAnalysis.getWords()) {
-            String normalized = word.getNormalizedWord();
-            AdvancedArabicLexicon.WordCategory cat = word.getCategory();
-            
-            analysis.keywords.add(normalized);
-            
-            if (cat.name().contains("NOUN")) {
-                analysis.nouns.add(normalized);
-            } else if (cat.name().contains("VERB")) {
-                analysis.verbs.add(normalized);
-            }
-            
-            // كشف المشاعر
-            if (normalized.contains("فرح") || normalized.contains("سعيد")) {
-                analysis.emotions.add("joy");
-            } else if (normalized.contains("حزن") || normalized.contains("بكاء")) {
-                analysis.emotions.add("sadness");
-            } else if (normalized.contains("خوف") || normalized.contains("قلق")) {
-                analysis.emotions.add("fear");
-            } else if (normalized.contains("حب")) {
-                analysis.emotions.add("love");
-            } else if (normalized.contains("دهشة") || normalized.contains("مفاجأة")) {
-                analysis.emotions.add("surprise");
-            } else if (normalized.contains("فضول") || normalized.contains("تساؤل")) {
-                analysis.emotions.add("curiosity");
-            }
-        }
-
-        // إرسال التحليل إلى الوعي
-        if (mind != null) {
-            mind.processUserMessage(analysis);
-            Log.d(TAG, "User message analysis sent to ConsciousnessCore");
-        } else {
-            Log.e(TAG, "mind is null, cannot process message");
-        }
+    // إرسال النص الخام إلى الوعي (هو من سيقوم بالتحليل المتقدم والرد)
+    if (mind != null) {
+        mind.processUserMessage(text);
+        Log.d(TAG, "Raw text sent to ConsciousnessCore");
+    } else {
+        Log.e(TAG, "mind is null, cannot process message");
+    }
     }
 
     private String detectQuestionType() {
