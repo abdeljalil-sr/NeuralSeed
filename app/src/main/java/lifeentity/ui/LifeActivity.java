@@ -645,7 +645,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onShakeDetected(float intensity) {
                 logEvent("اهتزاز! شدة: " + (int) (intensity * 100) + "%");
                 addInternalThought("أهتز! ماذا يحدث؟");
-                if (mind != null && canSendEvent("shake")) mind.speak("أهتز! ما الذي يحدث؟");
+                if (mind != null && canSendEvent("shake")) mind.speak("أهتز! ما الذي يحدث؟", 5);
             }
 
             @Override
@@ -653,7 +653,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("وضع: " + newOrientation);
                 if ("face_down".equals(newOrientation)) {
                     addInternalThought("أشعر بالثقل...");
-                    if (mind != null && canSendEvent("face_down")) mind.speak("أشعر بالثقل...");
+                    if (mind != null && canSendEvent("face_down")) mind.speak("أشعر بالثقل...", 5);
                 }
             }
 
@@ -661,7 +661,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onFallDetected() {
                 logEvent("⚠️ سقوط!");
                 addInternalThought("سقطت! أشعر بالخوف!");
-                if (mind != null && canSendEvent("fall")) mind.speak("سقطت! أشعر بالخوف");
+                if (mind != null && canSendEvent("fall")) mind.speak("سقطت! أشعر بالخوف", 5);
             }
         });
 
@@ -687,7 +687,7 @@ public class LifeActivity extends AppCompatActivity {
 
         logEvent("✓ استيقظ");
         addInternalThought("أنا هنا... أستيقظ");
-        if (mind != null && canSendEvent("wakeup")) mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك");
+        if (mind != null && canSendEvent("wakeup")) mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك", 5);
         runOnUiThread(() -> guideText.setText("المس الشاشة • تحدث معي • حرك الهاتف"));
     }
 
