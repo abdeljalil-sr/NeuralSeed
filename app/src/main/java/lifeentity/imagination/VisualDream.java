@@ -60,7 +60,7 @@ public class VisualDream {
             if (blendedLatent[i] > 1) blendedLatent[i] = 1;
         }
 
-        // استخدام الدالة المعدلة في ImaginationEngine
+        // استخدام الدالة في ImaginationEngine
         byte[] thumbBytes = imaginationEngine.latentToThumbnail(blendedLatent);
         Bitmap dreamImage = null;
         if (thumbBytes != null) {
