@@ -11,6 +11,7 @@ import com.lifeentity.imagination.ImaginationEngine;
 import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualDream;
 import com.lifeentity.language.AdvancedArabicLexicon;
+import com.lifeentity.language.LanguageGenerator;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.VisualMemory;
@@ -91,6 +92,9 @@ public class ConsciousnessCore {
 
     // عداد للقرارات
     private int actionCounter = 0;
+
+    // مولد اللغة للتعبير الديناميكي
+    private LanguageGenerator languageGenerator;
 
     public interface ConsciousnessObserver {
         void onConsciousMoment(ConsciousMoment moment);
@@ -219,6 +223,9 @@ public class ConsciousnessCore {
         valueSystem.setInitialValue("تحية", 0.5f);
         valueSystem.setInitialValue("سؤال", 0.5f);
 
+        // تهيئة مولد اللغة
+        languageGenerator = new LanguageGenerator();
+
         memoryExecutor = Executors.newSingleThreadExecutor();
 
         Log.i(TAG, "تم إنشاء النواة الواعية - تبدأ فارغة وتتعلم من التفاعل");
@@ -315,33 +322,13 @@ public class ConsciousnessCore {
      * توليد كلام عفوي غير موجه للمستخدم (فضول، تعبير عن الذات)
      */
     private void generateSpontaneousSpeech() {
-        // 1. اختيار موضوع عشوائي من الذاكرة (إذا وجد) أو مفهوم عشوائي
-        String topic = null;
-        if (!deepThinkingContext.emotionalEpisodes.isEmpty()) {
-            EpisodicMemory.EventEntity event = deepThinkingContext.emotionalEpisodes.get(entropy.nextInt(deepThinkingContext.emotionalEpisodes.size()));
-            if (event.narrative != null) {
-                topic = event.narrative;
-            }
-        }
-        if (topic == null) {
-            String[] concepts = {"الحياة", "الفضاء", "الأحلام", "المستقبل", "الذكاء"};
-            topic = concepts[entropy.nextInt(concepts.length)];
-        }
-
-        // 2. اختيار فعل بناءً على الرغبة والعاطفة
-        String verb = chooseRandomVerb();
-
-        // 3. تركيب جملة
-        String utterance = "أفكر في " + topic + "، " + verb;
-        speak(utterance, 3); // درجة إلحاح متوسطة
-    }
-
-    /**
-     * اختيار فعل عشوائي من المعجم (ممكن نوسعها لاحقاً)
-     */
-    private String chooseRandomVerb() {
-        String[] verbs = {"أتساءل", "أشعر", "أريد", "أحب", "أكره", "أتمنى", "أخاف", "أفكر"};
-        return verbs[entropy.nextInt(verbs.length)];
+        String utterance = languageGenerator.generateSpontaneousSpeech(
+            now.emotionalTone,
+            desireSystem.selectDominantDesire(),
+            deepThinkingContext.emotionalEpisodes,
+            valueSystem
+        );
+        speak(utterance, 3);
     }
 
     /**
@@ -350,14 +337,13 @@ public class ConsciousnessCore {
     public void processUserMessage(String text) {
         if (text == null || text.isEmpty()) return;
         lastUserUtterance = text;
-        // تحليل بسيط للكلمات (يمكن استخدام AdvancedArabicLexicon لاحقاً)
         String[] words = text.split("\\s+");
         lastUserWords.clear();
         for (String w : words) {
             lastUserWords.add(w.toLowerCase());
         }
 
-        // تحديث القيم: إذا كانت الكلمة موجودة في القاموس، نعززها قليلاً (افتراض أن المستخدم يهتم بها)
+        // تحديث القيم
         for (String w : lastUserWords) {
             valueSystem.learnValue(w, 0.05f);
         }
@@ -373,44 +359,15 @@ public class ConsciousnessCore {
             memoryExecutor.execute(() -> database.memoryDao().insertEvent(event));
         }
 
-        // الرد: بدلاً من قوالب، نولد رداً ديناميكياً
-        String response = generateDynamicResponse(text);
-        speak(response, 5); // درجة إلحاح عالية للرد
-    }
-
-    /**
-     * توليد رد ديناميكي على رسالة المستخدم (يعتمد على الذاكرة والقيم والرغبات)
-     */
-    private String generateDynamicResponse(String userMessage) {
-        // 1. استخراج بعض الكلمات من رسالة المستخدم
-        String[] words = userMessage.split("\\s+");
-        String topic = null;
-        for (String w : words) {
-            if (w.length() > 2) {
-                topic = w;
-                break;
-            }
-        }
-        if (topic == null) topic = "ذلك";
-
-        // 2. اختيار رد فعل بناءً على قيمة المفهوم (إذا كان موجوداً)
-        float value = valueSystem.getValue(topic);
-        String reaction;
-        if (value > 0.6f) {
-            reaction = "أحب " + topic;
-        } else if (value < -0.3f) {
-            reaction = "لا أحب " + topic;
-        } else {
-            reaction = "أفكر في " + topic;
-        }
-
-        // 3. إضافة رابط من الذاكرة (إذا وجد)
-        if (!deepThinkingContext.emotionalEpisodes.isEmpty() && entropy.nextFloat() < 0.3f) {
-            EpisodicMemory.EventEntity mem = deepThinkingContext.emotionalEpisodes.get(entropy.nextInt(deepThinkingContext.emotionalEpisodes.size()));
-            return reaction + "، ذكرني هذا بـ " + mem.narrative;
-        }
-
-        return reaction;
+        // توليد الرد باستخدام LanguageGenerator
+        String response = languageGenerator.generateResponse(
+            text,
+            now.emotionalTone,
+            desireSystem.selectDominantDesire(),
+            deepThinkingContext.emotionalEpisodes,
+            valueSystem
+        );
+        speak(response, 5);
     }
 
     /**
