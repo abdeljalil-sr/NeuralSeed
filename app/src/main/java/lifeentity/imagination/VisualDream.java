@@ -3,7 +3,6 @@ package com.lifeentity.imagination;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 
-import com.lifeentity.core.EmotionalState;
 import com.lifeentity.memory.VisualMemory;
 import com.lifeentity.memory.VisualMemoryDao;
 
@@ -23,10 +22,9 @@ public class VisualDream {
     private Random random;
     private boolean isDreaming = false;
 
-    // مستمع لأحداث الحلم (لإرسال الصور المولدة إلى واجهة المستخدم)
     public interface DreamListener {
         void onDreamGenerated(Bitmap dreamImage, String description);
-        void onDreamEmotion(float[] affect); // تأثير الحلم على المشاعر (5 أبعاد)
+        void onDreamEmotion(float[] affect);
     }
 
     private DreamListener listener;
@@ -37,52 +35,40 @@ public class VisualDream {
         this.random = new Random();
     }
 
-    /**
-     * بدء دورة حلم واحدة.
-     * يمكن استدعاؤها بشكل دوري من ConsciousnessCore عندما يكون الكائن خاملاً.
-     * @return صورة الحلم (Bitmap) أو null إذا لم تتوفر ذكريات كافية.
-     */
     public Bitmap dreamOnce() {
         if (visualMemoryDao.getCount() < 5) {
-            return null; // لا يوجد ذكريات كافية لتوليد حلم ذي معنى
+            return null;
         }
 
-        // اختيار ذكريتين أو ثلاث عشوائياً
         VisualMemory mem1 = visualMemoryDao.getRandom();
         VisualMemory mem2 = visualMemoryDao.getRandom();
         VisualMemory mem3 = visualMemoryDao.getRandom();
 
-        // تحديث retrievalCount للذكريات المختارة (اختياري)
         if (mem1 != null && mem1.retrievalCount >= 0) mem1.retrievalCount++;
         if (mem2 != null && mem2.retrievalCount >= 0) mem2.retrievalCount++;
         if (mem3 != null && mem3.retrievalCount >= 0) mem3.retrievalCount++;
 
-        // دمج المتجهات الكامنة (latent vectors) مع أوزان عشوائية
         float[] latent1 = (mem1 != null && mem1.latentVector != null) ? mem1.latentVector : null;
         float[] latent2 = (mem2 != null && mem2.latentVector != null) ? mem2.latentVector : null;
         float[] latent3 = (mem3 != null && mem3.latentVector != null) ? mem3.latentVector : null;
 
         float[] blendedLatent = blendLatents(latent1, latent2, latent3);
 
-        // إضافة ضوضاء أحلام (أكبر من الخيال العادي) لتعزيز العشوائية والإبداع
         for (int i = 0; i < blendedLatent.length; i++) {
-            blendedLatent[i] += (random.nextFloat() - 0.5f) * 0.5f; // ضوضاء بقوة 0.5
+            blendedLatent[i] += (random.nextFloat() - 0.5f) * 0.5f;
             if (blendedLatent[i] < -1) blendedLatent[i] = -1;
             if (blendedLatent[i] > 1) blendedLatent[i] = 1;
         }
 
-        // تحويل المتجه إلى صورة عبر ImaginationEngine
+        // استخدام الدالة المعدلة في ImaginationEngine
         byte[] thumbBytes = imaginationEngine.latentToThumbnail(blendedLatent);
         Bitmap dreamImage = null;
         if (thumbBytes != null) {
             dreamImage = BitmapFactory.decodeByteArray(thumbBytes, 0, thumbBytes.length);
         }
 
-        // توليد وصف بسيط للحلم
         String description = generateDreamDescription(mem1, mem2, mem3);
-
-        // تأثير الحلم على المشاعر (محاكاة) - يمكن تحسينه لاحقاً
-        float[] dreamAffect = new float[]{0.3f, 0.4f, 0.1f, 0.6f, 0.2f}; // مثلاً: هدوء، متعة منخفضة، فضول
+        float[] dreamAffect = new float[]{0.3f, 0.4f, 0.1f, 0.6f, 0.2f};
 
         if (listener != null) {
             if (dreamImage != null) listener.onDreamGenerated(dreamImage, description);
@@ -92,16 +78,13 @@ public class VisualDream {
         return dreamImage;
     }
 
-    /**
-     * دمج عدة متجهات كامنة بأوزان عشوائية.
-     */
     private float[] blendLatents(float[]... latents) {
         float[] result = new float[LATENT_SIZE];
         float totalWeight = 0;
 
         for (float[] latent : latents) {
             if (latent != null) {
-                float weight = random.nextFloat(); // وزن عشوائي لكل ذكرى
+                float weight = random.nextFloat();
                 totalWeight += weight;
                 for (int i = 0; i < LATENT_SIZE && i < latent.length; i++) {
                     result[i] += latent[i] * weight;
@@ -114,7 +97,6 @@ public class VisualDream {
                 result[i] /= totalWeight;
             }
         } else {
-            // إذا لم توجد ذكريات صالحة، نولد متجهاً عشوائياً
             for (int i = 0; i < LATENT_SIZE; i++) {
                 result[i] = random.nextFloat() * 2 - 1;
             }
@@ -123,9 +105,6 @@ public class VisualDream {
         return result;
     }
 
-    /**
-     * توليد وصف نصي للحلم بناءً على المفاهيم المرتبطة بالذكريات.
-     */
     private String generateDreamDescription(VisualMemory... memories) {
         StringBuilder desc = new StringBuilder("حلمت بـ ");
         boolean first = true;
