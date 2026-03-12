@@ -72,6 +72,7 @@ public class LifeActivity extends AppCompatActivity {
     private ConcurrentHashMap<String, Long> lastEventTimeMap = new ConcurrentHashMap<>();
 
     private ConsciousnessCore mind;
+    private CompetitiveLearningCore learningCore;
     private VisualCortex eyes;
     private AuditoryCortex ears;
     private KinestheticSense body;
@@ -411,6 +412,44 @@ public class LifeActivity extends AppCompatActivity {
         String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
         database = AppDatabase.getDatabase(this);
+        // بعد تهيئة database
+learningCore = new CompetitiveLearningCore(this, database);
+learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
+    @Override
+    public void onConceptStrengthened(String cellId, String conceptName, int occurrences, float confidence) {
+        Log.i("Learning", "Concept " + conceptName + " (" + cellId + ") strengthened: " + occurrences + " times, confidence " + confidence);
+        // يمكن عرض رسالة خفيفة في واجهة المستخدم (اختياري)
+    }
+
+    @Override
+    public void onNewAssociation(String concept1, String concept2, String relationType, float strength) {
+        Log.i("Learning", "New association: " + concept1 + " <-> " + concept2 + " [" + relationType + "] strength " + strength);
+    }
+
+    @Override
+    public void onWinnerSelected(String winnerId, float activation, List<String> runnersUp) {
+        Log.d("Learning", "Winner: " + winnerId + " activation: " + activation + " runners: " + runnersUp);
+    }
+
+    @Override
+    public void onNewCellCreated(String cellId, String triggerInput) {
+        Log.i("Learning", "New cell created: " + cellId + " triggered by " + triggerInput);
+    }
+
+    @Override
+    public void onAttentionShift(String oldFocus, String newFocus, float intensity) {
+        Log.d("Learning", "Attention shifted from " + oldFocus + " to " + newFocus + " intensity: " + intensity);
+    }
+
+    @Override
+    public void onPrediction(String predictedConcept, float confidence) {
+        Log.d("Learning", "Prediction: " + predictedConcept + " confidence: " + confidence);
+    }
+});
+
+// ربطه بالوعي (اختياري، إذا أردت إرسال إشارات للوعي)
+learningCore.setConsciousnessCore(mind);
+        
         memoryDao = database.memoryDao();
 
         sceneUnderstanding = new SceneUnderstanding(this, database.visualMemoryDao());
