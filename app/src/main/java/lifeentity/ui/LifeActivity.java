@@ -1,7 +1,6 @@
 package com.lifeentity.ui;
 
 import android.Manifest;
-import com.lifeentity.learning.CompetitiveLearningCore;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -32,6 +31,7 @@ import com.lifeentity.core.EmotionalState;
 import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualImagination;
 import com.lifeentity.language.ArabicDialogue;
+import com.lifeentity.learning.CompetitiveLearningCore;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.MemoryDao;
@@ -55,26 +55,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * النشاط الرئيسي - واجهة التفاعل مع الكائن الواعي
- * 
- * هيكل الواجهة:
- * - أعلى الشاشة: thoughtsTextView (ما يدور في ذهن الكائن - أفكاره الداخلية)
- * - الوسط: displayView (اللوحة المشتركة للتعبير البصري)
- * - أسفل الشاشة: chatListView (محادثة المستخدم مع الكائن - قابلة للتمرير)
  */
 public class LifeActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
     private static final String TAG = "LifeActivity";
     private static final int MAX_CHAT_MESSAGES = 50;
-    private static final long THOUGHTS_UPDATE_INTERVAL = 3000; // تحديث الأفكار كل 3 ثوانٍ
+    private static final long THOUGHTS_UPDATE_INTERVAL = 3000;
+    private static final long EVENT_COOLDOWN_MS = 5000;
 
-    // Cooldown لمنع تكرار الرسائل
-    private static final long EVENT_COOLDOWN_MS = 5000; // 5 ثوانٍ بين كل رسالة من نفس النوع
     private ConcurrentHashMap<String, Long> lastEventTimeMap = new ConcurrentHashMap<>();
 
     private ConsciousnessCore mind;
     private CompetitiveLearningCore learningCore;
-    private String lastRecognizedSpeech = ""; // لتخزين آخر كلام تم التعرف عليه
+    private String lastRecognizedSpeech = "";
     private VisualCortex eyes;
     private AuditoryCortex ears;
     private KinestheticSense body;
@@ -89,38 +83,30 @@ public class LifeActivity extends AppCompatActivity {
     private ArabicDialogue voice;
     private SceneUnderstanding sceneUnderstanding;
 
-    // عناصر واجهة المستخدم
     private ImageView displayView;
-    private TextView thoughtsTextView;        // ما يدور في ذهن الكائن (أفكاره الداخلية)
+    private TextView thoughtsTextView;
     private TextView statusText;
     private TextView guideText;
     private TextView eventLogText;
-    private ListView chatListView;            // قائمة المحادثة
+    private ListView chatListView;
     private EditText messageEditText;
     private Button sendButton;
 
-    // محولات وقوائم للشات
     private ArrayAdapter<String> chatAdapter;
-    // استخدام CopyOnWriteArrayList لتجنب ConcurrentModificationException
     private List<ChatMessage> chatMessages = new CopyOnWriteArrayList<>();
     private Handler uiHandler;
     private Runnable thoughtsUpdater;
 
-    // حالة اللمس
     private float lastTouchX, lastTouchY;
     private String lastEvent = "";
     private long lastEventTime = 0;
     private ConcurrentLinkedQueue<String> pendingChatMessages = new ConcurrentLinkedQueue<>();
 
-    // متغير لتتبع ما إذا كان المستخدم يمرر يدويًا
     private boolean userScrolling = false;
     private Runnable scrollResetRunnable;
 
-    /**
-     * تمثيل رسالة دردشة منظمة
-     */
     private static class ChatMessage {
-        final String sender;    // "أنت" أو "الكائن"
+        final String sender;
         final String content;
         final long timestamp;
         final boolean isUser;
@@ -142,16 +128,11 @@ public class LifeActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        getWindow().setFlags(
-                WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN
-        );
-
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_life);
 
         uiHandler = new Handler(Looper.getMainLooper());
-
         initViews();
         setupChatAdapter();
         setupSendButton();
@@ -161,52 +142,42 @@ public class LifeActivity extends AppCompatActivity {
 
     private void initViews() {
         displayView = findViewById(R.id.displayView);
-        thoughtsTextView = findViewById(R.id.thoughtsTextView);    // أعلى الشاشة: أفكار الكائن
+        thoughtsTextView = findViewById(R.id.thoughtsTextView);
         statusText = findViewById(R.id.statusText);
         guideText = findViewById(R.id.guideText);
         eventLogText = findViewById(R.id.eventLogText);
-        chatListView = findViewById(R.id.chatListView);            // أسفل الشاشة: المحادثة
+        chatListView = findViewById(R.id.chatListView);
         messageEditText = findViewById(R.id.messageEditText);
         sendButton = findViewById(R.id.sendButton);
 
         thoughtsTextView.setMovementMethod(new ScrollingMovementMethod());
         thoughtsTextView.setVisibility(View.INVISIBLE);
-
-        // تعطيل التمرير التلقائي القسري
         chatListView.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
-        
-        // مراقبة لمسات المستخدم على ListView
+
         chatListView.setOnTouchListener((v, event) -> {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                 case MotionEvent.ACTION_MOVE:
                     userScrolling = true;
-                    // إلغاء أي مؤقت لإعادة التمرير التلقائي
-                    if (scrollResetRunnable != null) {
-                        uiHandler.removeCallbacks(scrollResetRunnable);
-                    }
+                    if (scrollResetRunnable != null) uiHandler.removeCallbacks(scrollResetRunnable);
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    // بعد رفع الإصبع، ننتظر فترة ثم نسمح بالتمرير التلقائي مجددًا
                     scrollResetRunnable = () -> userScrolling = false;
-                    uiHandler.postDelayed(scrollResetRunnable, 3000); // 3 ثوانٍ
+                    uiHandler.postDelayed(scrollResetRunnable, 3000);
                     break;
             }
-            return false; // نترك الحدث يمر للمعالجة العادية
+            return false;
         });
     }
 
     private void setupChatAdapter() {
-        chatAdapter = new ArrayAdapter<String>(this, 
-            android.R.layout.simple_list_item_1, 
-            new ArrayList<>()) {
+        chatAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, new ArrayList<>()) {
             @Override
             public View getView(int position, View convertView, android.view.ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
                 TextView textView = (TextView) view;
-                
-                ChatMessage msg = chatMessages.get(position); // CopyOnWriteArrayList آمن للتكرار
+                ChatMessage msg = chatMessages.get(position);
                 if (msg.isUser) {
                     textView.setTextColor(getResources().getColor(android.R.color.holo_blue_light));
                     textView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
@@ -214,11 +185,9 @@ public class LifeActivity extends AppCompatActivity {
                     textView.setTextColor(getResources().getColor(android.R.color.holo_green_light));
                     textView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
                 }
-                
                 return view;
             }
         };
-        
         chatListView.setAdapter(chatAdapter);
     }
 
@@ -227,16 +196,11 @@ public class LifeActivity extends AppCompatActivity {
             String message = messageEditText.getText().toString().trim();
             if (!message.isEmpty()) {
                 addChatMessage("أنت", message, true);
-
                 SensoryInput textInput = new SensoryInput();
                 textInput.recognizedSpeech = message;
                 textInput.speechDetected = true;
                 if (mind != null) mind.receiveSensoryData(textInput);
-
-                if (voice != null) {
-                    voice.hearUser(message, message.contains("؟") || message.contains("?"));
-                }
-
+                if (voice != null) voice.hearUser(message, message.contains("؟") || message.contains("?"));
                 messageEditText.setText("");
             }
         });
@@ -256,26 +220,16 @@ public class LifeActivity extends AppCompatActivity {
 
     private void updateThoughtsDisplay() {
         StringBuilder thoughts = new StringBuilder();
-
-        // الحصول على المشاعر الحالية
         EmotionalState emotion = mind.getCurrentEmotion();
         if (emotion != null) {
             thoughts.append("أشعر بـ ").append(emotion.toArabic());
-            if (emotion.getIntensity() > 0.7) {
-                thoughts.append(" (بشدة)");
-            }
+            if (emotion.getIntensity() > 0.7) thoughts.append(" (بشدة)");
             thoughts.append("\n");
         }
-
-        // الحصول على الرغبة السائدة
         String desire = mind.getDominantDesire();
-        if (desire != null) {
-            thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
-        }
-
-        final String finalThoughts = thoughts.toString();
+        if (desire != null) thoughts.append("أريد أن ").append(translateDesire(desire)).append("\n");
         runOnUiThread(() -> {
-            thoughtsTextView.setText(finalThoughts);
+            thoughtsTextView.setText(thoughts.toString());
             thoughtsTextView.scrollTo(0, 0);
         });
     }
@@ -295,41 +249,25 @@ public class LifeActivity extends AppCompatActivity {
 
     private void addChatMessage(String sender, String content, boolean isUser) {
         ChatMessage message = new ChatMessage(sender, content, isUser);
-        
         chatMessages.add(message);
-        if (chatMessages.size() > MAX_CHAT_MESSAGES) {
-            chatMessages.remove(0); // CopyOnWriteArrayList يدعم الإزالة أيضًا
-        }
-        
+        if (chatMessages.size() > MAX_CHAT_MESSAGES) chatMessages.remove(0);
         pendingChatMessages.add(message.toString());
         uiHandler.post(this::flushChatUpdates);
     }
 
     private void flushChatUpdates() {
         if (pendingChatMessages.isEmpty()) return;
-        
-        // CopyOnWriteArrayList آمن للتكرار، فلا حاجة للمزامنة
         List<String> messagesToAdd = new ArrayList<>();
-        for (ChatMessage msg : chatMessages) {
-            messagesToAdd.add(msg.toString());
-        }
-        
+        for (ChatMessage msg : chatMessages) messagesToAdd.add(msg.toString());
         chatAdapter.clear();
         chatAdapter.addAll(messagesToAdd);
         chatAdapter.notifyDataSetChanged();
         pendingChatMessages.clear();
-        
-        // التمرير إلى آخر عنصر فقط إذا لم يكن المستخدم يمرر حاليًا
-        if (!userScrolling) {
-            chatListView.post(() -> {
-                chatListView.setSelection(chatAdapter.getCount() - 1);
-            });
-        }
+        if (!userScrolling) chatListView.post(() -> chatListView.setSelection(chatAdapter.getCount() - 1));
     }
 
     private void addInternalThought(String thought) {
         runOnUiThread(() -> {
-            // عرض الفكرة الداخلية في thoughtsTextView
             String current = thoughtsTextView.getText().toString();
             thoughtsTextView.setText("💭 " + thought + "\n" + current);
         });
@@ -337,30 +275,18 @@ public class LifeActivity extends AppCompatActivity {
 
     private void logEvent(String event) {
         long now = System.currentTimeMillis();
-        if (event.equals(lastEvent) && (now - lastEventTime) < 2000) {
-            return;
-        }
+        if (event.equals(lastEvent) && (now - lastEventTime) < 2000) return;
         lastEvent = event;
         lastEventTime = now;
-
         String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-        final String log = "[" + timestamp + "] " + event;
-
+        String log = "[" + timestamp + "] " + event;
         runOnUiThread(() -> {
-            if (eventLogText != null) {
-                eventLogText.setText(log);
-                eventLogText.setAlpha(1f);
-                eventLogText.animate()
-                        .alpha(0.7f)
-                        .setDuration(3000)
-                        .start();
-            }
+            eventLogText.setText(log);
+            eventLogText.setAlpha(1f);
+            eventLogText.animate().alpha(0.7f).setDuration(3000).start();
         });
     }
 
-    /**
-     * التحقق مما إذا كان يمكن إرسال حدث معين (لمنع التكرار)
-     */
     private boolean canSendEvent(String eventKey) {
         long now = System.currentTimeMillis();
         Long last = lastEventTimeMap.get(eventKey);
@@ -372,18 +298,12 @@ public class LifeActivity extends AppCompatActivity {
     }
 
     private void checkPermissions() {
-        String[] permissions = {
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO
-        };
-
+        String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO };
         List<String> needed = new ArrayList<>();
         for (String perm : permissions) {
-            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED)
                 needed.add(perm);
-            }
         }
-
         if (!needed.isEmpty()) {
             ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), PERMISSION_REQUEST_CODE);
         } else {
@@ -396,17 +316,9 @@ public class LifeActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-            if (allGranted) {
-                initializeSystems();
-            } else {
-                statusText.setText("Permissions required");
-            }
+            for (int result : grantResults) if (result != PackageManager.PERMISSION_GRANTED) allGranted = false;
+            if (allGranted) initializeSystems();
+            else statusText.setText("Permissions required");
         }
     }
 
@@ -414,45 +326,36 @@ public class LifeActivity extends AppCompatActivity {
         String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
         database = AppDatabase.getDatabase(this);
-        // بعد تهيئة database
+        memoryDao = database.memoryDao();
+
+        // تهيئة نظام التعلم (يجب أن يكون بعد database)
         learningCore = new CompetitiveLearningCore(this, database);
         learningCore.setListener(new CompetitiveLearningCore.LearningListener() {
-     @Override
+            @Override
             public void onConceptStrengthened(String cellId, String conceptName, int occurrences, float confidence) {
-        Log.i("Learning", "Concept " + conceptName + " (" + cellId + ") strengthened: " + occurrences + " times, confidence " + confidence);
-        // يمكن عرض رسالة خفيفة في واجهة المستخدم (اختياري)
-    }
-
-    @Override
-    public void onNewAssociation(String concept1, String concept2, String relationType, float strength) {
-        Log.i("Learning", "New association: " + concept1 + " <-> " + concept2 + " [" + relationType + "] strength " + strength);
-    }
-
-    @Override
-    public void onWinnerSelected(String winnerId, float activation, List<String> runnersUp) {
-        Log.d("Learning", "Winner: " + winnerId + " activation: " + activation + " runners: " + runnersUp);
-    }
-
-    @Override
-    public void onNewCellCreated(String cellId, String triggerInput) {
-        Log.i("Learning", "New cell created: " + cellId + " triggered by " + triggerInput);
-    }
-
-    @Override
-    public void onAttentionShift(String oldFocus, String newFocus, float intensity) {
-        Log.d("Learning", "Attention shifted from " + oldFocus + " to " + newFocus + " intensity: " + intensity);
-    }
-
-    @Override
-    public void onPrediction(String predictedConcept, float confidence) {
-        Log.d("Learning", "Prediction: " + predictedConcept + " confidence: " + confidence);
-    }
+                Log.i("Learning", "Concept " + conceptName + " (" + cellId + ") occurrences: " + occurrences + " confidence: " + confidence);
+            }
+            @Override
+            public void onNewAssociation(String concept1, String concept2, String relationType, float strength) {
+                Log.i("Learning", "Association: " + concept1 + " <-> " + concept2 + " (" + relationType + ") strength: " + strength);
+            }
+            @Override
+            public void onWinnerSelected(String winnerId, float activation, List<String> runnersUp) {
+                Log.d("Learning", "Winner: " + winnerId + " activation: " + activation);
+            }
+            @Override
+            public void onNewCellCreated(String cellId, String triggerInput) {
+                Log.i("Learning", "New cell: " + cellId + " triggered by " + triggerInput);
+            }
+            @Override
+            public void onAttentionShift(String oldFocus, String newFocus, float intensity) {
+                Log.d("Learning", "Attention: " + oldFocus + " -> " + newFocus + " (" + intensity + ")");
+            }
+            @Override
+            public void onPrediction(String predictedConcept, float confidence) {
+                Log.d("Learning", "Prediction: " + predictedConcept + " confidence: " + confidence);
+            }
         });
-
-// ربطه بالوعي (اختياري، إذا أردت إرسال إشارات للوعي)
-        learningCore.setConsciousnessCore(mind);
-        
-        memoryDao = database.memoryDao();
 
         sceneUnderstanding = new SceneUnderstanding(this, database.visualMemoryDao());
 
@@ -467,6 +370,13 @@ public class LifeActivity extends AppCompatActivity {
             setupCanvasListener();
 
             imagination = new VisualImagination(w, h, database.visualMemoryDao());
+
+            // تهيئة الوعي بعد الحصول على sharedCanvas
+            mind = new ConsciousnessCore(this, database, sharedCanvas);
+            voice = new ArabicDialogue(this, database, embeddings, mind);
+
+            // ربط نظام التعلم بالوعي (بعد إنشاء mind)
+            learningCore.setConsciousnessCore(mind);
 
             setupCloud(deviceId);
             setupSensors();
@@ -561,9 +471,7 @@ public class LifeActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onThumbnailDownloaded(String memoryId, Bitmap thumbnail) {
-                // يمكن استخدامها لاحقاً
-            }
+            public void onThumbnailDownloaded(String memoryId, Bitmap thumbnail) {}
         });
     }
 
@@ -575,9 +483,6 @@ public class LifeActivity extends AppCompatActivity {
         identitySystem = new FaceIdentitySystem(memoryDao);
         embeddings = new EmbeddingsEngine(memoryDao);
 
-        mind = new ConsciousnessCore(this, database);
-        voice = new ArabicDialogue(this, database, embeddings, mind);
-
         mind.addObserver(voice);
         mind.addObserver(new ConsciousnessCore.ConsciousnessObserver() {
             @Override
@@ -585,12 +490,8 @@ public class LifeActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (moment.emotionalTone != null) {
                         String emotion = moment.emotionalTone.toArabic();
-                        statusText.setText(String.format(
-                                "الحالة: %s | الطاقة: %d%%",
-                                emotion,
-                                (int) (moment.emotionalTone.getEnergy() * 100)
-                        ));
-
+                        statusText.setText(String.format("الحالة: %s | الطاقة: %d%%", emotion,
+                                (int) (moment.emotionalTone.getEnergy() * 100)));
                         if (!"محايد".equals(emotion) && !emotion.equals(lastEvent)) {
                             logEvent("يشعر بـ: " + emotion);
                         }
@@ -600,8 +501,7 @@ public class LifeActivity extends AppCompatActivity {
 
             @Override
             public void onEmotionalShift(EmotionalState from, EmotionalState to) {
-                String fromStr = from.toArabic();
-                String toStr = to.toArabic();
+                String fromStr = from.toArabic(), toStr = to.toArabic();
                 if (!fromStr.equals(toStr)) {
                     logEvent("تحول من " + fromStr + " إلى " + toStr);
                     addInternalThought("تحولت مشاعري من " + fromStr + " إلى " + toStr);
@@ -615,12 +515,10 @@ public class LifeActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onVisualExpression(float[] latentVector, float intensity, String modality) {
-                Bitmap imagined = imagination.imagine(latentVector, intensity, 
-                    VisualImagination.ImaginationMode.CREATIVE);
-                if (imagined != null) {
+            public void onVisualExpression(Bitmap image, String description) {
+                if (image != null) {
                     runOnUiThread(() -> {
-                        sharedCanvas.setBackground(imagined);
+                        sharedCanvas.setBackground(image);
                         updateDisplay();
                     });
                 }
@@ -645,19 +543,14 @@ public class LifeActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onVerbalExpression(String text, float intensity) {
-                // لا نستخدمها حالياً
-            }
+            public void onVerbalExpression(String text, float intensity) {}
 
             @Override
-            public void onMovementImpulse(String direction, float intensity) {
-                // لا نستخدمها حالياً
-            }
+            public void onMovementImpulse(String direction, float intensity) {}
         });
 
         eyes.setListener(new VisualCortex.OnVisualPerceptionListener() {
             @Override
-            
             public void onPerception(VisualCortex.VisualPerception perception) {
                 SensoryInput visualInput = new SensoryInput();
                 visualInput.hasHumanFace = perception.faceCount > 0;
@@ -668,14 +561,12 @@ public class LifeActivity extends AppCompatActivity {
                 if (!perception.objects.isEmpty()) {
                     visualInput.dominantObject = perception.objects.get(0).label;
                 }
-
                 mind.receiveSensoryData(visualInput);
 
                 if (perception.faceCount > 0 && perception.faceEmbedding != null) {
                     float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
                     FaceIdentitySystem.IdentityResult result =
                             identitySystem.recognizeOrLearn(perception.faceEmbedding, "camera", currentAffect);
-
                     if (result.isKnown) {
                         logEvent("رأى: " + result.name + " (معروف)");
                         addInternalThought("أرى " + result.name + " مجدداً");
@@ -698,18 +589,14 @@ public class LifeActivity extends AppCompatActivity {
 
                 if (sceneUnderstanding != null && perception.frame != null) {
                     float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
-                    new Thread(() -> {
-                        sceneUnderstanding.learnScene(perception.frame, currentAffect);
-                    }).start();
+                    new Thread(() -> sceneUnderstanding.learnScene(perception.frame, currentAffect)).start();
                 }
-                // إرسال المعلومات إلى نظام التعلم التنافسي
+
+                // إرسال إلى نظام التعلم
                 if (learningCore != null) {
-                    String visualConcept = null;
-                    if (!perception.objects.isEmpty()) {
-                        visualConcept = perception.objects.get(0).label; // أهم جسم مكتشف
-                    }
-                    float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
-                    learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, currentAffect);
+                    String visualConcept = perception.dominantObject;
+                    float[] affect = mind.getCurrentEmotion().toAffectVector();
+                    learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, affect);
                 }
             }
 
@@ -724,7 +611,6 @@ public class LifeActivity extends AppCompatActivity {
                 input.soundVolume = amplitude;
                 input.soundPitch = pitch;
                 mind.receiveSensoryData(input);
-
                 if (isSpeech && amplitude > 0.5f) {
                     logEvent("سمع صوتاً...");
                     addInternalThought("أسمع شيئاً...");
@@ -739,10 +625,7 @@ public class LifeActivity extends AppCompatActivity {
                 speechInput.recognizedSpeech = text;
                 speechInput.speechDetected = true;
                 mind.receiveSensoryData(speechInput);
-
-                if (voice != null) {
-                    voice.hearUser(text, false);
-                }
+                if (voice != null) voice.hearUser(text, false);
                 lastRecognizedSpeech = text;
             }
 
@@ -750,9 +633,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onQuestionDetected(String question) {
                 logEvent("سؤال: " + question);
                 addInternalThought("يسألونني: " + question);
-                if (voice != null) {
-                    voice.hearUser(question, true);
-                }
+                if (voice != null) voice.hearUser(question, true);
             }
         });
 
@@ -769,9 +650,7 @@ public class LifeActivity extends AppCompatActivity {
             public void onShakeDetected(float intensity) {
                 logEvent("اهتزاز! شدة: " + (int) (intensity * 100) + "%");
                 addInternalThought("أهتز! ماذا يحدث؟");
-                if (mind != null && canSendEvent("shake")) {
-                    mind.speak("أهتز! ما الذي يحدث؟");
-                }
+                if (mind != null && canSendEvent("shake")) mind.speak("أهتز! ما الذي يحدث؟");
             }
 
             @Override
@@ -779,9 +658,7 @@ public class LifeActivity extends AppCompatActivity {
                 logEvent("وضع: " + newOrientation);
                 if ("face_down".equals(newOrientation)) {
                     addInternalThought("أشعر بالثقل...");
-                    if (mind != null && canSendEvent("face_down")) {
-                        mind.speak("أشعر بالثقل...");
-                    }
+                    if (mind != null && canSendEvent("face_down")) mind.speak("أشعر بالثقل...");
                 }
             }
 
@@ -789,20 +666,15 @@ public class LifeActivity extends AppCompatActivity {
             public void onFallDetected() {
                 logEvent("⚠️ سقوط!");
                 addInternalThought("سقطت! أشعر بالخوف!");
-                if (mind != null && canSendEvent("fall")) {
-                    mind.speak("سقطت! أشعر بالخوف");
-                }
+                if (mind != null && canSendEvent("fall")) mind.speak("سقطت! أشعر بالخوف");
             }
         });
 
         displayView.setOnTouchListener((v, event) -> {
             lastTouchX = event.getX();
             lastTouchY = event.getY();
-
             boolean handled = sharedCanvas.onTouch(event);
-            if (handled) {
-                updateDisplay();
-            }
+            if (handled) updateDisplay();
             return true;
         });
     }
@@ -811,9 +683,7 @@ public class LifeActivity extends AppCompatActivity {
         eyes.start(this, this);
         ears.startContinuousListening();
         body.activate();
-
         mind.awaken();
-
         cloud.start();
         cloud.syncMemoriesFromOthers(System.currentTimeMillis() - 86400000);
 
@@ -822,37 +692,27 @@ public class LifeActivity extends AppCompatActivity {
 
         logEvent("✓ استيقظ");
         addInternalThought("أنا هنا... أستيقظ");
-
-        if (mind != null && canSendEvent("wakeup")) {
-            mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك");
-        }
-
+        if (mind != null && canSendEvent("wakeup")) mind.speak("أنا هنا... أراك، أسمعك، أتعلم منك");
         runOnUiThread(() -> guideText.setText("المس الشاشة • تحدث معي • حرك الهاتف"));
     }
 
     private void updateDisplay() {
         Bitmap bitmap = sharedCanvas.getBitmap();
-        if (bitmap != null) {
-            runOnUiThread(() -> displayView.setImageBitmap(bitmap));
-        }
+        if (bitmap != null) runOnUiThread(() -> displayView.setImageBitmap(bitmap));
     }
 
     private float[] extractVisualEmbedding(VisualCortex.VisualObject obj) {
         float[] vec = new float[128];
         vec[0] = obj.getArea() / 100000f;
         vec[1] = obj.confidence;
-        for (int i = 2; i < 128; i++) {
-            vec[i] = (float) Math.random();
-        }
+        for (int i = 2; i < 128; i++) vec[i] = (float) Math.random();
         return vec;
     }
 
     @Override
     protected void onDestroy() {
         uiHandler.removeCallbacks(thoughtsUpdater);
-        if (scrollResetRunnable != null) {
-            uiHandler.removeCallbacks(scrollResetRunnable);
-        }
+        if (scrollResetRunnable != null) uiHandler.removeCallbacks(scrollResetRunnable);
         if (mind != null) mind.sleep();
         if (ears != null) ears.stop();
         if (body != null) body.deactivate();
