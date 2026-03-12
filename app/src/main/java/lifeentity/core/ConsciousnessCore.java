@@ -2,6 +2,7 @@ package com.lifeentity.core;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Path;
 import android.os.Handler;
@@ -48,7 +49,6 @@ public class ConsciousnessCore {
     private static final float EMOTIONAL_MEMORY_THRESHOLD = 0.7f;
     private static final long IDLE_THRESHOLD = 10000;
     private static final long DEEP_THINKING_THRESHOLD = 15000;
-    
 
     private Handler consciousnessHandler;
     private HandlerThread consciousnessThread;
@@ -459,7 +459,7 @@ public class ConsciousnessCore {
             SensoryInput input = (SensoryInput) content.content;
             if (input.hasHumanFace) {
                 now.focus = new ConsciousMoment.AttentionFocus("وجه", "conscious");
-                valueSystem.learnValue("وجه", 0.1f);
+                valueSystem.learnValue("وجه", 0.1f); // تعزيز قيمة الوجه
             } else if (input.dominantObject != null) {
                 now.focus = new ConsciousMoment.AttentionFocus(input.dominantObject, "conscious");
                 valueSystem.learnValue(input.dominantObject, 0.05f);
@@ -467,13 +467,12 @@ public class ConsciousnessCore {
         } else if ("desire".equals(content.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("رغبة: " + content.content, "conscious");
             String desireStr = content.content.toString();
-            float desireValue = valueSystem.evaluate(desireStr);
+            float desireValue = valueSystem.getValue(desireStr); // تم التصحيح: evaluate -> getValue
             if (desireValue < 0.5f) {
                 valueSystem.learnValue(desireStr, 0.1f);
             }
         } else if ("imagination".equals(content.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("فرصة إبداعية", "conscious");
-            // يمكن أن يؤدي إلى رسم
             if (desireSystem.getDesireStrength("create") > 0.6f) {
                 createSpontaneousArt();
             }
@@ -496,7 +495,6 @@ public class ConsciousnessCore {
         if (pred.confidence > 0.5f && pred.predictedOutcome > 0.6f) {
             Log.d(TAG, "Decision: " + dominantDesire + " (predicted outcome: " + pred.predictedOutcome + ")");
         } else {
-            // توقع ضعيف، قد نختار رغبة أخرى لاحقاً
             return null;
         }
 
@@ -514,15 +512,12 @@ public class ConsciousnessCore {
         Log.d(TAG, "Executing decision: " + decision);
         actionCounter++;
 
-        // إذا كان القرار "create"، نقوم بالرسم
         if ("create".equals(decision)) {
             createSpontaneousArt();
         } else if ("explore".equals(decision)) {
-            // استكشاف: قد نبحث في الذاكرة عن شيء مثير
             if (!deepThinkingContext.impactfulVisualMemories.isEmpty()) {
                 VisualMemory mem = deepThinkingContext.impactfulVisualMemories.get(
                         entropy.nextInt(deepThinkingContext.impactfulVisualMemories.size()));
-                // عرض الذكرى كصورة
                 if (mem.thumbnail != null) {
                     Bitmap bmp = BitmapFactory.decodeByteArray(mem.thumbnail, 0, mem.thumbnail.length);
                     for (ConsciousnessObserver obs : observers) {
@@ -537,34 +532,26 @@ public class ConsciousnessCore {
      * رسم تلقائي (إبداع)
      */
     private void createSpontaneousArt() {
-        // توليد صورة من مفهوم عشوائي أو حالة عاطفية
         String concept = imaginationEngine.getRandomConcept();
         if (concept == null) concept = "تعبير";
 
         float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
         Bitmap generated = imaginationEngine.generateImageFromLatent(latent);
 
-        // إضافة بعض العناصر المرسومة حسب التفضيلات
         if (selfModel.artisticPreferences.getOrDefault("الوجوه البشرية", 0.5f) > 0.7f) {
             // إضافة دائرة تمثل وجه
-            Path facePath = imaginationEngine.createPath(
-                List.of(new ImaginationEngine.PointF(100, 100), 
-                        new ImaginationEngine.PointF(200, 100), 
-                        new ImaginationEngine.PointF(150, 200)), true);
-            int color = Color.rgb(255, 200, 150);
-            String elementId = sharedCanvas.createElement(150, 150, 100, color, 200, facePath, "وجه");
-            drawnElementIds.add(elementId);
+            // هذا الجزء يتطلب دعم SharedCanvas لإنشاء عناصر
+            // يمكن تركه مؤقتاً
         }
 
-        // إظهار الصورة المولدة
-        for (ConsciousnessObserver obs : observers) {
-            obs.onVisualExpression(generated, "تخيلت " + concept);
+        if (generated != null) {
+            for (ConsciousnessObserver obs : observers) {
+                obs.onVisualExpression(generated, "تخيلت " + concept);
+            }
         }
 
-        // تقييم العمل الفني (افتراضي إيجابي)
-        valueSystem.learnValue("رسم", 0.2f);
         valueSystem.learnValue("إبداع", 0.1f);
-        
+        valueSystem.learnValue("رسم", 0.1f);
         selfModel.updateArtisticPreference("الألوان الزاهية", 0.05f);
     }
 
@@ -572,18 +559,14 @@ public class ConsciousnessCore {
      * رسم استجابة لأمر المستخدم
      */
     private void drawForUser(String command) {
-        // تحليل الأمر (مثلاً "ارسم وجهًا حزينًا")
         boolean hasFace = command.contains("وجه");
         boolean hasSad = command.contains("حزين");
         boolean hasHappy = command.contains("سعيد");
 
-        // توليد صورة مناسبة
         String concept = hasFace ? "وجه" : "رسم";
         float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
 
-        // تعديل حسب المشاعر المطلوبة
         if (hasSad) {
-            // تعديل المتجه ليعكس الحزن (يمكن تطويره)
             for (int i = 0; i < latent.length; i++) {
                 latent[i] -= 0.1f;
             }
@@ -595,12 +578,12 @@ public class ConsciousnessCore {
 
         Bitmap generated = imaginationEngine.generateImageFromLatent(latent);
 
-        // إظهار الصورة
-        for (ConsciousnessObserver obs : observers) {
-            obs.onVisualExpression(generated, "حسب طلبك: " + command);
+        if (generated != null) {
+            for (ConsciousnessObserver obs : observers) {
+                obs.onVisualExpression(generated, "حسب طلبك: " + command);
+            }
         }
 
-        // تخزين في الذاكرة
         saveArtworkToMemory(generated, command, now.emotionalTone != null ? now.emotionalTone.toAffectVector() : null);
     }
 
@@ -651,16 +634,6 @@ public class ConsciousnessCore {
             reflection.append("أعتقد أنني ").append(topBelief).append(". ");
         }
 
-        Map<String, Float> values = valueSystem.getAllValues();
-        if (!values.isEmpty()) {
-            Map.Entry<String, Float> topValue = values.entrySet().stream()
-                    .max(Map.Entry.comparingByValue())
-                    .orElse(null);
-            if (topValue != null) {
-                reflection.append("أقدر ").append(topValue.getKey()).append(" كثيرًا. ");
-            }
-        }
-
         reflection.append("هل أنا راضٍ عن قراري؟");
 
         String finalReflection = reflection.toString();
@@ -702,7 +675,6 @@ public class ConsciousnessCore {
         this.responsePending = true;
         Log.d(TAG, "User message received: " + analysis.rawText);
 
-        // إذا كان الأمر يتعلق بالرسم، نتعامل معه فوراً
         String text = analysis.rawText.toLowerCase();
         if (text.contains("ارسم") || text.contains("رسم") || text.contains("صورة")) {
             drawForUser(analysis.rawText);
@@ -942,7 +914,10 @@ public class ConsciousnessCore {
     private void evaluateDecisionOutcome(String action, String context, float actualOutcome) {
         float error = predictionSystem.updateModel(action, context, actualOutcome);
         Log.d(TAG, "Prediction error: " + error);
-        valueSystem.learnValue(action, actualOutcome);
+        
+        // تعلم قيمة الإجراء
+        valueSystem.learnValue(action, actualOutcome - 0.5f); // تحويل إلى نطاق مناسب
+        
         if (actualOutcome > 0.7f) {
             attentionSystem.updateWeights(action, 0.1f);
         } else if (actualOutcome < 0.3f) {
