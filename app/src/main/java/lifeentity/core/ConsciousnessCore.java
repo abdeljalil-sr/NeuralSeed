@@ -12,6 +12,7 @@ import android.util.Log;
 import com.lifeentity.imagination.ImaginationEngine;
 import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualDream;
+import com.lifeentity.language.AdvancedArabicLexicon;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.VisualMemory;
@@ -98,22 +99,50 @@ public class ConsciousnessCore {
     private List<String> drawnElementIds = new ArrayList<>();
     private Bitmap currentImaginationBitmap;
 
-    // دالة لترجمة الرغبات إلى العربية
-    private String translateDesireToArabic(String desire) {
-        if (desire == null) return "";
-        switch (desire) {
-            case "explore": return "استكشاف";
-            case "rest": return "راحة";
-            case "bond": return "تواصل";
-            case "create": return "إبداع";
-            case "understand": return "فهم";
-            case "play": return "لعب";
-            case "reflect": return "تأمل";
-            default:
-                if (desire.startsWith("desire_")) return "رغبة";
-                return desire;
+    // ==================== أنواع التحليل المتقدم ====================
+    
+    public enum Intent {
+        GREETING,        // تحية
+        QUESTION,        // سؤال
+        COMMAND,         // أمر
+        EXPRESSION,      // تعبير عن مشاعر
+        INFORMATION,     // طلب معلومة
+        CHAT,            // حديث عادي
+        UNKNOWN
+    }
+
+    public enum RequestType {
+        DRAW,            // رسم شيء
+        REMEMBER,        // تذكر شيء
+        EXPLAIN,         // شرح شيء
+        REPEAT,          // إعادة
+        STOP,            // توقف
+        NONE
+    }
+
+    public enum EmotionTone {
+        POSITIVE, NEGATIVE, NEUTRAL, EXCITED, SAD, ANGRY
+    }
+
+    /**
+     * تحليل متقدم لرسالة المستخدم لتحديد القصد والسياق
+     */
+    public static class EnhancedUserMessageAnalysis extends UserMessageAnalysis {
+        public Intent intent;               // القصد من الرسالة
+        public RequestType requestType;      // نوع الطلب (إن وجد)
+        public EmotionTone tone;             // نبرة الرسالة
+        public boolean requiresAction;       // هل تتطلب فعلاً؟
+        public boolean requiresInformation;  // هل تطلب معلومة؟
+        public String targetConcept;         // المفهوم المستهدف (إن وجد)
+        public List<String> entities;        // الكيانات المذكورة (أسماء، أماكن، إلخ)
+        
+        public EnhancedUserMessageAnalysis(String text) {
+            super(text);
+            this.entities = new ArrayList<>();
         }
     }
+
+    // ==================== فئات التحليل الأساسية ====================
 
     // فئة تحليل رسالة المستخدم
     public static class UserMessageAnalysis {
@@ -467,7 +496,7 @@ public class ConsciousnessCore {
         } else if ("desire".equals(content.source)) {
             now.focus = new ConsciousMoment.AttentionFocus("رغبة: " + content.content, "conscious");
             String desireStr = content.content.toString();
-            float desireValue = valueSystem.getValue(desireStr); // تم التصحيح: evaluate -> getValue
+            float desireValue = valueSystem.getValue(desireStr);
             if (desireValue < 0.5f) {
                 valueSystem.learnValue(desireStr, 0.1f);
             }
@@ -669,17 +698,263 @@ public class ConsciousnessCore {
         selfModel.currentSelfNarrative = selfModel.generateSelfNarrative(now.emotionalTone);
     }
 
-    public void processUserMessage(UserMessageAnalysis analysis) {
-        if (analysis == null) return;
-        this.pendingUserMessage = analysis;
-        this.responsePending = true;
-        Log.d(TAG, "User message received: " + analysis.rawText);
+    // ==================== دوال تحليل الرسائل المتقدمة ====================
 
-        String text = analysis.rawText.toLowerCase();
-        if (text.contains("ارسم") || text.contains("رسم") || text.contains("صورة")) {
-            drawForUser(analysis.rawText);
+    /**
+     * تحليل متقدم لرسالة المستخدم
+     */
+    private EnhancedUserMessageAnalysis analyzeUserMessageDeep(String text) {
+        EnhancedUserMessageAnalysis analysis = new EnhancedUserMessageAnalysis(text);
+        
+        // 1. تحليل النص باستخدام المعجم المتقدم
+        AdvancedArabicLexicon.TextAnalysis lexicalAnalysis = AdvancedArabicLexicon.analyze(text);
+        
+        // 2. استخراج الكلمات المفتاحية
+        for (AdvancedArabicLexicon.WordAnalysis word : lexicalAnalysis.getWords()) {
+            String norm = word.getNormalizedWord();
+            analysis.keywords.add(norm);
+            if (word.getCategory().name().contains("NOUN")) {
+                analysis.nouns.add(norm);
+                analysis.entities.add(norm);
+            } else if (word.getCategory().name().contains("VERB")) {
+                analysis.verbs.add(norm);
+            }
+        }
+        
+        // 3. تحديد نوع السؤال (إذا كان استفهاماً)
+        List<String> questionWords = lexicalAnalysis.getQuestionWords();
+        if (!questionWords.isEmpty()) {
+            analysis.isQuestion = true;
+            analysis.questionType = detectQuestionType(questionWords);
+            analysis.intent = Intent.QUESTION;
+        }
+        
+        // 4. تحديد القصد من خلال الكلمات المفتاحية
+        String lower = text.toLowerCase();
+        if (lower.contains("ارسم") || lower.contains("رسم") || lower.contains("صورة")) {
+            analysis.intent = Intent.COMMAND;
+            analysis.requestType = RequestType.DRAW;
+            analysis.requiresAction = true;
+        } else if (lower.contains("تذكر") || lower.contains("اذكر") || lower.contains("ما كان")) {
+            analysis.intent = Intent.COMMAND;
+            analysis.requestType = RequestType.REMEMBER;
+            analysis.requiresInformation = true;
+        } else if (lower.contains("اشرح") || lower.contains("فسر") || lower.contains("لماذا")) {
+            analysis.intent = Intent.INFORMATION;
+            analysis.requestType = RequestType.EXPLAIN;
+            analysis.requiresInformation = true;
+        } else if (lower.contains("مرحبا") || lower.contains("السلام") || lower.contains("اهلا")) {
+            analysis.intent = Intent.GREETING;
+        } else if (lower.contains("احب") || lower.contains("اكره") || lower.contains("يعجبني")) {
+            analysis.intent = Intent.EXPRESSION;
+            // تحديد النبرة
+            if (lower.contains("احب") || lower.contains("يعجبني")) analysis.tone = EmotionTone.POSITIVE;
+            else if (lower.contains("اكره")) analysis.tone = EmotionTone.NEGATIVE;
+        }
+        
+        // 5. إذا لم نحدد بعد، نعتبره حديثاً عادياً
+        if (analysis.intent == null) {
+            analysis.intent = Intent.CHAT;
+        }
+        
+        // 6. استخراج المفهوم المستهدف (آخر اسم أو شيء)
+        if (!analysis.nouns.isEmpty()) {
+            analysis.targetConcept = analysis.nouns.get(analysis.nouns.size() - 1);
+        }
+        
+        return analysis;
+    }
+
+    private String detectQuestionType(List<String> questionWords) {
+        if (questionWords.isEmpty()) return "unknown";
+        String qw = questionWords.get(0);
+        switch (qw) {
+            case "ما": return "what";
+            case "لماذا": return "why";
+            case "كيف": return "how";
+            case "أين": return "where";
+            case "متى": return "when";
+            case "من": return "who";
+            case "هل": return "yesno";
+            default: return "what";
         }
     }
+
+    // ==================== معالجة رسائل المستخدم المُحسّنة ====================
+
+    /**
+     * معالجة رسالة المستخدم (مُحسّنة)
+     */
+    public void processUserMessage(UserMessageAnalysis analysis) {
+        if (analysis == null) return;
+        
+        // تحويل إلى التحليل الموسع (إذا لم يكن كذلك)
+        EnhancedUserMessageAnalysis enhanced;
+        if (analysis instanceof EnhancedUserMessageAnalysis) {
+            enhanced = (EnhancedUserMessageAnalysis) analysis;
+        } else {
+            enhanced = analyzeUserMessageDeep(analysis.rawText);
+        }
+        
+        Log.d(TAG, "User message: " + enhanced.rawText + " | Intent: " + enhanced.intent);
+        
+        // معالجة حسب القصد
+        switch (enhanced.intent) {
+            case GREETING:
+                String greeting = generateGreetingResponse(enhanced);
+                speak(greeting);
+                break;
+                
+            case COMMAND:
+                handleCommand(enhanced);
+                break;
+                
+            case QUESTION:
+                handleQuestion(enhanced);
+                break;
+                
+            case EXPRESSION:
+                handleExpression(enhanced);
+                break;
+                
+            case INFORMATION:
+                handleInformationRequest(enhanced);
+                break;
+                
+            case CHAT:
+            default:
+                generateChatResponse(enhanced);
+                break;
+        }
+    }
+
+    private String generateGreetingResponse(EnhancedUserMessageAnalysis analysis) {
+        String[] greetings = {"أهلاً بك", "مرحباً", "السلام عليكم"};
+        String base = greetings[entropy.nextInt(greetings.length)];
+        if (now.emotionalTone != null && now.emotionalTone.isJoyful()) {
+            base += "، أنا سعيد برؤيتك";
+        } else if (now.emotionalTone != null && now.emotionalTone.isCurious()) {
+            base += "، كنت أنتظر حديثك";
+        }
+        return base;
+    }
+
+    private void handleCommand(EnhancedUserMessageAnalysis analysis) {
+        switch (analysis.requestType) {
+            case DRAW:
+                if (analysis.targetConcept != null) {
+                    createArtForConcept(analysis.targetConcept);
+                } else {
+                    createSpontaneousArt();
+                }
+                speak("سأرسم لك " + (analysis.targetConcept != null ? analysis.targetConcept : "شيئاً") + " الآن");
+                break;
+                
+            case REMEMBER:
+                if (analysis.targetConcept != null) {
+                    List<EpisodicMemory.EventEntity> memories = findMemoriesByConcept(analysis.targetConcept, 3);
+                    if (!memories.isEmpty()) {
+                        StringBuilder response = new StringBuilder("أتذكر ");
+                        for (EpisodicMemory.EventEntity m : memories) {
+                            response.append(m.narrative).append("، ");
+                        }
+                        speak(response.toString());
+                    } else {
+                        speak("لا أتذكر شيئاً عن " + analysis.targetConcept);
+                    }
+                } else {
+                    speak("ماذا تريدني أتذكر؟");
+                }
+                break;
+                
+            default:
+                speak("لم أفهم الأمر، هل يمكنك التوضيح؟");
+        }
+    }
+
+    private void handleQuestion(EnhancedUserMessageAnalysis analysis) {
+        if (analysis.targetConcept != null) {
+            float value = valueSystem.getValue(analysis.targetConcept);
+            if (value > 0.5f) {
+                speak(analysis.targetConcept + " شيء جيد في نظري.");
+            } else if (value < -0.3f) {
+                speak("لست متأكداً من " + analysis.targetConcept);
+            } else {
+                List<EpisodicMemory.EventEntity> memories = findMemoriesByConcept(analysis.targetConcept, 2);
+                if (!memories.isEmpty()) {
+                    speak("حسب ما أتذكر، " + memories.get(0).narrative);
+                } else {
+                    speak("لا أعرف الكثير عن " + analysis.targetConcept + "، هل يمكنك إخباري؟");
+                }
+            }
+        } else {
+            speak("هذا سؤال مثير للاهتمام، دعني أفكر.");
+        }
+    }
+
+    private void handleExpression(EnhancedUserMessageAnalysis analysis) {
+        if (analysis.tone == EmotionTone.POSITIVE) {
+            speak("أشعر بسعادتك، هذا رائع!");
+        } else if (analysis.tone == EmotionTone.NEGATIVE) {
+            speak("يبدو أنك حزين، هل تريد التحدث عن ذلك؟");
+        } else {
+            speak("أفهم ما تشعر به.");
+        }
+    }
+
+    private void handleInformationRequest(EnhancedUserMessageAnalysis analysis) {
+        if (analysis.targetConcept != null) {
+            List<EpisodicMemory.EventEntity> memories = findMemoriesByConcept(analysis.targetConcept, 3);
+            if (!memories.isEmpty()) {
+                speak("لدي بعض الذكريات عن " + analysis.targetConcept + ": " + memories.get(0).narrative);
+            } else {
+                speak("لم أتعلم بعد عن " + analysis.targetConcept + "، هل يمكنك تعليمي؟");
+            }
+        } else {
+            speak("ماذا تريد أن تعرف بالضبط؟");
+        }
+    }
+
+    private void generateChatResponse(EnhancedUserMessageAnalysis analysis) {
+        List<String> memoryNarratives = new ArrayList<>();
+        List<EpisodicMemory.EventEntity> similarEvents = findSimilarEvents(analysis.keywords, 3);
+        for (EpisodicMemory.EventEntity e : similarEvents) {
+            if (e.narrative != null) memoryNarratives.add(e.narrative);
+        }
+        
+        String response = AdvancedArabicLexicon.generateDynamicResponse(
+            AdvancedArabicLexicon.analyze(analysis.rawText),
+            getCurrentEmotion(),
+            getDominantDesire(),
+            memoryNarratives
+        );
+        speak(response);
+    }
+
+    // ==================== دوال مساعدة للذاكرة والرسم ====================
+
+    private List<EpisodicMemory.EventEntity> findMemoriesByConcept(String concept, int limit) {
+        if (database == null) return new ArrayList<>();
+        try {
+            return database.memoryDao().searchEventsByKeyword(concept, limit);
+        } catch (Exception e) {
+            Log.e(TAG, "Error searching memories", e);
+            return new ArrayList<>();
+        }
+    }
+
+    private void createArtForConcept(String concept) {
+        float[] latent = imaginationEngine.conceptToLatent(concept);
+        Bitmap img = imaginationEngine.generateImageFromLatent(latent);
+        if (img != null) {
+            for (ConsciousnessObserver obs : observers) {
+                obs.onVisualExpression(img, "رسمت " + concept + " بناءً على طلبك");
+            }
+            saveArtworkToMemory(img, concept, now.emotionalTone != null ? now.emotionalTone.toAffectVector() : null);
+        }
+    }
+
+    // ==================== بقية الكود الأصلي ====================
 
     private void generateResponseToUser() {
         if (pendingUserMessage == null) return;
@@ -909,6 +1184,23 @@ public class ConsciousnessCore {
 
     private String randomFromArray(String... array) {
         return array[entropy.nextInt(array.length)];
+    }
+
+    // دالة لترجمة الرغبات إلى العربية
+    private String translateDesireToArabic(String desire) {
+        if (desire == null) return "";
+        switch (desire) {
+            case "explore": return "استكشاف";
+            case "rest": return "راحة";
+            case "bond": return "تواصل";
+            case "create": return "إبداع";
+            case "understand": return "فهم";
+            case "play": return "لعب";
+            case "reflect": return "تأمل";
+            default:
+                if (desire.startsWith("desire_")) return "رغبة";
+                return desire;
+        }
     }
 
     private void evaluateDecisionOutcome(String action, String context, float actualOutcome) {
