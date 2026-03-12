@@ -13,6 +13,7 @@ import com.lifeentity.imagination.VisualDream;
 import com.lifeentity.language.AdvancedArabicLexicon;
 import com.lifeentity.language.LanguageGenerator;
 import com.lifeentity.learning.UserFeedbackLearner;
+import com.lifeentity.learning.CompetitiveLearningCore;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.VisualMemory;
