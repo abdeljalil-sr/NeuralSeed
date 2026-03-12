@@ -12,6 +12,7 @@ import com.lifeentity.imagination.SharedCanvas;
 import com.lifeentity.imagination.VisualDream;
 import com.lifeentity.language.AdvancedArabicLexicon;
 import com.lifeentity.language.LanguageGenerator;
+import com.lifeentity.learning.UserFeedbackLearner;
 import com.lifeentity.memory.AppDatabase;
 import com.lifeentity.memory.EpisodicMemory;
 import com.lifeentity.memory.VisualMemory;
@@ -95,6 +96,9 @@ public class ConsciousnessCore {
 
     // مولد اللغة للتعبير الديناميكي
     private LanguageGenerator languageGenerator;
+
+    // متعلم التغذية الراجعة من المستخدم
+    private UserFeedbackLearner feedbackLearner;
 
     public interface ConsciousnessObserver {
         void onConsciousMoment(ConsciousMoment moment);
@@ -225,6 +229,9 @@ public class ConsciousnessCore {
 
         // تهيئة مولد اللغة
         languageGenerator = new LanguageGenerator();
+
+        // تهيئة متعلم التغذية الراجعة
+        feedbackLearner = new UserFeedbackLearner(valueSystem, competitiveLearning, database);
 
         memoryExecutor = Executors.newSingleThreadExecutor();
 
@@ -359,6 +366,11 @@ public class ConsciousnessCore {
             memoryExecutor.execute(() -> database.memoryDao().insertEvent(event));
         }
 
+        // أخبر نظام التعلم برد المستخدم
+        if (feedbackLearner != null) {
+            feedbackLearner.onUserResponded(text, now.emotionalTone);
+        }
+
         // توليد الرد باستخدام LanguageGenerator
         String response = languageGenerator.generateResponse(
             text,
@@ -377,6 +389,10 @@ public class ConsciousnessCore {
         if (utterance == null || utterance.isEmpty()) return;
         for (ConsciousnessObserver obs : observers) {
             obs.onArticulation(utterance, urgency);
+        }
+        // أخبر نظام التعلم أن الكائن تكلم
+        if (feedbackLearner != null) {
+            feedbackLearner.onAgentSpoke(utterance);
         }
     }
 
