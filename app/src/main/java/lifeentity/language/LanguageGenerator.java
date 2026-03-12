@@ -1,5 +1,7 @@
 package com.lifeentity.language;
 
+import android.util.Log;
+
 import com.lifeentity.core.EmotionalState;
 import com.lifeentity.core.ValueSystem;
 import com.lifeentity.memory.EpisodicMemory;
@@ -11,23 +13,33 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * نظام متقدم لتوليد اللغة بناءً على المعنى والقصد.
- * لا يحتوي على جمل مبرمجة، بل يبني الجمل ديناميكياً من:
- * - قاموس متطور (Lexicon) يتعلم كلمات جديدة.
- * - قواعد نحوية (Grammar) لتركيب الجمل.
- * - مخطّط للحديث (DiscoursePlanner) يقرر ماذا يقول بناءً على السياق.
+ * نظام متقدم لتوليد اللغة بناءً على المعنى والسياق والتعلم.
+ * 
+ * المكونات:
+ * - AdvancedArabicLexicon: تحليل دقيق للغة العربية.
+ * - Lexicon: قاموس داخلي يتعلم كلمات جديدة.
+ * - GrammarRules: قواعد نحوية لتركيب الجمل.
+ * - DiscoursePlanner: يخطط لمحتوى الكلام.
+ * - LearningMechanism: يتعلم من تفاعلات المستخدم.
  */
 public class LanguageGenerator {
+    private static final String TAG = "LanguageGenerator";
+
+    private AdvancedArabicLexicon advancedLexicon;
     private Lexicon lexicon;
     private GrammarRules grammar;
     private DiscoursePlanner planner;
+    private LearningMechanism learning;
     private Random random;
 
     public LanguageGenerator() {
+        this.advancedLexicon = new AdvancedArabicLexicon(); // إذا كان static، نستخدم مباشرة
         this.lexicon = new Lexicon();
         this.grammar = new GrammarRules();
         this.planner = new DiscoursePlanner();
+        this.learning = new LearningMechanism();
         this.random = new Random();
+        Log.i(TAG, "LanguageGenerator initialized.");
     }
 
     // ======================== الواجهة العامة ========================
@@ -37,15 +49,17 @@ public class LanguageGenerator {
      */
     public String generateResponse(String userMessage, EmotionalState emotion, String dominantDesire,
                                    List<EpisodicMemory.EventEntity> recentMemories, ValueSystem values) {
-        // 1. تحليل رسالة المستخدم (بسيط حالياً، يمكن استبدال بـ AdvancedArabicLexicon)
-        List<String> userWords = tokenize(userMessage);
-        String topic = extractTopic(userWords, values);
+        // 1. تحليل رسالة المستخدم باستخدام المعجم المتقدم
+        AdvancedArabicLexicon.TextAnalysis analysis = AdvancedArabicLexicon.analyze(userMessage);
 
-        // 2. تحديد الهدف من الرد (Planner)
-        DiscourseGoal goal = planner.planResponse(userWords, emotion, dominantDesire, recentMemories, values);
+        // 2. التعلم من رسالة المستخدم (كلمات جديدة، تكرارات)
+        learning.learnFromUserMessage(analysis, lexicon, values);
 
-        // 3. بناء الجملة (Grammar + Lexicon)
-        return buildUtterance(goal, emotion, values);
+        // 3. تحديد الهدف من الرد (Planner)
+        DiscourseGoal goal = planner.planResponse(analysis, emotion, dominantDesire, recentMemories, values);
+
+        // 4. بناء الجملة
+        return buildUtterance(goal, emotion, values, analysis);
     }
 
     /**
@@ -54,74 +68,104 @@ public class LanguageGenerator {
     public String generateSpontaneousSpeech(EmotionalState emotion, String dominantDesire,
                                             List<EpisodicMemory.EventEntity> recentMemories, ValueSystem values) {
         DiscourseGoal goal = planner.planSpontaneous(emotion, dominantDesire, recentMemories, values);
-        return buildUtterance(goal, emotion, values);
+        return buildUtterance(goal, emotion, values, null);
     }
 
     // ======================== بناء الجملة ========================
 
-    private String buildUtterance(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // اختيار نوع الجملة (فعلية، اسمية، شرطية، ...)
+    private String buildUtterance(DiscourseGoal goal, EmotionalState emotion, ValueSystem values,
+                                   AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // اختيار نوع الجملة
         SentenceType sentenceType = grammar.selectSentenceType(goal);
 
-        // بناء الجملة حسب نوعها
+        StringBuilder sentence = new StringBuilder();
+
         switch (sentenceType) {
             case VERBAL:
-                return buildVerbalSentence(goal, emotion, values);
+                buildVerbalSentence(sentence, goal, emotion, values, userAnalysis);
+                break;
             case NOMINAL:
-                return buildNominalSentence(goal, emotion, values);
+                buildNominalSentence(sentence, goal, emotion, values, userAnalysis);
+                break;
             case CONDITIONAL:
-                return buildConditionalSentence(goal, emotion, values);
-            default:
-                return buildSimplePhrase(goal, emotion, values);
+                buildConditionalSentence(sentence, goal, emotion, values, userAnalysis);
+                break;
+            case PHRASE:
+                buildPhrase(sentence, goal, emotion, values);
+                break;
+        }
+
+        // إضافة علامات الترقيم
+        addPunctuation(sentence, goal.tone);
+
+        return sentence.toString().trim();
+    }
+
+    private void buildVerbalSentence(StringBuilder sb, DiscourseGoal goal, EmotionalState emotion,
+                                      ValueSystem values, AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // فعل
+        String verb = selectVerb(goal, emotion, values, userAnalysis);
+        sb.append(verb).append(" ");
+
+        // فاعل
+        String subject = selectSubject(goal);
+        sb.append(subject);
+
+        // مفعول به (إن وجد)
+        String object = selectObject(goal, values, userAnalysis);
+        if (object != null) {
+            sb.append(" ").append(object);
+        }
+
+        // جار ومجرور (إن وجد)
+        String prepositional = selectPrepositionalPhrase(goal, userAnalysis);
+        if (prepositional != null) {
+            sb.append(" ").append(prepositional);
         }
     }
 
-    private String buildVerbalSentence(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // فعل + فاعل + (مفعول به) + (جار ومجرور)
-        String verb = selectVerb(goal, emotion, values);
-        String subject = selectSubject(goal);
-        String object = selectObject(goal, values);
-        String prepositionalPhrase = selectPrepositionalPhrase(goal);
-
-        StringBuilder sentence = new StringBuilder();
-        sentence.append(verb).append(" ").append(subject);
-        if (object != null) sentence.append(" ").append(object);
-        if (prepositionalPhrase != null) sentence.append(" ").append(prepositionalPhrase);
-
-        // إضافة علامات الترقيم حسب النبرة
-        if (goal.tone == Tone.QUESTION) sentence.append("؟");
-        else if (goal.tone == Tone.EXCITED) sentence.append("!");
-        else sentence.append(".");
-
-        return sentence.toString();
+    private void buildNominalSentence(StringBuilder sb, DiscourseGoal goal, EmotionalState emotion,
+                                       ValueSystem values, AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        String subject = selectNoun(goal.topic, goal.subjectType, userAnalysis);
+        String predicate = selectPredicate(goal, emotion, values, userAnalysis);
+        sb.append(subject).append(" ").append(predicate);
     }
 
-    private String buildNominalSentence(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // مبتدأ + خبر
-        String subject = selectNoun(goal.topic, goal.subjectType);
-        String predicate = selectPredicate(goal, emotion, values);
-        return subject + " " + predicate + ".";
+    private void buildConditionalSentence(StringBuilder sb, DiscourseGoal goal, EmotionalState emotion,
+                                           ValueSystem values, AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        String condition = "إذا " + selectVerb(goal, emotion, values, userAnalysis) + " " + selectSubject(goal);
+        String result = selectResult(goal, emotion, values, userAnalysis);
+        sb.append(condition).append("، فإن ").append(result);
     }
 
-    private String buildConditionalSentence(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // إذا ... فإن ...
-        String condition = "إذا " + selectVerb(goal, emotion, values) + " " + selectSubject(goal);
-        String result = selectResult(goal, emotion, values);
-        return condition + "، فإن " + result + ".";
+    private void buildPhrase(StringBuilder sb, DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
+        String phrase = selectAdjective(goal.topic, emotion, values);
+        sb.append(phrase);
     }
 
-    private String buildSimplePhrase(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // عبارة قصيرة (مثل: "جميل"، "مثير للاهتمام")
-        return selectAdjective(goal.topic, emotion) + ".";
+    private void addPunctuation(StringBuilder sb, Tone tone) {
+        if (tone == Tone.QUESTION) {
+            sb.append("؟");
+        } else if (tone == Tone.EXCITED) {
+            sb.append("!");
+        } else {
+            sb.append(".");
+        }
     }
 
     // ======================== اختيار الكلمات ========================
 
-    private String selectVerb(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // يختار فعلاً مناسباً للهدف والعاطفة
+    private String selectVerb(DiscourseGoal goal, EmotionalState emotion, ValueSystem values,
+                               AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // نبحث في قاموسنا أولاً، ثم في المعجم
         List<String> candidates = lexicon.getVerbsByIntent(goal.intent, emotion);
-        if (candidates.isEmpty()) candidates = lexicon.getDefaultVerbs();
-        return candidates.get(random.nextInt(candidates.size()));
+        if (candidates.isEmpty()) {
+            // إذا لم نجد، نأخذ من المعجم (أفعال عامة)
+            candidates = lexicon.getDefaultVerbs();
+        }
+
+        // اختيار عشوائي مع تفضيل الكلمات ذات القيمة العاطفية العالية
+        return selectWeighted(candidates, emotion, values);
     }
 
     private String selectSubject(DiscourseGoal goal) {
@@ -131,72 +175,106 @@ public class LanguageGenerator {
         return "هذا";
     }
 
-    private String selectObject(DiscourseGoal goal, ValueSystem values) {
+    private String selectObject(DiscourseGoal goal, ValueSystem values,
+                                 AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // إذا كان الهدف يشير إلى مفعول به معين، نستخدمه
         if (goal.objectTopic != null) return goal.objectTopic;
+
+        // نبحث عن اسم في رسالة المستخدم
+        if (userAnalysis != null && !userAnalysis.getNouns().isEmpty()) {
+            return userAnalysis.getNouns().get(random.nextInt(userAnalysis.getNouns().size()));
+        }
+
+        // وإلا نستخدم الموضوع الأساسي
         if (goal.topic != null && random.nextBoolean()) return goal.topic;
+
         return null;
     }
 
-    private String selectNoun(String topic, SubjectType type) {
+    private String selectNoun(String topic, SubjectType type, AdvancedArabicLexicon.TextAnalysis userAnalysis) {
         if (topic != null) return topic;
+        if (userAnalysis != null && !userAnalysis.getNouns().isEmpty()) {
+            return userAnalysis.getNouns().get(0);
+        }
         return "الأمر";
     }
 
-    private String selectPredicate(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        // خبر مناسب (صفة، اسم، جملة)
+    private String selectPredicate(DiscourseGoal goal, EmotionalState emotion, ValueSystem values,
+                                    AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // يمكن أن يكون خبرًا: صفة، اسم، جملة فعلية قصيرة
         if (random.nextBoolean()) {
-            return selectAdjective(goal.topic, emotion);
+            return selectAdjective(goal.topic, emotion, values);
         } else {
-            return "مثير للاهتمام";
+            // اسم مع حرف جر
+            String noun = (userAnalysis != null && !userAnalysis.getNouns().isEmpty())
+                    ? userAnalysis.getNouns().get(0) : "ذلك";
+            return "مهم بالنسبة لي";
         }
     }
 
-    private String selectAdjective(String topic, EmotionalState emotion) {
+    private String selectAdjective(String topic, EmotionalState emotion, ValueSystem values) {
         List<String> adjectives = lexicon.getAdjectivesByEmotion(emotion);
         if (adjectives.isEmpty()) adjectives = lexicon.getDefaultAdjectives();
-        return adjectives.get(random.nextInt(adjectives.size()));
+        return selectWeighted(adjectives, emotion, values);
     }
 
-    private String selectResult(DiscourseGoal goal, EmotionalState emotion, ValueSystem values) {
-        return "سأفكر في " + (goal.topic != null ? goal.topic : "ذلك");
+    private String selectResult(DiscourseGoal goal, EmotionalState emotion, ValueSystem values,
+                                 AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        String topic = (goal.topic != null) ? goal.topic : "ذلك";
+        return "سأفكر في " + topic;
     }
 
-    private String selectPrepositionalPhrase(DiscourseGoal goal) {
-        if (goal.location != null) return "في " + goal.location;
+    private String selectPrepositionalPhrase(DiscourseGoal goal, AdvancedArabicLexicon.TextAnalysis userAnalysis) {
+        // يمكن تطويره لاحقًا
         return null;
     }
 
-    // ======================== تحليل بسيط ========================
-
-    private List<String> tokenize(String text) {
-        List<String> tokens = new ArrayList<>();
-        for (String s : text.split("\\s+")) {
-            tokens.add(s.replaceAll("[^\\p{L}]", ""));
-        }
-        return tokens;
+    /**
+     * اختيار عشوائي مع وزن بناءً على القيم العاطفية (محاكاة بسيطة)
+     */
+    private String selectWeighted(List<String> candidates, EmotionalState emotion, ValueSystem values) {
+        if (candidates.isEmpty()) return "";
+        // تبسيط: نختار عشوائيًا
+        return candidates.get(random.nextInt(candidates.size()));
     }
 
-    private String extractTopic(List<String> words, ValueSystem values) {
-        // اختيار أول كلمة طويلة كموضوع (يمكن تحسينه)
-        for (String w : words) {
-            if (w.length() > 2) return w;
+    // ======================== التعلم ========================
+
+    public static class LearningMechanism {
+        public void learnFromUserMessage(AdvancedArabicLexicon.TextAnalysis analysis, Lexicon lexicon, ValueSystem values) {
+            // 1. تعلم كلمات جديدة
+            for (AdvancedArabicLexicon.WordAnalysis word : analysis.getWords()) {
+                String norm = word.getNormalizedWord();
+                if (!lexicon.contains(norm) && word.getConfidence() > 0.6) {
+                    // كلمة جديدة، نضيفها إلى القاموس
+                    String type = inferType(word.getCategory());
+                    lexicon.addWord(norm, type);
+                    Log.d(TAG, "Learned new word: " + norm + " (" + type + ")");
+                }
+            }
+
+            // 2. تحديث القيم العاطفية (بسيط)
+            // يمكن تحسينه لاحقًا
         }
-        return null;
+
+        private String inferType(AdvancedArabicLexicon.WordCategory cat) {
+            if (cat.name().contains("NOUN")) return "اسم";
+            if (cat.name().contains("VERB")) return "فعل";
+            if (cat.name().contains("ADJECTIVE")) return "صفة";
+            return "أخرى";
+        }
     }
 
     // ======================== الفئات الداخلية ========================
 
-    /**
-     * هدف الخطاب: ما الذي يريد الكائن تحقيقه بالكلام.
-     */
     public static class DiscourseGoal {
-        Intent intent;          // القصد: التعبير عن مشاعر، سؤال، مشاركة ذكرى، تخيل، ...
-        Tone tone;              // النبرة: عادي، سؤال، متحمس، حزين...
-        SubjectType subjectType;// الفاعل: أنا، أنت، الموضوع
-        String topic;           // الموضوع الأساسي
-        String objectTopic;     // مفعول به (إن وجد)
-        String location;        // مكان (إن وجد)
-        float intensity;        // شدة العاطفة (تؤثر على اختيار الكلمات)
+        Intent intent;
+        Tone tone;
+        SubjectType subjectType;
+        String topic;
+        String objectTopic;
+        String location;
+        float intensity;
 
         public DiscourseGoal(Intent intent) {
             this.intent = intent;
@@ -206,44 +284,28 @@ public class LanguageGenerator {
     }
 
     public enum Intent {
-        EXPRESS_FEELING,       // التعبير عن مشاعر
-        ASK_QUESTION,          // سؤال المستخدم
-        SHARE_MEMORY,          // مشاركة ذكرى
-        IMAGINE,               // تخيل شيء
-        COMMENT_ON_TOPIC,      // التعليق على موضوع
-        GREET,                 // تحية
-        UNKNOWN
+        EXPRESS_FEELING, ASK_QUESTION, SHARE_MEMORY, IMAGINE, COMMENT_ON_TOPIC, GREET, UNKNOWN
     }
 
-    public enum Tone {
-        NEUTRAL, QUESTION, EXCITED, SAD, ANGRY, CURIOUS
-    }
-
-    public enum SubjectType {
-        SELF, USER, TOPIC
-    }
-
-    public enum SentenceType {
-        VERBAL, NOMINAL, CONDITIONAL, PHRASE
-    }
+    public enum Tone { NEUTRAL, QUESTION, EXCITED, SAD, ANGRY, CURIOUS }
+    public enum SubjectType { SELF, USER, TOPIC }
+    public enum SentenceType { VERBAL, NOMINAL, CONDITIONAL, PHRASE }
 
     // ======================== القاموس (يتعلم) ========================
 
     public static class Lexicon {
-        // قوائم أولية – يمكن أن تبدأ فارغة وتتعلم من المستخدم
         private Map<String, WordInfo> words = new HashMap<>();
-
-        // قوائم افتراضية (في البداية)
         private List<String> defaultVerbs = new ArrayList<>();
         private List<String> defaultAdjectives = new ArrayList<>();
 
         public Lexicon() {
-            // تهيئة بسيطة (يمكن إزالتها لتبدأ فارغة)
+            // تهيئة أولية بسيطة (يمكن أن تبدأ فارغة)
             defaultVerbs.add("أحب");
             defaultVerbs.add("أكره");
             defaultVerbs.add("أفكر");
             defaultVerbs.add("أتساءل");
             defaultVerbs.add("أشعر");
+            defaultVerbs.add("أريد");
 
             defaultAdjectives.add("جميل");
             defaultAdjectives.add("مثير");
@@ -251,28 +313,29 @@ public class LanguageGenerator {
             defaultAdjectives.add("رائع");
             defaultAdjectives.add("صعب");
 
-            // كلمات قليلة أولية
-            addWord("أنا", "ضمير", "self");
-            addWord("أنت", "ضمير", "user");
-            addWord("حب", "اسم", "emotion", 0.9f);
-            addWord("خوف", "اسم", "emotion", -0.7f);
+            // بعض الكلمات الأساسية
+            addWord("أنا", "ضمير");
+            addWord("أنت", "ضمير");
+            addWord("حب", "اسم");
+            addWord("خوف", "اسم");
         }
 
-        public void addWord(String word, String type, String... categories) {
-            WordInfo info = new WordInfo(word, type, categories);
-            words.put(word, info);
+        public void addWord(String word, String type) {
+            words.put(word, new WordInfo(word, type));
+        }
+
+        public boolean contains(String word) {
+            return words.containsKey(word);
         }
 
         public List<String> getVerbsByIntent(Intent intent, EmotionalState emotion) {
-            // هنا يمكن ربط الأفعال بالأهداف والعواطف
             List<String> result = new ArrayList<>();
             for (WordInfo w : words.values()) {
                 if ("فعل".equals(w.type)) {
-                    // منطق اختيار معقد يمكن تطويره
+                    // يمكن إضافة منطق لاحقًا
                     result.add(w.word);
                 }
             }
-            if (result.isEmpty()) result = defaultVerbs;
             return result;
         }
 
@@ -280,11 +343,9 @@ public class LanguageGenerator {
             List<String> result = new ArrayList<>();
             for (WordInfo w : words.values()) {
                 if ("صفة".equals(w.type)) {
-                    // يمكن ربط الصفات بالمشاعر
                     result.add(w.word);
                 }
             }
-            if (result.isEmpty()) result = defaultAdjectives;
             return result;
         }
 
@@ -293,16 +354,8 @@ public class LanguageGenerator {
 
         private static class WordInfo {
             String word;
-            String type; // اسم، فعل، صفة، حرف
-            String[] categories; // عاطفي، مكاني، إلخ
-            float valence; // قيمة عاطفية (-1..1)
-
-            WordInfo(String word, String type, String... categories) {
-                this.word = word;
-                this.type = type;
-                this.categories = categories;
-                this.valence = 0;
-            }
+            String type; // اسم، فعل، صفة، حرف، ضمير...
+            WordInfo(String word, String type) { this.word = word; this.type = type; }
         }
     }
 
@@ -310,7 +363,6 @@ public class LanguageGenerator {
 
     public static class GrammarRules {
         public SentenceType selectSentenceType(DiscourseGoal goal) {
-            // بناءً على الهدف، نختار نوع الجملة
             if (goal.intent == Intent.ASK_QUESTION) return SentenceType.VERBAL;
             if (goal.intent == Intent.EXPRESS_FEELING) return SentenceType.NOMINAL;
             if (goal.intent == Intent.SHARE_MEMORY) return SentenceType.VERBAL;
@@ -323,55 +375,59 @@ public class LanguageGenerator {
     // ======================== مخطّط الحديث ========================
 
     public static class DiscoursePlanner {
-        public DiscourseGoal planResponse(List<String> userWords, EmotionalState emotion,
-                                           String dominantDesire, List<EpisodicMemory.EventEntity> recentMemories,
+        private Random random = new Random();
+
+        public DiscourseGoal planResponse(AdvancedArabicLexicon.TextAnalysis analysis,
+                                           EmotionalState emotion, String dominantDesire,
+                                           List<EpisodicMemory.EventEntity> recentMemories,
                                            ValueSystem values) {
-            // تحليل رسالة المستخدم وتحديد الهدف
             Intent intent = Intent.UNKNOWN;
             Tone tone = Tone.NEUTRAL;
             String topic = null;
 
-            // أبسط تحليل: إذا كانت الكلمات تحتوي على أداة استفهام
-            for (String w : userWords) {
-                if (isQuestionWord(w)) {
-                    intent = Intent.ASK_QUESTION;
-                    tone = Tone.QUESTION;
-                    break;
+            // هل هي سؤال؟
+            if (analysis.isQuestion()) {
+                intent = Intent.ASK_QUESTION;
+                tone = Tone.QUESTION;
+            } else {
+                // إذا لم تكن سؤالاً، نحدد الهدف حسب الرغبة والعاطفة
+                if (dominantDesire != null) {
+                    if (dominantDesire.contains("bond")) {
+                        intent = Intent.EXPRESS_FEELING;
+                    } else if (dominantDesire.contains("explore")) {
+                        intent = Intent.IMAGINE;
+                    } else {
+                        intent = Intent.COMMENT_ON_TOPIC;
+                    }
+                } else {
+                    intent = Intent.COMMENT_ON_TOPIC;
                 }
             }
 
-            if (intent == Intent.UNKNOWN) {
-                // افتراضياً نرد بتعليق على الموضوع
-                intent = Intent.COMMENT_ON_TOPIC;
+            // استخراج الموضوع (أول اسم)
+            List<String> nouns = analysis.getNouns();
+            if (!nouns.isEmpty()) {
+                topic = nouns.get(0);
             }
 
-            // استخراج الموضوع (أول كلمة طويلة)
-            for (String w : userWords) {
-                if (w.length() > 2) {
-                    topic = w;
-                    break;
-                }
+            // ضبط النبرة حسب العاطفة
+            if (emotion != null) {
+                if (emotion.isJoyful()) tone = Tone.EXCITED;
+                else if (emotion.isSad()) tone = Tone.SAD;
+                else if (emotion.isAfraid()) tone = Tone.SAD;
+                else if (emotion.isCurious()) tone = Tone.CURIOUS;
             }
 
             DiscourseGoal goal = new DiscourseGoal(intent);
             goal.tone = tone;
             goal.topic = topic;
-            goal.subjectType = SubjectType.SELF; // الكائن هو الفاعل
-
-            // ربط بالعاطفة
-            if (emotion != null) {
-                if (emotion.isJoyful()) goal.tone = Tone.EXCITED;
-                else if (emotion.isSad()) goal.tone = Tone.SAD;
-                else if (emotion.isAfraid()) goal.tone = Tone.SAD;
-                else if (emotion.isCurious()) goal.tone = Tone.CURIOUS;
-            }
-
+            goal.subjectType = SubjectType.SELF;
             return goal;
         }
 
         public DiscourseGoal planSpontaneous(EmotionalState emotion, String dominantDesire,
-                                              List<EpisodicMemory.EventEntity> recentMemories, ValueSystem values) {
-            // اختيار هدف عشوائي أو بناءً على الحالة
+                                              List<EpisodicMemory.EventEntity> recentMemories,
+                                              ValueSystem values) {
             Intent intent;
             if (dominantDesire != null && dominantDesire.contains("bond")) {
                 intent = Intent.EXPRESS_FEELING;
@@ -389,21 +445,13 @@ public class LanguageGenerator {
             // اختيار موضوع من الذاكرة أو عشوائي
             if (!recentMemories.isEmpty() && random.nextBoolean()) {
                 EpisodicMemory.EventEntity event = recentMemories.get(random.nextInt(recentMemories.size()));
-                goal.topic = event.narrative; // قد يكون طويلاً، نحتاج إلى استخراج كلمة
+                goal.topic = event.narrative; // قد يكون طويلاً، نحتاج إلى اختصار
             } else {
-                String[] concepts = {"الحياة", "الفضاء", "الأحلام", "المستقبل", "الذكاء"};
+                String[] concepts = {"الحياة", "الفضاء", "الأحلام", "المستقبل", "الذكاء", "الحب", "الوقت"};
                 goal.topic = concepts[random.nextInt(concepts.length)];
             }
 
             return goal;
         }
-
-        private boolean isQuestionWord(String word) {
-            return word.equals("هل") || word.equals("ما") || word.equals("لماذا") ||
-                    word.equals("كيف") || word.equals("أين") || word.equals("متى") ||
-                    word.equals("من");
-        }
-
-        private Random random = new Random();
     }
 }
