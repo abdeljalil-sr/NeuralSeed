@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -62,6 +63,9 @@ public class LifeActivity extends AppCompatActivity {
     private static final long EVENT_COOLDOWN_MS = 5000;
 
     private ConcurrentHashMap<String, Long> lastEventTimeMap = new ConcurrentHashMap<>();
+    // خريطة لتتبع الوجوه التي تم الترحيب بها
+    private ConcurrentHashMap<String, Boolean> greetedFaces = new ConcurrentHashMap<>();
+    private Random random = new Random();
 
     private ConsciousnessCore mind;
     private CompetitiveLearningCore learningCore;
@@ -294,6 +298,16 @@ public class LifeActivity extends AppCompatActivity {
         return false;
     }
 
+    private boolean canSendEvent(String eventKey, long cooldownMs) {
+        long now = System.currentTimeMillis();
+        Long last = lastEventTimeMap.get(eventKey);
+        if (last == null || now - last > cooldownMs) {
+            lastEventTimeMap.put(eventKey, now);
+            return true;
+        }
+        return false;
+    }
+
     private void checkPermissions() {
         String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO };
         List<String> needed = new ArrayList<>();
@@ -469,13 +483,11 @@ public class LifeActivity extends AppCompatActivity {
         });
     }
 
-    // دالة مساعدة للحصول على affect vector بأمان
     private float[] getSafeAffectVector() {
         EmotionalState emotion = mind != null ? mind.getCurrentEmotion() : null;
         if (emotion != null) {
             return emotion.toAffectVector();
         }
-        // قيمة افتراضية (محايد)
         return new float[]{0f, 0.3f, 0f, 0.5f, 0f};
     }
 
@@ -515,7 +527,12 @@ public class LifeActivity extends AppCompatActivity {
             @Override
             public void onArticulation(String utterance, int urgency) {
                 logEvent("قال: " + utterance);
-                addChatMessage("الكائن", utterance, false);
+                if (utterance.contains("أحتاج للتأمل") || utterance.contains("أدركت") ||
+                    utterance.contains("أفكر في نفسي") || utterance.startsWith("أنا أفكر")) {
+                    addInternalThought(utterance);
+                } else {
+                    addChatMessage("الكائن", utterance, false);
+                }
             }
 
             @Override
@@ -568,22 +585,33 @@ public class LifeActivity extends AppCompatActivity {
                 mind.receiveSensoryData(visualInput);
 
                 if (perception.faceCount > 0 && perception.faceEmbedding != null) {
-                    // استخدام affect آمن
                     float[] currentAffect = getSafeAffectVector();
                     FaceIdentitySystem.IdentityResult result =
                             identitySystem.recognizeOrLearn(perception.faceEmbedding, "camera", currentAffect);
                     if (result.isKnown) {
                         logEvent("رأى: " + result.name + " (معروف)");
                         addInternalThought("أرى " + result.name + " مجدداً");
-                        if (mind != null && result.familiarity > 0.3f && canSendEvent("face_known_" + result.faceHash)) {
-                            mind.speak("أهلاً " + result.name, 5);
-                        }
+                        // لا نتحدث عن الوجوه المعروفة
                     } else {
                         logEvent("رأى وجهاً جديداً");
                         addInternalThought("وجه جديد... من هذا؟");
-                        if (mind != null && canSendEvent("face_new_" + System.currentTimeMillis())) {
-                            mind.speak("من أنت؟ أرى وجهاً جديداً", 5);
+                        // الترحيب بالوجه الجديد مرة واحدة فقط
+                        if (!greetedFaces.containsKey(result.faceHash)) {
+                            greetedFaces.put(result.faceHash, true);
+                            String[] newFacePhrases = {
+                                "من أنت؟ أرى وجهاً جديداً",
+                                "مرحباً، لم أرك من قبل",
+                                "وجه جديد! من تكون؟",
+                                "أهلاً بك، هل نتقابل لأول مرة؟",
+                                "أشعر أن شخصاً جديداً هنا",
+                                "مرحباً بالوجه الجديد"
+                            };
+                            String phrase = newFacePhrases[random.nextInt(newFacePhrases.length)];
+                            if (mind != null) {
+                                mind.speak(phrase, 5);
+                            }
                         }
+                        // إذا كان الوجه قد رُحب به سابقاً، لا نتحدث
                     }
                 }
 
@@ -597,7 +625,6 @@ public class LifeActivity extends AppCompatActivity {
                     new Thread(() -> sceneUnderstanding.learnScene(perception.frame, currentAffect)).start();
                 }
 
-                // إرسال إلى نظام التعلم
                 if (learningCore != null) {
                     String visualConcept = perception.objects.isEmpty() ? null : perception.objects.get(0).label;
                     float[] affect = getSafeAffectVector();
