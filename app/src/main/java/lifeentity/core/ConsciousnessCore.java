@@ -320,23 +320,166 @@ public class ConsciousnessCore {
         }
 
         // تفكير تأملي
-        long now = System.currentTimeMillis();
-        if (now - lastMetacognitionTime > METACOGNITION_CYCLE_MS) {
+        long nowTime = System.currentTimeMillis();
+        if (nowTime - lastMetacognitionTime > METACOGNITION_CYCLE_MS) {
             performMetacognition();
-            lastMetacognitionTime = now;
+            lastMetacognitionTime = nowTime;
         }
 
         // كلام عفوي (ليس رداً على المستخدم)
         if (desireSystem.getDesireStrength("bond") > 0.6f && entropy.nextFloat() < 0.2) {
-            if (now - lastSpontaneousSpeechTime > SPONTANEOUS_SPEECH_COOLDOWN) {
+            if (nowTime - lastSpontaneousSpeechTime > SPONTANEOUS_SPEECH_COOLDOWN) {
                 generateSpontaneousSpeech();
-                lastSpontaneousSpeechTime = now;
+                lastSpontaneousSpeechTime = nowTime;
+            }
+        }
+
+        // توليد المحتوى الواعي
+        EmotionalState prevEmo = now.emotionalTone;
+        now.emotionalTone = physiology.getEmotionalState();
+        now.previousEmotion = prevEmo;
+
+        // ... تحديد التركيز والسرد والتوقع
+
+        // توليد دافع تعبيري بناءً على السياق (بدلاً من الاعتماد على random بسيط)
+        now.expressiveImpulse = generateVisualImpulseFromContext();
+
+        // معالجة الدافع البصري في نفس الدورة (قبل broadcastMoment)
+        if (now.expressiveImpulse != null && "visual".equals(now.expressiveImpulse.modality)) {
+            // نمرر الدافع للمراقبين (مثل LifeActivity) لرسم الصورة
+            for (ConsciousnessObserver obs : observers) {
+                obs.onVisualExpression(
+                    imaginationEngine.generateImageFromLatent(now.expressiveImpulse.latentVector),
+                    now.expressiveImpulse.associatedConcept
+                );
+            }
+            // نسجل في الذاكرة أننا عبرنا بصريًا
+            EpisodicMemory.EventEntity artEvent = new EpisodicMemory.EventEntity();
+            artEvent.timestamp = System.currentTimeMillis();
+            artEvent.narrative = "عبرت بصريًا عن " + now.expressiveImpulse.associatedConcept;
+            artEvent.emotionalState = now.emotionalTone != null ? now.emotionalTone.toArabic() : "neutral";
+            artEvent.emotionalIntensity = now.expressiveImpulse.intensity;
+            artEvent.location = "visual_expression";
+            if (database != null) {
+                memoryExecutor.execute(() -> database.memoryDao().insertEvent(artEvent));
             }
         }
 
         broadcastMoment();
         manageMemory();
         scheduleNextCycle();
+    }
+
+    /**
+     * توليد دافع تعبيري بصري بناءً على السياق الحالي
+     */
+    private ConsciousMoment.ExpressiveImpulse generateVisualImpulseFromContext() {
+        // العوامل المؤثرة:
+        float createDesire = (float) desireSystem.getDesireStrength("create");
+        float emotionalIntensity = now.emotionalTone != null ? now.emotionalTone.getIntensity() : 0.5f;
+        boolean userRequestedArt = checkUserArtRequest(); // نتحقق من آخر رسالة للمستخدم
+        boolean hasDream = visualDream.isDreaming(); // هل هناك حلم جارٍ؟
+        
+        // إذا كان هناك طلب مستخدم واضح للرسم، نعطيه أولوية قصوى
+        if (userRequestedArt) {
+            String concept = extractConceptFromUserRequest();
+            if (concept != null) {
+                float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+                return new ConsciousMoment.ExpressiveImpulse("visual", 1.0f, latent, concept);
+            }
+        }
+        
+        // إذا كان هناك حلم، نستلهم منه
+        if (hasDream && entropy.nextFloat() < 0.3f) {
+            // نستخدم آخر حلم (يمكن تخزينه في متغير)
+            return generateVisualFromLastDream();
+        }
+        
+        // إذا كانت الرغبة في الإبداع عالية أو العاطفة قوية
+        if (createDesire > 0.6f || emotionalIntensity > 0.7f) {
+            // نختار مفهومًا من الذاكرة أو من الرغبة الحالية
+            String concept = selectConceptForArt();
+            float intensity = (createDesire + emotionalIntensity) / 2;
+            float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+            return new ConsciousMoment.ExpressiveImpulse("visual", intensity, latent, concept);
+        }
+        
+        // فرصة عشوائية منخفضة (للإبداع العفوي)
+        if (entropy.nextFloat() < 0.05f) {
+            String concept = imaginationEngine.getRandomConcept();
+            float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+            return new ConsciousMoment.ExpressiveImpulse("visual", 0.3f, latent, concept);
+        }
+        
+        return null;
+    }
+
+    /**
+     * التحقق مما إذا كان المستخدم قد طلب رسم شيء ما في آخر رسالة
+     */
+    private boolean checkUserArtRequest() {
+        if (lastUserUtterance == null) return false;
+        String lower = lastUserUtterance.toLowerCase();
+        return lower.contains("ارسم") || lower.contains("رسم") || lower.contains("صورة");
+    }
+
+    /**
+     * استخراج المفهوم المطلوب من آخر رسالة للمستخدم
+     */
+    private String extractConceptFromUserRequest() {
+        if (lastUserUtterance == null) return null;
+        String[] words = lastUserUtterance.split("\\s+");
+        // نبحث عن كلمة بعد "ارسم" مثلاً
+        for (int i = 0; i < words.length - 1; i++) {
+            if (words[i].contains("ارسم") || words[i].contains("رسم")) {
+                return words[i + 1];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * اختيار مفهوم مناسب للرسم بناءً على السياق
+     */
+    private String selectConceptForArt() {
+        // 1. من الرغبة الحالية
+        String desire = desireSystem.selectDominantDesire();
+        if (desire != null) {
+            if (desire.equals("explore")) return "استكشاف";
+            if (desire.equals("bond")) return "تواصل";
+            if (desire.equals("create")) return "إبداع";
+            if (desire.equals("rest")) return "راحة";
+        }
+        
+        // 2. من الذاكرة (حدث عاطفي)
+        if (!deepThinkingContext.emotionalEpisodes.isEmpty()) {
+            EpisodicMemory.EventEntity event = deepThinkingContext.emotionalEpisodes.get(0);
+            if (event.narrative != null && event.narrative.length() > 0) {
+                return event.narrative;
+            }
+        }
+        
+        // 3. من العاطفة الحالية
+        if (now.emotionalTone != null) {
+            if (now.emotionalTone.isJoyful()) return "فرح";
+            if (now.emotionalTone.isSad()) return "حزن";
+            if (now.emotionalTone.isAfraid()) return "خوف";
+            if (now.emotionalTone.isCurious()) return "فضول";
+        }
+        
+        // 4. مفهوم عشوائي
+        return imaginationEngine.getRandomConcept();
+    }
+
+    /**
+     * توليد صورة من آخر حلم
+     */
+    private ConsciousMoment.ExpressiveImpulse generateVisualFromLastDream() {
+        // هنا يمكن ربطه بـ VisualDream للحصول على آخر صورة حلم
+        // لكن VisualDream الحالي لا يخزن آخر حلم، لذا نبسط
+        String concept = "حلم";
+        float[] latent = imaginationEngine.generateLatentForConcept(concept, now.emotionalTone);
+        return new ConsciousMoment.ExpressiveImpulse("visual", 0.8f, latent, concept);
     }
 
     /**
