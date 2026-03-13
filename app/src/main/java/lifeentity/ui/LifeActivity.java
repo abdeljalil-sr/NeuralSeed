@@ -469,6 +469,16 @@ public class LifeActivity extends AppCompatActivity {
         });
     }
 
+    // دالة مساعدة للحصول على affect vector بأمان
+    private float[] getSafeAffectVector() {
+        EmotionalState emotion = mind != null ? mind.getCurrentEmotion() : null;
+        if (emotion != null) {
+            return emotion.toAffectVector();
+        }
+        // قيمة افتراضية (محايد)
+        return new float[]{0f, 0.3f, 0f, 0.5f, 0f};
+    }
+
     private void setupSensors() {
         eyes = new VisualCortex(this, database);
         ears = new AuditoryCortex(this);
@@ -558,7 +568,8 @@ public class LifeActivity extends AppCompatActivity {
                 mind.receiveSensoryData(visualInput);
 
                 if (perception.faceCount > 0 && perception.faceEmbedding != null) {
-                    float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
+                    // استخدام affect آمن
+                    float[] currentAffect = getSafeAffectVector();
                     FaceIdentitySystem.IdentityResult result =
                             identitySystem.recognizeOrLearn(perception.faceEmbedding, "camera", currentAffect);
                     if (result.isKnown) {
@@ -582,15 +593,14 @@ public class LifeActivity extends AppCompatActivity {
                 }
 
                 if (sceneUnderstanding != null && perception.frame != null) {
-                    float[] currentAffect = mind.getCurrentEmotion().toAffectVector();
+                    float[] currentAffect = getSafeAffectVector();
                     new Thread(() -> sceneUnderstanding.learnScene(perception.frame, currentAffect)).start();
                 }
 
                 // إرسال إلى نظام التعلم
                 if (learningCore != null) {
-                    // تصحيح الخطأ: استخدام objects بدلاً من dominantObject
                     String visualConcept = perception.objects.isEmpty() ? null : perception.objects.get(0).label;
-                    float[] affect = mind.getCurrentEmotion().toAffectVector();
+                    float[] affect = getSafeAffectVector();
                     learningCore.processVisualWithText(perception.frame, visualConcept, lastRecognizedSpeech, affect);
                 }
             }
